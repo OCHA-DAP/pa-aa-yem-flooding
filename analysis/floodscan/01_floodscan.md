@@ -34,5 +34,9 @@ fs.plot("time", "sum")
 ```
 
 ```python
+fs.time.max()
+```
+
+```python
 
 ```

@@ -1,8 +1,9 @@
+import datetime
 import logging
 
 import pandas as pd
 import xarray as xr
-from ochanticipy import CodAB
+from ochanticipy import ChirpsDaily, CodAB, GeoBoundingBox
 
 from src import constants
 from src.datasource_extensions import FloodScan
@@ -32,3 +33,18 @@ def process_floodscan_admin(admin_level: int = 2):
 def load_floodscan_stats(admin_level: int = 2) -> pd.DataFrame:
     floodscan = FloodScan(country_config=constants.country_config)
     return floodscan.load(feature_col=f"ADM{admin_level}_PCODE")
+
+
+def download_and_process_chirps(clobber=False):
+    gdf = load_codab(admin_level=0)
+    geo_bounding_box = GeoBoundingBox.from_shape(gdf)
+    start_date = datetime.date(year=1998, month=1, day=12)
+    end_date = datetime.date(year=2022, month=12, day=31)
+    chirps = ChirpsDaily(
+        country_config=constants.country_config,
+        geo_bounding_box=geo_bounding_box,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    chirps.download(clobber=clobber)
+    chirps.process(clobber=clobber)
