@@ -158,3 +158,6 @@ dmypy.json
 # Package-specific files
 *.tar.gz
 *.Rcheck/
+
+# notebooks
+*.ipynb
