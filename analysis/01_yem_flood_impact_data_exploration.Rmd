@@ -21,7 +21,9 @@ So far we have identified the following:
     + CCCM flood incident reporting (2021 & 2022)
     + CCCM Site master list
 
-This doc is purely exploratory
+This doc is purely exploratory. In it's current state it is meant to be run line by line, but can be refactored for knitting if necessary
+
+**TODO** add YEM CODs to AA_DATA_DIR? **NOTE:** won't be fully runnable by all team members until this is done
 
 
 ```{r yem_impact_libs}
@@ -119,13 +121,13 @@ con <- DBI::dbConnect(RPostgres::Postgres(),
                       port     = 5432)
 
 adm3 <- st_read(con, "yem_adm3")
-adm3$admin1Pcode
+
 ```
 
 
 ## Start Exploring
  
-#### CCCCM 
+### CCCCM 
 
 ```{r}
 cccm_dfs$`ML DEC2022 - Flooding frequency` %>% 
@@ -151,8 +153,16 @@ cm_flood <- cm_flood %>% select(date_of_episode,
                     num_shelters_affefcted= how_many_shelters_were_affected,
                     num_hhs_lost_documentation=if_yes_how_many_h_hs_did_they_lose_their_personal_legal_documentations_due_to_the_flooding,
                     everything())
+cm_flood %>% glimpse()
+```
 
 
+
+Make CCCM plots
+
+checkout flood reports on a timeline
+
+```{r}
 p_cccm_total_hhs_v <- cm_flood %>% 
     group_by(date_of_episode) %>% 
     summarise(
@@ -169,7 +179,13 @@ p_cccm_total_hhs_v <- cm_flood %>%
         axis.text.x = element_text(angle=90),
         axis.title = element_blank()
           )
+p_cccm_total_hhs_v
+```
 
+
+by governorate - this plot seem potentially useful
+
+```{r}
 p_cccm_total_hhs_v_gov <- cm_flood %>% 
     group_by(date_of_episode,governorate_name) %>% 
     summarise(
@@ -193,7 +209,13 @@ p_cccm_total_hhs_v_gov <- cm_flood %>%
         axis.title = element_blank()
           )
 
-cm_flood %>% glimpse()
+p_cccm_total_hhs_v_gov
+
+```
+
+Also by governorate
+
+```{r}
 cm_flood %>% 
     group_by(governorate_name) %>%
     summarise(
@@ -216,30 +238,24 @@ cm_flood %>%
 ```
 
 
-we see that lat lon are missing... 
 
-year looks good, month looks descent s
-no deaths not terrible 
-river basin has 0 completion
+## EM-DAT
+
+Let's look at some summary stats and completeness of data to what might be useable:
+
+ - year - great (100% completeness)
+ - month decent (95%)
+ - deaths (80%)
+ - total affected (76 %)
+ 
+ - coordinates unusable (0%)
+ - river basin has (0%)
+ 
 ```{r}
 skimr::skim(emdat)
 ```
 
-let's skim desvinttar dta
-```{r}
-desinv %>% 
-    skimr::skim()
-
-desinv %>% 
-    count(event)
-
-desinv <- desinv %>% 
-    mutate(
-        date_fix=janitor::excel_numeric_to_date(as.numeric(date))
-    ) 
-```
-
-
+let's look at the events
 
 ```{r}
 emdat %>% count(event_name)
@@ -501,6 +517,27 @@ emf %>%
     arrange(location) %>% 
     print(n=nrow(.))
 ```
+
+
+## Desinventar
+
+let's skim desvintar dta
+
+all data is flood
+
+```{r}
+desinv %>% 
+    skimr::skim()
+
+desinv %>% 
+    count(event)
+
+desinv <- desinv %>% 
+    mutate(
+        date_fix=janitor::excel_numeric_to_date(as.numeric(date))
+    ) 
+```
+
 
 ## Including Plots
 
