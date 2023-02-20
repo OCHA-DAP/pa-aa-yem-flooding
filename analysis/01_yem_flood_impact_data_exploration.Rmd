@@ -1,5 +1,5 @@
 ---
-title: "Untitled"
+title: "Yemen Impact Flooding Data"
 output: html_document
 date: "2023-02-15"
 ---
@@ -36,6 +36,7 @@ library(lubridate)
 # library(tidytext)
 library(snakecase)
 library(gghdx)
+library(glue)
 library(sysfonts)
 
 font_add_google("Source Sans Pro")
@@ -255,13 +256,12 @@ Let's look at some summary stats and completeness of data to what might be useab
 skimr::skim(emdat)
 ```
 
-let's look at the events
-
+let's breakd down the types and subtypes to make sure we are not missing anything... from this table it looks like filtering to disaster
 ```{r}
 emdat %>% count(event_name)
 ```
 
-let's breakd down the types and subtypes to make sure we are not missing anything... from this table it looks like filtering to disaster 
+break down types further and decide to filter based on `disaster_type` for now
 ```{r}
 emdat %>% count(disaster_subgroup,disaster_type,disaster_subtype,disaster_subsubtype)
 
@@ -269,11 +269,13 @@ emf <- emdat %>%
     filter(disaster_type=="Flood")
 ```
 
+
+after filter let's skim again
 ```{r}
 skimr::skim(emf)
 ```
 
-unfortunately the admin1 codes do not bear any resemblence of admin1 codes in the COD which are 2 digit numbers that follow a "Y"
+unfortunately the admin1 codes do not bear any semblance of admin1 codes in the COD which are 2 digit numbers that follow a "Y"
 ```{r}
 emf %>% 
     count(country,iso,region,location)
@@ -289,6 +291,10 @@ emf %>%
 
 ```
 
+
+Let's visualized
+
+- number of incidents on a timeline
 ```{r}
 
 p_number_incidents <- emf %>% 
@@ -301,7 +307,11 @@ p_number_incidents <- emf %>%
     theme_hdx()
 
 p_number_incidents
+```
 
+same thing, but by type
+
+```{r}
 
 
 emf %>% 
@@ -319,10 +329,11 @@ emf %>%
     theme_hdx()
 ```
 
-Let's see what we can get out of locations
+
+summarise affected/deaths by year and year/month to get some sumnary stats to plot
 
 ```{r}
-library(lubridate)
+
 
 emf_impact_yearly <- emf %>% 
    group_by(year) %>% 
@@ -396,6 +407,12 @@ p_type_death <- emf_impact_type_yearly %>%
     )+
     scale_color_discrete(na.translate=FALSE) 
 
+```
+
+plot reported deaths/affetcted over time and by type
+
+```{r}
+
 ggpubr::ggarrange(p_total_affected,
                   p_type_affected,
                   p_total_deaths,
@@ -404,6 +421,9 @@ ggpubr::ggarrange(p_total_affected,
 
 ```
 
+
+
+Let's look at affected by month to see if there is a pattern. Also let's put all events on a complete timeline and label events with especially high numbers of people affected
 
 ```{r}
 emf_impact_yrmo <- emf_impact_yrmo %>% 
@@ -421,7 +441,7 @@ emf_impact_yrmo <- emf_impact_yrmo %>%
     )
 
 
-emf_impact_yrmo$year %>% range()
+
 
 p_total_affected_by_mo <- emf_impact_yrmo %>% 
     group_by(month_chr) %>% 
@@ -458,7 +478,6 @@ p_affected_by_date <- emf_impact_yrmo %>%
     labs(
         title = "EM-DAT Flood Data: People Affected",
          subtitle = "Yemen (1972-2022)")+
-    geom_vline(xintercept = desinv %>% filter(!is.na(date_fix)) %>% pull(date_fix))+
     theme_hdx()+
     theme(
         axis.text.x = element_text(angle=90),
@@ -472,8 +491,10 @@ ggpubr::ggarrange(p_total_affected_by_mo,
 
 ```
 
-hmm so I wonder if we can pull precip/spi in and look at those dates...but what about the geographic component
+- hmm so I wonder if we can pull precip/spi in and look at those dates...but what about the geographic component
+- here is initially data cleaning work to disaggregate the data by admin 1 - this might be useful, but will require some assumptions.
 
+***note:**  if NA shows in admin1 column that means I have not found a suitable admin1 from the master list
 
 
 ```{r}
@@ -539,12 +560,32 @@ desinv <- desinv %>%
 ```
 
 
-## Including Plots
 
-You can also embed plots, for example:
+what if we combine the desinventar flood dates with the EM-DAT. Below I add vertical lines for Desinventar flood dates:
+```{r}
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+p_affected_by_date <- emf_impact_yrmo %>%
+    mutate(
+        aff_lab = if_else(total_affected>5e4,glue("{month_chr} ({str_sub(year(date),3,4)})"),NA_character_)
+    ) %>% 
+    filter(year(date)<=2023) %>% 
+    ggplot(aes(x=date, y=total_affected))+
+    geom_point()+
+    geom_text(aes(label=aff_lab),vjust=2)+
+    scale_x_date(date_breaks = "year",date_labels = "%Y")+
+    scale_y_continuous_hdx(labels=scales::comma,limits=(c(0,375e3)))+
+    labs(
+        title = "EM-DAT Flood Data: People Affected",
+         subtitle = "Yemen (1972-2022)")+
+    geom_vline(xintercept = desinv %>% filter(!is.na(date_fix)) %>% pull(date_fix))+
+    theme_hdx()+
+    theme(
+        axis.text.x = element_text(angle=90),
+        axis.title = element_blank()
+    )
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+p_affected_by_date
+```
