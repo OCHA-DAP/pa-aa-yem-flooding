@@ -107,6 +107,60 @@ data.frame(
     filter(str_detect(cccm_colnames,"location|gps|coordinate|latit|long"))
 ```
 
+- gps coords
+```{r}
+cccm_new_fp<- file.path(Sys.getenv("AA_DATA_DIR"),"private","exploration","yem","Yemen -  CCCM Cluster -December ML - Flooding available data.xlsx") 
+cccm_new_sheet_names <- excel_sheets(cccm_new_fp)
+
+readxl::read_excel(path = cccm_new_fp,sheet = cccm_new_sheet_names[1])
+ss_skip_vals <- c(1,rep(0,3))
+cccm_new <- dfs <- cccm_new_sheet_names %>% 
+    map2(.y = skip_vals,
+        ~read_excel(cccm_new_fp,sheet=.x,skip = .y) %>% 
+            clean_names()
+    ) %>% 
+    set_names(cccm_new_sheet_names) 
+
+# same records - hopefully the new has coordinates
+all(cccm_new %>% map(~nrow(.)) %>% unlist() == cccm_dfs %>% map(~nrow(.x)) %>% unlist())
+
+cccm_new$`ML- Flooding Available data` %>% 
+    glimpse()
+
+
+
+# basically a master list
+cccm_new$`ML- Flooding Available data` %>% 
+    count(site_id) %>% summarise(mean_n=mean(n))
+
+# here are flood reports - same idp sites show up more than 1x. Max # of times is 8 which
+# indicates 1 or 2 sites are not dominating reports... but it could be a specific admin
+cccm_new$`CCCM FLOOD REPORT IN IDP SITES` %>% 
+    count(cccm_idp_sites_master_list_site_id) %>% 
+    distinct(n)
+
+
+
+
+# this has 14 less than other master-- let's use it for now.. 
+cm_master_flood_db <- cccm_dfs$`ML- Flooding Available data` 
+
+lat_lon_lookup <- cm_master_flood_db %>% 
+    select(site_id, longitude = available_coordinates_longitude, latitude = available_coordinates_latitude)
+
+
+# weird that there are 
+cccm_new$`CCCM FLOOD REPORT IN IDP SITES` %>% 
+    filter(!cccm_idp_sites_master_list_site_id%in% lat_lon_lookup$site_id ) %>% 
+    count(cccm_idp_sites_master_list_site_id)
+
+
+cccm_new$`CCCM FLOOD REPORT IN IDP SITES` %>% 
+    left_join(lat_lon_lookup,
+              by=c("cccm_idp_sites_master_list_site_id"="site_id")) %>% 
+    filter(!is.na(latitude))
+```
+
 
 Should load in a YEM admin COD, but not yet in AA_DATA_DIR.. for now I will just use my db, but need to replace this
 ```{r}
@@ -130,23 +184,11 @@ adm3 <- st_read(con, "yem_adm3")
  
 ### CCCCM 
 
+just reported between 2021-06-12& 2022-09-26
 ```{r}
-cccm_dfs$`ML DEC2022 - Flooding frequency` %>% 
-    skimr::skim()
 
-cccm_dfs$`FLOOD REPORT IN SITES - Dec2022` %>% 
-    skimr::skim()
 
-cccm_dfs$Sheet1
-
-cccm_dfs$Sheet5
-
-cccm_master_dfs$`CCCM IDP SITES`$`Location/Village Name` %>% tabyl()
-cccm_master_dfs$`CCCM IDP SITES` %>% 
-    skimr::skim()
-cccm_master_dfs$GRAPH
-
-cm_flood <- cccm_dfs$`FLOOD REPORT IN SITES - Dec2022` 
+cm_flood <- cccm_new$`CCCM FLOOD REPORT IN IDP SITES`
 
 cm_flood <- cm_flood %>% select(date_of_episode,
                     num_init_hhs =initial_figures_h_hs,
@@ -155,6 +197,7 @@ cm_flood <- cm_flood %>% select(date_of_episode,
                     num_hhs_lost_documentation=if_yes_how_many_h_hs_did_they_lose_their_personal_legal_documentations_due_to_the_flooding,
                     everything())
 cm_flood %>% glimpse()
+cm_flood$date_of_episode %>% range()
 ```
 
 
@@ -214,14 +257,19 @@ p_cccm_total_hhs_v_gov
 
 ```
 
-Also by governorate
+Also by governorate, but just records... not summarised number affected.
 
 ```{r}
-cm_flood %>% 
+reported_floods_tbl <- cm_flood %>% 
     group_by(governorate_name) %>%
     summarise(
         num_records=n()
-        ) %>% 
+    ) %>% 
+    mutate(
+        source= "flood reported"
+    )
+
+reported_floods_tbl %>% 
     ggplot(aes(x= reorder(governorate_name,num_records), y= num_records))+
     geom_col()+
     geom_text(aes(label=num_records),hjust=-1.2)+
@@ -229,13 +277,48 @@ cm_flood %>%
     coord_flip()+
     labs(title= "CCCM Flood Report Data: Number Reports by Governorate",
          subtitle = "Yemen (2021-2022)")+
-    
-    
     theme_hdx()+
     theme(
         axis.text.x = element_text(angle=90),
         axis.title = element_blank()
-          )
+    )
+```
+
+I wonder is this just proportional to the # of sites CCCM is monitoring per governorate
+
+```{r}
+idp_sites_per_gov_tbl <- cm_master_flood_db %>% 
+    group_by(governorate_name) %>%
+    summarise(
+        num_records=n()
+        ) %>%
+    mutate(
+        source = "master"
+    )
+
+bind_rows(idp_sites_per_gov_tbl,reported_floods_tbl) %>% arrange(governorate_name)
+
+bind_rows(idp_sites_per_gov_tbl,reported_floods_tbl) %>% 
+    ggplot(aes(x= reorder(governorate_name,num_records),
+               y= num_records,fill=source))+
+    geom_col(position="dodge")+
+    # geom_text(aes(label=num_records),hjust=-1.2)+
+    # scale_y_continuous(breaks = seq(0,175, by=25), limits = c(0,150))+
+    coord_flip()+
+    labs(title= "CCCM Flood Report Data: # of Sites vs # Flood Reports",
+         subtitle = "Yemen (2021-2022) by governorate")+
+    theme_hdx()+
+    theme(
+        axis.text.x = element_text(angle=90),
+        axis.title = element_blank()
+    )
+    
+
+bind_rows(idp_sites_per_gov_tbl,reported_floods_tbl) %>% 
+    pivot_wider(id_cols = governorate_name,names_from  = source,values_from = num_records) %>% 
+    ggplot(aes(x= master, y= `flood reported`))+
+    geom_point()
+
 ```
 
 

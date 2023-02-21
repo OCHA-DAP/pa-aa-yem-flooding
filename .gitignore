@@ -158,3 +158,5 @@ dmypy.json
 # Package-specific files
 *.tar.gz
 *.Rcheck/
+
+*.rds
