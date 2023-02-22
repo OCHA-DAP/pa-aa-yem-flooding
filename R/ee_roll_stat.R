@@ -1,16 +1,26 @@
 
-library(rgee)
-library(tidyverse)
-ee_Initialize()
-chirps_link <- "UCSB-CHG/CHIRPS/DAILY"
-chirps <- ee$ImageCollection(chirps_link)
-x <- chirps$filterDate("2021-01-01","2022-01-01")
-test <- chirps$filterDate("2021-01-01","2021-01-03")
-ee_get_date_ic(test)
-
-rolling_10_max <- ee_roll_stat(x = x,window = 10, stat="sum")
 
 
+
+#' Title
+#'
+#' @param x imageCollection
+#' @param window \code{numeric} look back in days
+#' @param stat \code{character} stat/function to roll with
+#'
+#' @return
+#' @export
+#'
+#' @examples \dontrun{
+#' library(rgee)
+#' library(tidyverse)
+#'  ee_Initialize()
+#'  chirps_link <- "UCSB-CHG/CHIRPS/DAILY"
+#'  chirps <- ee$ImageCollection(chirps_link)
+#'  x <- chirps$filterDate("2021-01-01","2022-01-01")
+#'  test <- chirps$filterDate("2021-01-01","2021-01-03")
+#'  rolling_10_max <- ee_roll_stat(x = x,window = 10, stat="sum")
+#' }
 ee_roll <- function(x, window,stat){
     ee_reducer <- tidyrgee:::stat_to_reducer_full(stat)
     first_img_date <- ee$Date(x$sort("system:time_start",TRUE)$first()$get("system:time_start"))
