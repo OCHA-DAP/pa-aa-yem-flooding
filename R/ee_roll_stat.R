@@ -5,10 +5,13 @@ ee_Initialize()
 chirps_link <- "UCSB-CHG/CHIRPS/DAILY"
 chirps <- ee$ImageCollection(chirps_link)
 x <- chirps$filterDate("2021-01-01","2022-01-01")
+test <- chirps$filterDate("2021-01-01","2021-01-03")
+ee_get_date_ic(test)
 
 rolling_10_max <- ee_roll_stat(x = x,window = 10, stat="sum")
 
-ee_roll_stat <- function(x, window,stat){
+
+ee_roll <- function(x, window,stat){
     ee_reducer <- tidyrgee:::stat_to_reducer_full(stat)
     first_img_date <- ee$Date(x$sort("system:time_start",TRUE)$first()$get("system:time_start"))
     last_img_date <- ee$Date(x$sort("system:time_start",FALSE)$first()$get("system:time_start"))
@@ -20,8 +23,9 @@ ee_roll_stat <- function(x, window,stat){
     
     x_roll <- rgee::ee$ImageCollection$fromImages(
         dates_to_map$map(ee_utils_pyfunc(function(dt){
-            start_date <- first_date_roll$advance(ee$Number(window-1)$multiply(-1), "day")
-            x_temp <- x$filterDate(start_date, dt)
+            dt_incl <- ee$Date(dt)$advance(ee$Number(1),"day")
+            start_date <- ee$Date(dt)$advance(ee$Number(window-1)$multiply(-1), "day")
+            x_temp <- x$filterDate(start_date, dt_incl)
             x_reduced <- ee_reducer(x_temp)
             x_reduced$set('system:time_start',dt)
         }
@@ -45,6 +49,3 @@ stat_to_reducer <- function(fun){ switch(
 )
 }
 
-tidyrgee:::ee_month_composite.tidyee(
-    
-)
