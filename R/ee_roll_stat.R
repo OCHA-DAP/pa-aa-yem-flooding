@@ -2,7 +2,7 @@
 
 
 
-#' Title
+#' ee_roll
 #'
 #' @param x imageCollection
 #' @param window \code{numeric} look back in days
