@@ -1,3 +1,8 @@
+# this script was only for testing an earth engine function I made for rolling stats: ee_roll vs
+# the terra::roll function. This testing func probably does not belong in this repo, will move it later
+
+
+
 full_fps <- list.files(file.path(Sys.getenv("AA_DATA_DIR"),"public","processed","yem","chirps"),full.names = T)
 rast_names <- list.files(file.path(Sys.getenv("AA_DATA_DIR"),"public","processed","yem","chirps"))
 
