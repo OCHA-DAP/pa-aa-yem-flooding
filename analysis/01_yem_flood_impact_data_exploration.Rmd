@@ -107,6 +107,9 @@ data.frame(
     filter(str_detect(cccm_colnames,"location|gps|coordinate|latit|long"))
 ```
 
+
+
+
 - gps coords
 ```{r}
 cccm_new_fp<- file.path(Sys.getenv("AA_DATA_DIR"),"private","exploration","yem","Yemen -  CCCM Cluster -December ML - Flooding available data.xlsx") 
@@ -124,41 +127,169 @@ cccm_new <- dfs <- cccm_new_sheet_names %>%
 # same records - hopefully the new has coordinates
 all(cccm_new %>% map(~nrow(.)) %>% unlist() == cccm_dfs %>% map(~nrow(.x)) %>% unlist())
 
-cccm_new$`ML- Flooding Available data` %>% 
-    glimpse()
-
-
-
 # basically a master list
 cccm_new$`ML- Flooding Available data` %>% 
     count(site_id) %>% summarise(mean_n=mean(n))
 
-# here are flood reports - same idp sites show up more than 1x. Max # of times is 8 which
-# indicates 1 or 2 sites are not dominating reports... but it could be a specific admin
-cccm_new$`CCCM FLOOD REPORT IN IDP SITES` %>% 
-    count(cccm_idp_sites_master_list_site_id) %>% 
-    distinct(n)
+cccm_master_list <- cccm_new$`ML- Flooding Available data` 
+cccm_floodlist <- cccm_new$`CCCM FLOOD REPORT IN IDP SITES`
 
+lat_lon_lookup <- cccm_master_list %>% 
+    select(site_id,
+           longitude = available_coordinates_longitude,
+           latitude = available_coordinates_latitude,
+           site_population)
 
-
-
-# this has 14 less than other master-- let's use it for now.. 
-cm_master_flood_db <- cccm_dfs$`ML- Flooding Available data` 
-
-lat_lon_lookup <- cm_master_flood_db %>% 
-    select(site_id, longitude = available_coordinates_longitude, latitude = available_coordinates_latitude)
-
-
-# weird that there are 
-cccm_new$`CCCM FLOOD REPORT IN IDP SITES` %>% 
+cccm_floodlist %>% 
+    distinct(cccm_idp_sites_master_list_site_id) 
+    
+# 13 sites in floodlist that do not have coordinates
+cccm_floodlist%>% 
     filter(!cccm_idp_sites_master_list_site_id%in% lat_lon_lookup$site_id ) %>% 
     count(cccm_idp_sites_master_list_site_id)
 
 
-cccm_new$`CCCM FLOOD REPORT IN IDP SITES` %>% 
+cccm_floodlist_w_coords <- cccm_floodlist%>% 
     left_join(lat_lon_lookup,
               by=c("cccm_idp_sites_master_list_site_id"="site_id")) %>% 
-    filter(!is.na(latitude))
+    filter(!is.na(latitude)) %>% 
+    rename(site_id="cccm_idp_sites_master_list_site_id")
+    
+
+cccm_floodlist_w_coords %>%  
+    distinct(site_id)
+```
+
+```{r}
+cccm_floodlist_w_coords %>% glimpse()
+cccm_floodlist_w_coords %>% 
+    glimpse()
+site_level_stats <- cccm_floodlist_w_coords %>% 
+    rename(
+        num_init_hhs =initial_figures_h_hs,
+        num_verified_hhs = verified_figures_h_hs,
+        num_shelters_affected= how_many_shelters_were_affected,
+        num_hhs_lost_documentation=if_yes_how_many_h_hs_did_they_lose_their_personal_legal_documentations_due_to_the_flooding,
+        site_name= cccm_idp_sites_master_list_site_name
+    ) %>% 
+    mutate(
+        #https://fscluster.org/sites/default/files/documents/operational_guidance_note_-_minimum_expenditure_basket_september_2022.pdf  
+        pop_affected= num_shelters_affected * 7, 
+        pct_pop_affected=  pop_affected/site_population
+    ) %>% 
+    group_by(governorate_name,district_name, sub_district_name,site_name ,site_id) %>% 
+    summarise(
+        num_flood_reports = n(),
+        max_affected_storm = max(num_shelters_affected),
+        across(starts_with("num_"),~sum(.x,na.rm=T)),
+        site_population = unique(site_population),
+        mean_pct_pop_affected = mean(pct_pop_affected,na.rm=T),
+        max_pct_pop_affected = max(pct_pop_affected),
+        .groups = "drop"
+    ) 
+
+
+
+p_num_frs_site <- site_level_stats %>% 
+    slice_max(order_by = num_flood_reports,n = 10) %>% 
+    arrange(desc(num_flood_reports)) %>% 
+    slice(1:10) %>% 
+    mutate(
+        loc_label = glue("{site_name} ({district_name})")
+    ) %>% 
+    ggplot(aes(x=reorder(loc_label,num_flood_reports),y=num_flood_reports))+
+    geom_col()+
+    labs(y= "# Floods Reported",title = "Number of flood events reported (top 10 tites)",subtitle = "Yemen: CCCM Flood Report Database (2021-2022)")+
+    coord_flip()+
+    theme_hdx()+
+    theme(
+        axis.title.y = element_blank()
+    )
+
+
+p_shelters_affected_site <- site_level_stats %>% 
+    slice_max(order_by = num_shelters_affected,n = 10) %>% 
+    arrange(desc(num_shelters_affected)) %>% 
+    slice(1:10) %>% 
+    mutate(
+        loc_label = glue("{site_name} ({district_name})")
+    ) %>% 
+    ggplot(aes(x=reorder(loc_label,num_shelters_affected),y=num_shelters_affected))+
+    geom_col()+
+    labs(y= "# Shelters Affected by flooding",
+         title = "Number Shelters Affected (top 10 tites)",
+         subtitle = "Yemen: CCCM Flood Report Database (2021-2022)")+
+    coord_flip()+
+    theme_hdx()+
+    theme(
+        axis.title.y = element_blank()
+    )
+p_pct_affected_site <- site_level_stats %>% 
+    slice_max(order_by = mean_pct_pop_affected,n = 10) %>% 
+    arrange(desc(mean_pct_pop_affected)) %>% 
+    slice(1:10) %>% 
+    mutate(
+        loc_label = glue("{site_name} ({district_name})")
+    ) %>% 
+    ggplot(aes(x=reorder(loc_label,mean_pct_pop_affected),y=mean_pct_pop_affected))+
+    geom_col()+
+    scale_y_continuous(labels=scales::percent)+
+    labs(y= "% Affected by flooding",
+         title = "% of Individuals Affected (top 10 tites)",
+         subtitle = "Yemen: CCCM Flood Report Database (2021-2022)",
+         caption = "Individuals affected calculated by multiplying shelters by 7"
+         )+
+    
+    coord_flip()+
+    theme_hdx()+
+    theme(
+        axis.title.y = element_blank()
+    )
+
+
+top_weird_ratio <- site_level_stats %>% 
+    mutate(weird_ratio = num_shelters_affected/(10-mean_pct_pop_affected)) %>% 
+    arrange(desc(weird_ratio)) %>% 
+    slice(1:10) %>% 
+    pull(site_id)
+
+p_ratio <- site_level_stats %>% 
+    mutate(
+        top_weird = ifelse(site_id %in% top_weird_ratio,"top","not"),
+        # loc_label = glue("{site_name} ({district_name})"),
+        pt_label = ifelse(site_id %in% top_weird_ratio,site_name,"")
+    ) %>% 
+    ggplot(aes(x= num_shelters_affected,y=mean_pct_pop_affected, color=top_weird))+
+    geom_point()+ 
+    ggrepel::geom_text_repel(aes(label=pt_label))+
+    # geom_text(aes(label=pt_label))+
+    labs(x= "Number Shelters Affected", 
+         y= "Average % Individuals Affected",
+         title = "Potential zoom in  based on Number Affected and % Individuals Affected",
+         subtitle = "Yemen: CCCM Flood Report Database (2021-2022)"
+         )+
+    scale_x_log10()+
+    scale_y_continuous(labels=scales::percent)+
+
+    
+    theme_hdx()+
+    theme(
+        legend.position = "none"
+    )
+
+library(ggpubr)
+
+ggpubr::ggarrange(p_num_frs_site,
+                  p_shelters_affected_site,
+                  p_pct_affected_site,
+                  p_ratio,ncol = 2,nrow=2
+                  )
+
+```
+
+
+```{r}
+
 ```
 
 

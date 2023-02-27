@@ -8,12 +8,13 @@ library(janitor)
 write_zonal_stats <- c(T,F)[2]
 
 # LOAD COD - Replace w GDRIVE ---------------------------------------------
+db_info <- as.list(Sys.getenv()) %>% 
+    keep_at(at = ~str_detect(.x,"^ldb"))
 
 con <- DBI::dbConnect(RPostgres::Postgres(),
-                      host= "localhost",
-                      dbname = "global_gdb",
-                      user      = "postgres",
-                      # password      = db_info$drc_chol_db_pw,
+                      host= db_info$ldb_host,
+                      dbname = db_info$ldb,
+                      user      = db_info$ldb_user,
                       port     = 5432)
 
 adm0 <- st_read(con, "yem_adm0")
