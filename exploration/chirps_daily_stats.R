@@ -3,7 +3,8 @@ library(sf)
 library(terra)
 library(exactextractr)
 library(lubridate)
-
+library(readxl)
+library(janitor)
 write_zonal_stats <- c(T,F)[2]
 
 # LOAD COD - Replace w GDRIVE ---------------------------------------------
@@ -19,6 +20,35 @@ adm0 <- st_read(con, "yem_adm0")
 adm1 <- st_read(con, "yem_adm1")
 adm2 <- st_read(con, "yem_adm2")
 
+cccm_new_fp<- file.path(Sys.getenv("AA_DATA_DIR"),"private","exploration","yem","Yemen -  CCCM Cluster -December ML - Flooding available data.xlsx") 
+cccm_new_sheet_names <- excel_sheets(cccm_new_fp)
+
+
+ss_skip_vals <- c(1,rep(0,3))
+cccm_new <- cccm_new_sheet_names %>% 
+    map2(.y = ss_skip_vals,
+         ~read_excel(cccm_new_fp,sheet=.x,skip = .y) %>% 
+             clean_names()
+    ) %>% 
+    set_names(cccm_new_sheet_names) 
+
+cccm_master_list <- cccm_new$`ML- Flooding Available data` 
+cccm_floodlist <- cccm_new$`CCCM FLOOD REPORT IN IDP SITES`
+
+lat_lon_lookup <- cccm_master_list %>% 
+    select(site_id,
+           longitude = available_coordinates_longitude,
+           latitude = available_coordinates_latitude,
+           site_population)
+
+cccm_floodlist_w_coords <- cccm_floodlist%>% 
+    left_join(lat_lon_lookup,
+              by=c("cccm_idp_sites_master_list_site_id"="site_id")) %>% 
+    filter(!is.na(latitude)) %>% 
+    rename(site_id="cccm_idp_sites_master_list_site_id")
+
+cccm_floodlist_sp <- st_as_sf(cccm_floodlist_w_coords, coords=c("longitude","latitude"),crs=4326)
+
 
 
 full_fps <- list.files(file.path(Sys.getenv("AA_DATA_DIR"),"public","processed","yem","chirps"),full.names = T)
@@ -26,59 +56,6 @@ rast_names <- list.files(file.path(Sys.getenv("AA_DATA_DIR"),"public","processed
 
 rast_dates <- str_extract(string = rast_names,pattern = "(?<=yem_chirps_daily_).*?(?=_r0)") %>% 
     str_replace_all("_","-")
-
-
-# was using this batching method when I thought there was a performance issue, but I
-# do believe it was simply because the GDRIVE was not synced
-
-rast_cat_split<- tibble(date=rast_dates) %>% 
-    mutate(
-        id = row_number(),
-        date= ymd(date),
-        yr = year(date)
-        ) %>% 
-    group_split(yr)
-
-
-adm0_stats <- rast_cat_split %>% 
-    map_dfr(
-        ~{
-            print(.x %>% 
-                pull(date) %>% range())
-            indices <- .x %>% 
-                pull(id)
-            
-            r <- terra:::rast(raster::stack(full_fps[indices]))
-            r[r==-9999]<-NA
-            terra::set.names(x = r,rast_dates[indices])
-            adm0_extr <- exact_extract(r,
-                                       adm0,
-                                       fun=c("mean","stdev","median","min","max","sum"), 
-                                       force_df=T,
-                                       full_colnames=T
-            )
-            gc(r)
-            return(adm0_extr %>%
-                pivot_longer(everything()))
-            
-            
-            }
-        
-    )
-
-
-adm0_stats_wide <- bind_rows(adm0_stats) %>% 
-    separate(name,into = c('stat',"date"),sep = "\\.") %>% 
-    pivot_wider(names_from = "stat",values_from = "value") %>% 
-    mutate(ADM0_PCODE = "YE")
-
-if(write_zonal_stats){
-    adm0_stats_wide %>% 
-        write_csv(
-            file.path(Sys.getenv("AA_DATA_DIR"),"public","processed","yem","chirps_zonal","chirps_daily_stats_ADM0_PCODE.csv")        
-        )
-    
-}
 
 
 # Re Start Extraction -----------------------------------------------------
@@ -90,7 +67,6 @@ if(write_zonal_stats){
 chirps_daily_full <- terra:::rast(raster::stack(full_fps))
 terra::set.names(x = chirps_daily_full,rast_dates)
 
-
 # masking values and next step of rolling stat are slow on this big raster...
 # would be interesting to see about `sds` methods, if no bueno batching is an option
 
@@ -101,7 +77,27 @@ system.time(
 
 # slow also (8 min on my computer)... guess im asking alot of the local
 system.time(
-    chirps_roll_full <- terra::roll(chirps_daily_full,n=10,fun=sum,type="to")
+    chirps_roll10 <- terra::roll(chirps_daily_full,n=10,fun=sum,type="to")
+)
+
+cccm_sites_roll10 <- terra::extract(x = chirps_roll10,y=cccm_floodlist_sp)
+
+roll10_df<- cbind(site_id= cccm_floodlist_sp$site_id,cccm_sites_roll10) %>% 
+    select(-ID) %>% 
+    pivot_longer(-site_id,names_to="date",values_to = "precip_roll10")
+
+system.time(
+    chirps_roll5 <- terra::roll(chirps_daily_full,n=5,fun=sum,type="to")
+)
+roll5_df<- cbind(site_id= cccm_floodlist_sp$site_id,cccm_sites_roll5) %>% 
+    select(-ID) %>% 
+    pivot_longer(-site_id,names_to="date",values_to = "precip_roll15")
+
+system.time(
+    chirps_roll3 <- terra::roll(chirps_daily_full,n=3,fun=sum,type="to")
+)
+system.time(
+    chirps_roll30 <- terra::roll(chirps_daily_full,n=30,fun=sum,type="to")
 )
 
 
