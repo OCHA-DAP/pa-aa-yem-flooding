@@ -14,7 +14,9 @@ library(readxl)
 library(janitor)
 library(zoo)
 library(rgee)
+library(ggrepel)
 library(tidyrgee)
+library(gghdx)
 ee_Initialize(drive= T)
 # library(tarchetypes) # Load other packages as needed. # nolint
 
@@ -82,10 +84,15 @@ list(
           ) 
   ),
   # extract daily chirps data to site locations
+  # this takes about 10 minutes
   tar_target(
       name= cccm_site_chirps,
       command= chirps_daily_to_sites(raster_dir = chirps_dir,
                                      pt= cccm_flood_report_sites)
+  ),
+  tar_target(
+      name= cccm_site_chirp_stats,
+      command = calc_rolling_precip_sites(df = cccm_site_chirps)
   ),
   # chose 4 different metrics to investigate which sites we could focus on
   # 1.) # shelters affected
@@ -99,7 +106,12 @@ list(
                                    n=10)
       
   ),
-  
+  tar_target(name= p_timeseries_rainfall,
+             command= plot_rainfall_impact_timeseries(site_rainfall = cccm_site_chirp_stats,
+                                                            flood_report = cccm_flood_impact_data,
+                                                            prioritization_list = high_priority_sites,
+                                                            prioritize_by = "by_affected_shelters")
+             ),
   # getting creative with some RS. Are there certain locations that are more vulnearable where 
   # rainfall->impact relationship is different?
   
