@@ -261,6 +261,11 @@ plot(bla)
 
 ```{r}
 fsrp <- file.path(Sys.getenv("AA_DATA_DIR"),"private/raw/glb/floodscan/floodscan_flooded_fraction_africa_19980112-20221231_p00/aer_sfed_area_300s_19980112_20221231_v05r01.nc")
+
+fsr <- terra::sds(fsrp)
+
+
+fsr <- terra:::rast(raster::stack(fsrp))
 fsr <- terra::rast(fsrp)
 raster::raster(fsr)
 plot(fsr[[1]])
