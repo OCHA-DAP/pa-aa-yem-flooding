@@ -7,4 +7,5 @@ numpy==1.24.2
 pandas==1.5.3
 pre-commit==2.15.0
 rasterstats==0.18.0
+scipy==1.10.1
 xarray==2023.2.0
