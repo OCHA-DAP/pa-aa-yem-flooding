@@ -1,11 +1,15 @@
 import logging
+from datetime import date, timedelta
 from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+import rasterio
 import xarray as xr
+from dateutil import rrule
 from ochanticipy import CountryConfig
 from ochanticipy.datasources.datasource import DataSource
+from rasterio.errors import RasterioIOError
 
 logger = logging.getLogger(__name__)
 
@@ -89,17 +93,93 @@ class FloodScan(_DataSourceExtension):
         )
 
 
-class FloodScanStats(_DataSourceExtension):
+class ChirpsGefs(_DataSourceExtension):
+    _DATASOURCE_BASENAME = "chirps_gefs"
+    _IS_PUBLIC = True
+    _IS_GLOBAL_RAW = False
+    _BASE_URL = (
+        "https://data.chc.ucsb.edu/products/EWX/data/forecasts/"
+        "CHIRPS-GEFS_precip_v12/{days_ahead}day/precip_mean/"
+        "data-mean_{start_date}_{end_date}.tif"
+    )
+    _DATE_FORMAT = "%Y%m%d"
+
     def __init__(
         self,
         country_config: CountryConfig,
-        adm_level: int,
-        is_global_raw=False,
+        days_ahead: int,  # Needs to be 5, 10, or 15
+        adm0: gpd.GeoDataFrame,
+        end_date: date,
+        start_date: date = date(2000, 1, 1),
     ):
-        self._PROCESSED_FILENAME = f"tcd_floodscan_stats_adm{adm_level}.csv"
-        self._DATASOURCE_BASENAME = "floodscan"
-        self._IS_PUBLIC = False
-        super().__init__(country_config, is_global_raw)
+        # Add anything here
+        self._days_ahead = days_ahead
+        self._adm0 = adm0
+        self._start_date = start_date
+        self._end_date = end_date
+        self._date_range = rrule.rrule(
+            freq=rrule.DAILY,
+            dtstart=self._start_date,
+            until=self._end_date,
+        )
+        super().__init__(country_config)
 
-    def load(self) -> pd.DataFrame:
-        return pd.read_csv(self.processed_filepath, parse_dates=["time"])
+    def download(self, clobber=False):
+        """Download the chirps-gefs africa forecast for the given year and
+        day of the year We are focussing on the Africa data, since global
+        data gets massive.
+
+        Nevertheless, even for Africa it gets massive. Note that a part of
+        the data for 2020 is missing due to a change in model date: date to
+        download data for. should be a datetime object config: Config class
+        that contains parameters such as directory names days_ahead: number
+        of days ahead the forecast should predict. Can be 5,10 or 15
+        use_cache: if True, don't download if filename already exists
+        """
+        self._raw_base_dir.mkdir(parents=True, exist_ok=True)
+        for forecast_date in self._date_range:
+            forecast_date_str = forecast_date.strftime(
+                format=self._DATE_FORMAT
+            )
+            filename = (
+                f"chirpsgefs_global_{self._days_ahead}days_"
+                f"{forecast_date_str}.tif"
+            )
+            download_filepath = self._raw_base_dir / filename
+            if not clobber and download_filepath.exists():
+                logger.info(
+                    f"{download_filepath} already exists and "
+                    f"clobber is False, skipping"
+                )
+            # TODO: check if exists
+            url = self._BASE_URL.format(
+                days_ahead=f"{self._days_ahead}".zfill(2),
+                start_date=forecast_date_str,
+                end_date=(
+                    forecast_date + timedelta(days=self._days_ahead - 1)
+                ).strftime(format=self._DATE_FORMAT),
+            )
+            try:
+                with rasterio.open(url) as src:
+                    # From here
+                    # https://rasterio.readthedocs.io/en/latest/topics/masking-by-shapefile.html
+                    out_image, out_transform = rasterio.mask.mask(
+                        src, self._adm0.geometry, crop=True
+                    )
+                    out_meta = src.meta
+            except RasterioIOError:
+                logger.warning(
+                    f"Url {url} for {forecast_date} doesn't exist, skipping"
+                )
+                continue
+            out_meta.update(
+                {
+                    "driver": "GTiff",
+                    "height": out_image.shape[1],
+                    "width": out_image.shape[2],
+                    "transform": out_transform,
+                }
+            )
+            with rasterio.open(download_filepath, "w", **out_meta) as dest:
+                dest.write(out_image)
+            logger.info(f"Downloaded and cropped {url} to {download_filepath}")
