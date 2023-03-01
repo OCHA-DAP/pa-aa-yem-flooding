@@ -43,6 +43,12 @@ chirps_dir <- file.path(Sys.getenv("AA_DATA_DIR"),
                                  "processed",
                                  "yem","chirps")
 
+chirps_gefs_dir <- file.path(Sys.getenv("AA_DATA_DIR"),
+                             "public",
+                             "raw",
+                             "yem",
+                             "chirps_gefs") 
+
 
 # Replace the target list below with your own:
 list(
@@ -93,6 +99,10 @@ list(
   tar_target(
       name= cccm_site_chirp_stats,
       command = calc_rolling_precip_sites(df = cccm_site_chirps)
+  ),
+  tar_target(
+      name = gefs_chirps_pts,
+      command = extract_chirps_gefs_to_pts(raster_dir =chirps_gefs_dir,forecast = 10,sites =cccm_flood_report_sites  )
   ),
   # chose 4 different metrics to investigate which sites we could focus on
   # 1.) # shelters affected

@@ -453,5 +453,80 @@ plot_rainfall_impact_timeseries <- function(site_rainfall,
 }
 
 
+extract_chirps_gefs_to_pts <- function(raster_dir,forecast,sites=cccm_flood_report_sites){
+    forecast_str = as.character(forecast)
+    sub_dir <- switch(forecast_str,
+           "10"="10days",
+           "5" = "05days",
+           "15" = "15days")
+    raster_dir_full <-  file.path(raster_dir,sub_dir)
+    file_names_short <- list.files(raster_dir_full)
+    file_names_full <-  list.files(raster_dir_full,full.names = T)
+    
+    rast_dates <- str_extract_all(string = file_names_short,"\\d+") %>% 
+        map(2) %>% 
+        unlist() %>% 
+        ymd()
+    
+    # I'm going to batch read in the rasters by year to get an understanding
+    # of time
+    file_tbl <- tibble(
+        file_names_short,
+        file_names_full,
+        rast_dates,
+        rast_year = year(rast_dates)
+    )
+    file_tbl_split <- split(file_tbl,file_tbl$rast_year)
+    
+    rstack_list <- file_tbl_split %>% 
+        map(~ {
+            yr_temp<- unique(.x$rast_year)
+            cat(yr_temp,"\n")
+            rstack <- terra:::rast(raster::stack(.x$file_names_full))
+            terra::set.names(rstack,.x$rast_dates)
+            return(rstack)
+        }
+        )
+    
+    gef_chirps_sites <- rstack_list %>% 
+        map_dfr(
+           ~{
+               gefs_sites <- terra::extract(x = .x,y=sites)
+               cbind(site_id= sites$site_id,gefs_sites) %>% 
+                   select(-ID) %>% 
+                   pivot_longer(
+                       -site_id,
+                       names_to="date",
+                       values_to = paste0("gefs_chirps_",forecast_str)
+                   )
+           }
+        )
+    chull<- st_convex_hull(sites %>% summarise())
+    set.seed(700)
+    rnd_sample<- st_sample(chull, size= 1000) %>% 
+        st_sf() %>% 
+        mutate(samp_id = row_number())
+    
+    gef_chirps_sample <- rstack_list %>% 
+        map_dfr(
+            ~{
+                gefs_sample <- terra::extract(x = .x,y=rnd_sample)
+                cbind(site_id= rnd_sample$samp_id,st_coordinates(rnd_sample),gefs_sample) %>% 
+                    select(-ID) %>% 
+                    pivot_longer(
+                        -c(site_id,X,Y),
+                        names_to="date",
+                        values_to = paste0("gefs_chirps_",forecast_str)
+                    )
+            }
+        )
+    ret <- list()
+    ret$chirps_gefs_sites <-gef_chirps_sites
+    ret$chirps_gefs_sample <-gef_chirps_sample
+    
+    return(ret)
+    
+}
+
 
 
