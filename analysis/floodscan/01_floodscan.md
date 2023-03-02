@@ -1,7 +1,7 @@
 # Floodscan
 
 Looking at floodscan for Yemen generall, and
-comparing to CCCM
+comparing to data from CCCM
 
 ```python
 %load_ext jupyter_black
@@ -13,27 +13,33 @@ from datetime import timedelta
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import numpy as np
 from scipy.interpolate import interp1d
 
 from src import utils, constants
 ```
 
-## Examine stats
+## Examine floodscan
 
-Just loopk at admin 0 for now to get an idea
+Just loopk at admin 0 for now to get a basic idea
 
 ```python
+# Load the stats for admin 0
 fs = utils.load_floodscan_stats(admin_level=0).set_index("time")
 fs.index = pd.to_datetime(fs.index)
 ```
 
 ```python
+# Plot mean flood fracion for admin 0 across all time
 fs["mean"].plot()
 ```
 
+Now looking to see if there is any annual seasonality to the flood fraction
+by taking the mean around a 30 day window for each day of the year.
+
+There are two peaks, but they ar equite small in magnitude (<<0.1% flood fraction)
+
 ```python
-# Looking for seasonality, use a 30 day smoothing
-# It's there but extremely small
 pv = pd.pivot_table(
     fs.rolling(window=30).mean()[["mean"]],
     index=fs.index.dayofyear,
@@ -47,8 +53,11 @@ ax.set_ylabel("flood fraction")
 
 ## CCCM comparison
 
+Now compare the floodscan data to flooding events
+compiled by the CCCM cluster
+
 ```python
-# CCCM Data processed by Zack in R scripts
+# Read in the CCCM Data processed by Zack using R scripts
 cccm_filename = (
     constants.oap_data_dir
     / "private/processed/yem/cccm_site_flood_reports_coords_2122.csv"
@@ -58,11 +67,15 @@ df_cccm
 ```
 
 ```python
+# Get an idea of the column names available
 df_cccm.columns
 ```
 
 ```python
-# Create a time variable
+# Clean up the CCCM data:
+# Only take the columns that we need,
+# and clean up the time variable to make it
+# easy to compare to Floodscan
 df_cccm = df_cccm[
     [
         "date_of_episode",
@@ -81,7 +94,10 @@ df_cccm
 ```
 
 ```python
-# Sort by number of shelters affected
+# To match the figures that Zack made, we want to
+# sort the data by the shelters that were most affected
+# It's a bit compliated because we need to sum multiple
+# events per shelter
 total_shelters_dict = (
     df_cccm.groupby("site_id")[["num_shelters_affected"]]
     .sum()
@@ -98,13 +114,20 @@ df_cccm
 ```
 
 ```python
-# Raw floodscan data
+# Read in the raw floodscan data
 fs_raw = utils.load_floodscan_raw()["SFED_AREA"]
 ```
 
-```python
-# Plot the shelters over floodscan data max values
+Now we want to get an idea visually of how the floodscan data
+compares to the CCCM flood event locations. To do this, we
+plot the maximum value at each floodscan pixel (just to get an idea
+of which pixels never had any flood fraction), and overlay the
+shelter locations with an x.
 
+From this plot, we can see that floodscan covers many shelter
+locations, but not all, so we need to be checking.
+
+```python
 cmap = mpl.cm.get_cmap("OrRd").copy()
 cmap.set_under(color="black")
 fig, ax = plt.subplots()
@@ -112,6 +135,12 @@ fs_raw.max(dim="time").plot(vmin=0.01, ax=ax, cmap=cmap)
 
 ax.scatter(df_cccm.lon, df_cccm.lat, marker="x")
 ```
+
+Next wee want to check if floodscan is crossing a particular threshold
+around the time of a CCCM data event. For this we need the return period.
+At the moment we're just calculating it empirically, i.e. interpolating
+between past event values. If we narrow down the list of locations we can
+do a more careful GEV fit.
 
 ```python
 def get_return_period_function_empirical(df_rp: pd.DataFrame, rp_var: str):
@@ -132,28 +161,21 @@ def get_return_period_function_empirical(df_rp: pd.DataFrame, rp_var: str):
 ```
 
 ```python
-lon_slice = slice(
-    row.lon - pixel_window_size / 2, row.lon + pixel_window_size / 2
-)
-lat_slice = slice(
-    row.lat + pixel_window_size / 2, row.lat - pixel_window_size / 2
-)
-fs_raw.sel(lat=lat_slice, lon=lon_slice).mean(dim=["lat", "lon"]).max()
+# Set up for loop
+time_window_size = 60  # days
+pixel_window_size = 0.5  # deg
+return_period_target = 1.5
+rp_min = 0.01
+hits = []
+plot = False
 ```
 
 ```python
-time_window_size = 60  # days
-pixel_window_size = 0.5  # deg
-return_period = 1.5
-rp_min = 0.01
-hits = []
-
-plot = False
-
-
+# Loop through all the CCCM events
 for i, row in df_cccm.iterrows():
-    # Get the area associated with the event
-    ff = fs_raw.sel(
+    # Get the floodscan area associated with the event
+    # by taking the nearset pixels
+    fs_event_area = fs_raw.sel(
         lon=slice(
             row.lon - pixel_window_size / 2, row.lon + pixel_window_size / 2
         ),
@@ -161,42 +183,50 @@ for i, row in df_cccm.iterrows():
             row.lat + pixel_window_size / 2,
             row.lat - pixel_window_size / 2,
         ),
-    )
-    # print(len(ff.lat))
-    ff = ff.mean(dim=["lat", "lon"])
-    # Check area is always 0 - if so, skip
-    if ff.max() == 0:
+    ).mean(dim=["lat", "lon"])
+    # Check whether flood fraction is always 0 - if so, skip
+    if fs_event_area.max() == 0:
         print(f"Skipping {row.site_name} because floodscan is 0")
         continue
-    # Get return period
-    input_to_rp = ff.to_dataframe()[["SFED_AREA"]].resample("1y").agg("max")
-    rpf = get_return_period_function_empirical(input_to_rp, "SFED_AREA")
-    rp = rpf(return_period)
-    if rp < 0.01:
-        print(f"Skipping {row.site_name} because RP is {rp}")
+    # Get the floodscan return period
+    input_to_rp = (
+        fs_event_area.to_dataframe()[["SFED_AREA"]].resample("1y").agg("max")
+    )
+    return_period_function = get_return_period_function_empirical(
+        input_to_rp, "SFED_AREA"
+    )
+    return_period_value = return_period_function(return_period_target)
+    if return_period_value < 0.01:
+        print(f"Skipping {row.site_name} because RP is {return_period_value}")
         continue
-    # Get the time window
+    # Restrict floodscan data to time window
     d1, d2 = row.time - timedelta(
         days=time_window_size / 2
     ), row.time + timedelta(days=time_window_size / 2)
-    ff_window = ff.sel(time=slice(d1, d2))
+    fs_event_area_time = fs_event_area.sel(time=slice(d1, d2))
     # Plot
     if plot:
         fig, ax = plt.subplots(figsize=(5, 2))
-        ff_window.plot(ax=ax)
+        fs_event_area_time.plot(ax=ax)
         # ff.plot(ax=ax)
         ax.axhline(rp, c="r")
         ax.set_title(f"{row.site_name}")
         ax.axvline(row.time, c="k")
         ax.set_ylim(-0.01, 0.10)
-    # Add to data frame
-    df_cccm.loc[i, f"hit_{return_period}"] = (ff_window > rp).any().values
+    # Add a boolean to the dataframe whether or not
+    # the floodscan data crossed the return period threshold
+    df_cccm.loc[i, f"hit_{return_period}"] = (
+        (fs_event_area_time > return_period_value).any().values
+    )
 ```
 
 ```python
+# Print percentage of CCCM events where floodscan
+# crossed the return period
 sum(df_cccm["hit_1.5"].dropna()) / len(df_cccm["hit_1.5"].dropna()) * 100
 ```
 
 ```python
+# Print the total number of CCCM events with floodscan data
 len(df_cccm["hit_1.5"].dropna())
 ```
