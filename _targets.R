@@ -52,7 +52,10 @@ chirps_gefs_dir <- file.path(Sys.getenv("AA_DATA_DIR"),
 
 # Replace the target list below with your own:
 list(
-    # track cccm data
+
+# Flood Impact data -------------------------------------------------------------
+
+  # track workbook    
     tar_target(
         ccccm_fp,
         command = file.path(Sys.getenv("AA_DATA_DIR"),
@@ -61,23 +64,25 @@ list(
                             "yem",
                             "Yemen -  CCCM Cluster -December ML - Flooding available data.xlsx") ,format = "file"
     ),
-    # load ccccm workbook
+  # load workbook
   tar_target(
     name = cccm_wb,
     command =load_cccm_wb(ccccm_fp)
   ),
-  # extract unique locations with coords
+  # extract unique locations with coordinates
   tar_target(
       name= cccm_flood_report_sites,
       command = get_site_locs(cccm_wb)
   ),
+
   # clean up flood report data 
   tar_target(
       name= cccm_flood_impact_data,
       command = clean_cccm_impact_data(cccm_wb,floodsites = cccm_flood_report_sites)
       
   ),
-  # spit out flood reports with coords for flood scan validations
+
+  # produce flood reports with coords for flood scan validations
   tar_target(
       name= cccm_flood_impact_data_w_coords, # shared this for floodscan verification
       command = cccm_flood_impact_data %>% 
@@ -89,6 +94,22 @@ list(
               by="site_id"
           ) 
   ),
+
+    # chose 4 different metrics to investigate which sites we could focus on
+    # 1.) # shelters affected
+    # 2.) # reports
+    # 3.) % population affected
+    # 4.) Ratio # of shelters:%pop
+tar_target(
+    name = high_priority_sites,
+    command= find_priority_sites(wb =cccm_wb,
+                                 floodlist =cccm_flood_report_sites,
+                                 n=10)
+    
+),
+
+# Rainfall - CHIRPS -------------------------------------------------------
+
   # extract daily chirps data to site locations
   # this takes about 10 minutes
   tar_target(
@@ -96,36 +117,30 @@ list(
       command= chirps_daily_to_sites(raster_dir = chirps_dir,
                                      pt= cccm_flood_report_sites)
   ),
+  
+  # calculate various rolling stats at site locations
   tar_target(
       name= cccm_site_chirp_stats,
       command = calc_rolling_precip_sites(df = cccm_site_chirps)
   ),
-  tar_target(
-      name = gefs_chirps_pts,
-      command = extract_chirps_gefs_to_pts(raster_dir =chirps_gefs_dir,forecast = 10,sites =cccm_flood_report_sites  )
-  ),
-  # chose 4 different metrics to investigate which sites we could focus on
-  # 1.) # shelters affected
-  # 2.) # reports
-  # 3.) % population affected
-  # 4.) Ratio # of shelters:%pop
-  tar_target(
-      name = high_priority_sites,
-      command= find_priority_sites(wb =cccm_wb,
-                                   floodlist =cccm_flood_report_sites,
-                                   n=10)
-      
-  ),
+
+
+
+# Rainfall + Impact -------------------------------------------------------
+
+  # produce a bunch of plots over the timespan (2021-2022) of CCCM reporting
+  # comparing reported events against different window accumualations.
+  # also plot some historical averages against 2021-22 rainfall
+
   tar_target(name= p_timeseries_rainfall,
              command= plot_rainfall_impact_timeseries(site_rainfall = cccm_site_chirp_stats,
                                                             flood_report = cccm_flood_impact_data,
                                                             prioritization_list = high_priority_sites,
                                                             prioritize_by = "by_affected_shelters")
              ),
-  # getting creative with some RS. Are there certain locations that are more vulnearable where 
-  # rainfall->impact relationship is different?
+  # Throw in some remotes sensing to see if there are different relationships depending on setting 
   
-  # geomorph
+  ## Geomorphology ----
   tar_target(
       name= cccm_report_sites_with_geomorph,
       command = recode_srtm_alos_categorical(
@@ -134,9 +149,29 @@ list(
       )
   ),
   
-  # closest detected water
+  ## Closest Detected Water ----
   tar_target(
       name= cccm_report_sites_with_fl,
       command = ee_dist_jrc_max_extent(pt=cccm_flood_report_sites, boolean="=",val=1,scale= 30,tidy_extract = T,via="drive")
-      )
+      ),
+  
+  # Rainfall vs Rainfall Forecast -------------------------------------------
+  
+  ## Extract Forecast ----
+  # Load CHIRPS-GEFS forecast data (so far 10 days only)-- this takes a solid 1+ hours
+  # Once loaded extract values to sites as well as 1000 random points (for later testing)
+  
+  tar_target(
+      name = gefs_chirps_pts,
+      command = extract_chirps_gefs_to_pts(raster_dir =chirps_gefs_dir,forecast = 10,sites =cccm_flood_report_sites  )
+  ),
+
+  ## Compare CHIRPS to CHIRPS-GEFS ----
+  # Now align CHIRPS-GEFS with CHIRPS and plot together for all sites as well as random
+  # site as example. `TODO` map 1000 random points to chirps
+  tar_target(
+      name = p_chirps_vs_gefs,
+      command = plot_chirps_gefs_comparison(gef_values= gefs_chirps_pts,chirps_values=cccm_site_chirp_stats,gef_forecast_window = 10)
+      
+  )
 )

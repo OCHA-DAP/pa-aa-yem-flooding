@@ -530,3 +530,65 @@ extract_chirps_gefs_to_pts <- function(raster_dir,forecast,sites=cccm_flood_repo
 
 
 
+
+plot_chirps_gefs_comparison <- function(gef_values, chirps_values,gef_forecast_window=10){
+    ret <-  list()
+    
+    day_adj_gefs <- gef_forecast_window-1
+    rainfall_and_forecast_site <- gef_values$chirps_gefs_sites %>% 
+        mutate(
+            date =ymd(date),
+            date = date+ day_adj_gefs
+        ) %>% 
+        left_join(
+            chirps_values %>% 
+                mutate(date= ymd(date)) ,
+            by = c("site_id","date")
+        )
+    
+    p_gefs_chirps_site_avg <- rainfall_and_forecast_site %>% 
+        group_by(date) %>% 
+        summarise(
+            mean_gefs10 = mean(gefs_chirps_10,na.rm=T),
+            mean_chirps10= mean(precip_roll10,na.rm=T)
+        ) %>% 
+        ggplot(aes(x= mean_gefs10,y=mean_chirps10))+
+        geom_point(alpha= 0.1,color="#1EBFB3")+
+        labs(
+            x= "CHIRPS-GEFS 10-day accumulation Forecast (mm)",
+            y= "CHIRPS 10 day accumulation (mm)",
+            title= "CHIRPS-GEFS Forecast compared to CHIRPS Historical",
+            subtitle = "Yemen - daily averages of CHIRPS & CHIRPS GEFS calculated across 260 CCCM sites",
+            caption= "Dates in data sets aligned by the following manipulation:\n a.) CHIRPS 10-day rolling sum ('right aligned'), b.) CHIRPS-GEFS - added 9 days to raster date"
+        )+
+        geom_smooth(method='lm', formula= y~x)+
+        theme_hdx()+
+        theme(
+            plot.caption=element_text(hjust=0)
+        )
+    
+    p_gef_chirps_rnd_site <-  rainfall_and_forecast_site %>% 
+        filter(site_id=="YE2002_1161") %>% 
+        ggplot(aes(x= gefs_chirps_10,y=precip_roll10))+
+        geom_point(alpha= 0.2,color="#1EBFB3")+
+        labs(
+            x= "CHIRPS-GEFS 10-day accumulation Forecast (mm)",
+            y= "CHIRPS 10 day accumulation (mm)",
+            title= "CHIRPS-GEFS Forecast compared to CHIRPS Historical",
+            subtitle = "Yemen CCCM Site YE2002_1161: 2000-2022",
+            caption= "Dates in data sets aligned by the following manipulation:\n
+        a.) CHIRPS 10-day rolling sum ('right aligned')\nb.) CHIRPS-GEFS - added 9 days to raster date\n"
+        )+
+        geom_smooth(method='lm', formula= y~x)+
+        theme_hdx()+
+        theme(
+            plot.caption=element_text(hjust=0)
+        )
+    
+    ret$averaged_across_sites <- p_gefs_chirps_site_avg
+    ret$rnd_site <- p_gef_chirps_rnd_site
+    return(ret)
+}
+
+
+
