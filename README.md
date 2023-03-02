@@ -7,11 +7,20 @@
 Provide a basic overview of the context of anticipatory action in this country.
 Link to the GDrive Trigger Card document for greater context and details.
 
+
 ## Overview of analysis
 
 What is the basic process of the analysis contained within this repository?
 
 ## Data description
+
+### Exploratory Data
+
+- CCCM flood report data (2021-2022) - from Yemen CCCM cluster
+- CHIRPS
+- CHIRPS-GEFS
+- EMDAT
+- DISVENTAR
 
 - Where does the data come from? Are there any licensing or usage restrictions?
 - How can the data be accessed?
@@ -28,10 +37,12 @@ The code in this repository is organized as follows:
 ├── analysis      # Main repository of analytical work for the AA pilot
 ├── docs          # .Rmd files or other relevant documentation
 ├── exploration   # Experimental work not intended to be replicated
-├── src           # Code to run any relevant data acquisition/processing pipelines
+├── src           # Python code to run any relevant data acquisition/processing pipelines
+├── R             # R code to run any relevant data acquisition/processing pipelines
 |
 ├── .gitignore
 ├── README.md
+├── _targets.R.   # R script containing targets pipeline
 └── requirements.txt
 
 ```
@@ -60,11 +71,33 @@ To run the pipeline that downloads and processes the data, execute:
 python src/main.py
 ```
 
+
 To see runtime options, execute:
 
 ```shell
 python src/main.py -h
 ```
+
+
+
+To run R `targets` pipeline you must have the `{targets}` R package installed. More information can be found [here](https://github.com/ropensci/targets)
+
+The CRAN release can be installed with :
+
+```r
+install.packages("targets")
+```
+
+After targets is installed you can run the pipeline with:
+
+```r
+targets::tar_make()
+```
+
+
+**Additional Requirements:**
+
+Currently the targets pipeline uses Google Earth Engine (GEE) via the [rgee package](https://github.com/r-spatial/rgee). You must have an earth engine account and the rgee package set up for this portion of the pipeline to work.
 
 If you would like to instead receive the processed data from our team, please
 [contact us](mailto:centrehumdata@un.org).

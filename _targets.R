@@ -4,6 +4,36 @@
 #   https://books.ropensci.org/targets/walkthrough.html#inspect-the-pipeline # nolint
 
 # Load packages required to define the pipeline:
+
+req_CRAN_pkgs <- c("targets",
+                       "tidyverse",
+                       "sf",
+                       "terra",
+                       "exactextractr",
+                       "lubridate",
+                       "readxl",
+                       "janitor",
+                       "zoo",
+                       "rgee",
+                       "ggrepel",
+                       "tidyrgee")
+
+new_CRAN_pkgs<- req_CRAN_pkgs[!(req_CRAN_pkgs %in% installed.packages()[,"Package"])]
+if(length(new_CRAN_pkgs)>0){
+    install.packages(new_CRAN_pkgs)
+}
+have_gghdx <- c("gghdx") %in% installed.packages()[,"Package"]
+if(!have_gghdx){
+    remotes::install_github("caldwellst/gghdx")
+    install.packages("showtext")
+}
+    
+    
+
+new_cran <- diff(c("gghdx","tidyrgee"),req_pkgs)
+if(length(new_))
+GH_packages <- c("gghdx","tidyrgee")
+c(req_)
 library(targets)
 library(tidyverse)
 library(sf)
@@ -17,6 +47,7 @@ library(rgee)
 library(ggrepel)
 library(tidyrgee)
 library(gghdx)
+
 ee_Initialize(drive= T)
 # library(tarchetypes) # Load other packages as needed. # nolint
 
@@ -138,9 +169,16 @@ tar_target(
                                                             prioritization_list = high_priority_sites,
                                                             prioritize_by = "by_affected_shelters")
              ),
-  # Throw in some remotes sensing to see if there are different relationships depending on setting 
+  
+  ## Additional Remote Sensing ----
+
+  # Idea is that there could be a different relationship between rain & flooding at different locations
+  # and that this could be driven by environmental/geographic factors. Therefore will attempte to 
+  # extract these to sites for use later when examining performance/thresholds
   
   ## Geomorphology ----
+  
+  # peaks, valleys, ridges, slopes, etc.
   tar_target(
       name= cccm_report_sites_with_geomorph,
       command = recode_srtm_alos_categorical(
@@ -150,6 +188,10 @@ tar_target(
   ),
   
   ## Closest Detected Water ----
+
+  # extract distance to closest water pixel ever detected from JRC data set.
+  # perhaps will help ID more riverine type sites.
+
   tar_target(
       name= cccm_report_sites_with_fl,
       command = ee_dist_jrc_max_extent(pt=cccm_flood_report_sites, boolean="=",val=1,scale= 30,tidy_extract = T,via="drive")
@@ -172,6 +214,5 @@ tar_target(
   tar_target(
       name = p_chirps_vs_gefs,
       command = plot_chirps_gefs_comparison(gef_values= gefs_chirps_pts,chirps_values=cccm_site_chirp_stats,gef_forecast_window = 10)
-      
   )
 )
