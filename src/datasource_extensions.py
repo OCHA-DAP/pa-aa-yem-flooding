@@ -136,24 +136,27 @@ class ChirpsGefs(_DataSourceExtension):
         of days ahead the forecast should predict. Can be 5,10 or 15
         use_cache: if True, don't download if filename already exists
         """
-        self._raw_base_dir.mkdir(parents=True, exist_ok=True)
+        days_ahead_str = f"{self._days_ahead}".zfill(2)
+        raw_dir = self._raw_base_dir / f"{days_ahead_str}days"
+        raw_dir.mkdir(parents=True, exist_ok=True)
         for forecast_date in self._date_range:
             forecast_date_str = forecast_date.strftime(
                 format=self._DATE_FORMAT
             )
             filename = (
-                f"chirpsgefs_global_{self._days_ahead}days_"
+                f"chirpsgefs_{self._country_config.iso3}_{days_ahead_str}days_"
                 f"{forecast_date_str}.tif"
             )
-            download_filepath = self._raw_base_dir / filename
+            download_filepath = raw_dir / filename
             if not clobber and download_filepath.exists():
                 logger.info(
                     f"{download_filepath} already exists and "
                     f"clobber is False, skipping"
                 )
+                continue
             # TODO: check if exists
             url = self._BASE_URL.format(
-                days_ahead=f"{self._days_ahead}".zfill(2),
+                days_ahead=days_ahead_str,
                 start_date=forecast_date_str,
                 end_date=(
                     forecast_date + timedelta(days=self._days_ahead - 1)
