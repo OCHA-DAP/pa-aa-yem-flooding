@@ -1,22 +1,20 @@
-# these are utility functions to facilitate targets pipeline
+#' these are utility functions to facilitate targets pipeline
 
+####################################
+# Note: ############################
+####################################
+#' They should not be though of as generic functions, rather individual scripts that take 
+#' a very specific input and produce a specific outline  to facilitate the work flow
+#' sometimes features/arguments are added to the functions to make them more generalizeable if that is seen
+#' as beneficial to reaching the goals of this project, however this is secondary to creating useful outputs.
+####################################
 
-load_local_chirps_stack <- function(fps, names){
-    r_stack <- terra:::rast(raster::stack(fps)) 
-    terra::set.names(x = r_stack, names)
-    r_stack[r_stack==-9999] <- NA  
-    return(wrap(r_stack))
-}
-
-roll_wrapped <- function(x){
-    x_unwrapped <- unwrap(x)
-    x_roll <- roll(x_unwrapped,
-         n=10,
-         fun=sum,
-         type="to")
-    return(wrap(x_roll))
-    
-}
+#' @title chirps_daily_to_sites
+#'
+#' @param raster_dir \code{character} path AA_DATA_DIR to folder containing daily chirps 
+#' @param pt spatial data frame in epsg:4326 containing site locations
+#'
+#' @return site locations with daily chirps values
 
 chirps_daily_to_sites <- function(raster_dir,pt){
     full_fps <- list.files(raster_dir,full.names = T)
@@ -46,47 +44,13 @@ chirps_daily_to_sites <- function(raster_dir,pt){
 }
 
 
-chirps_rollsum_to_sites <- function(raster_dir, pt,roll_window){
-    full_fps <- list.files(raster_dir,full.names = T)
-    rast_names <- list.files(raster_dir)
-    
-    rast_dates <- str_extract(string = rast_names,
-                              pattern = "(?<=yem_chirps_daily_).*?(?=_r0)"
-                              ) %>% 
-        str_replace_all("_","-")
-    
-    cat("loading chirps local data sets")
-    chirps_daily_full <- terra:::rast(raster::stack(full_fps))
-    terra::set.names(x = chirps_daily_full,rast_dates)
-    
-    cat("replacing -9999 with NA")
-    chirps_daily_full[chirps_daily_full==-9999] <- NA   
-    
-    ret <- list()
-    for(i in seq_along(roll_window)){
-        window_temp <- roll_window[i]
-        cat("running window ",window_temp," days")
-        chirps_roll <- terra::roll(chirps_daily_full,
-                                     n=window_temp,
-                                     fun=sum,
-                                     type="to")    
-        roll_df <- terra::extract(x = chirps_roll,y=pt)
-        gc(chirps_roll)
-        
-        ret[[paste0("precip_roll",window_temp)]] <- cbind(site_id= pt$site_id,roll_df) %>% 
-            select(-ID) %>% 
-            pivot_longer(
-                -site_id,
-                names_to="date",
-                values_to = paste0("precip_roll",window_temp)
-                )
-    }
-    return(
-        reduce(ret,left_join,by="site_id")
-    )
-}
 
 
+#' load_cccm_wb
+#'
+#' @param path \code{character} path from AA_DATA_DIR to cccm xlsx wb
+#'
+#' @return list of named data.frames each containing 1 sheet from wb
 
 load_cccm_wb <-  function(path){
 
@@ -99,6 +63,14 @@ load_cccm_wb <-  function(path){
         ) %>% 
         set_names(sheet_names)
 }
+
+
+
+#' get_site_locs
+#'
+#' @param wb workbook list object created from `load_cccm_wb()`
+#'
+#' @return sf spatial data frame containing unique sites with coordinates in epsg:4326
 
 get_site_locs <-  function(wb){
     master <- wb[["ML- Flooding Available data" ]]
@@ -134,6 +106,12 @@ get_site_locs <-  function(wb){
     
 }
     
+#' clean_cccm_impact_data
+#'
+#' @param wb workbook list object created from `load_cccm_wb()`
+#' @param floodsites output from `get_site_locs()` (`cccm_flood_report_sites`)
+#' @return flood report data with some minor cleaning and columns added (obj: `cccm_flood_impact_data`)
+
 clean_cccm_impact_data <- function(wb,floodsites){
     wb[["CCCM FLOOD REPORT IN IDP SITES"]] %>% 
         rename(
@@ -157,6 +135,21 @@ clean_cccm_impact_data <- function(wb,floodsites){
             )
 }
 
+
+#' find_priority_sites
+#' @description find top-n priority sites based on several metrics
+#'  1. number of shelters damaged reported 2021-2022
+#'  2. number of reports 2021-2022
+#'  3. pct population affected
+#'  4. ratio of shelters damaged to pct population
+#'  
+#'  So far  only number of shelters damaged reported has been used in subsequent analysis/visualization
+#'  
+#' @param wb workbook list object created from `load_cccm_wb()`
+#' @param floodlist cleaned up floodlist output from `clean_cccm_impact_data()` (obj:`cccm_flood_impact_data`)
+#' @param n \code{integer} number of sites to return
+#'
+#' @return list each containing n number of sites based on different metric
 
 find_priority_sites <- function(wb,floodlist,n){
     
@@ -215,6 +208,15 @@ find_priority_sites <- function(wb,floodlist,n){
 }
 
 
+#' @title calc_rolling_precip_sites
+#' @description calculate rolling sums of rainfall at site locations. 
+#'  Currently 3,5,10,30 day "right" & "center" aligned sums are hardcoded
+#'
+#' @param df spatial data.frame containing sites in epsg:4326 - output from `chirps_daily_to_sites()` (obj:`cccm_site_chirps`)
+#'
+#' @return data.frame site locations and rolling sums for each date (obj:`cccm_site_chirp_stats`)
+
+
 calc_rolling_precip_sites <-  function(df){
      df %>% 
         group_by(site_id) %>%
@@ -232,6 +234,19 @@ calc_rolling_precip_sites <-  function(df){
         )    %>% 
         ungroup()
 }
+
+
+#' plot_rainfall_impact_timeseries
+#'
+#' @param site_rainfall output from `calc_rolling_precip_sites()` (obj: `cccm_site_chirp_stats`)
+#' @param flood_report "cleaned" flood impact data (obj: `cccm_flood_impact_data`)
+#' @param prioritization_list  list of priority sites output from `find_priority_sites()` (obj:`high_priority_sites`)
+#' @param prioritize_by choose which prioritzation you want to use for plotting sites 
+#'   currently only doing "by_affected_shelters", but added option to use otehr prioritization schema for later
+#'   target objects if desired
+#'
+#' @return 6 ggplot time series plots showing rainfall with reported flood events
+
 
 
 plot_rainfall_impact_timeseries <- function(site_rainfall,
@@ -345,11 +360,6 @@ plot_rainfall_impact_timeseries <- function(site_rainfall,
     p_zoom_in_historical_pseudolog <- p_zoom_in_historical+
         scale_y_continuous(trans = scales::pseudo_log_trans())
         
-    
-    
-    
-    
-    
    
     
     cccm_chirps_monthly_anomaly <- cccm_site_chirps_stats_long %>% 
@@ -453,6 +463,20 @@ plot_rainfall_impact_timeseries <- function(site_rainfall,
 }
 
 
+#' extract_chirps_gefs_to_pts
+#' @description extract CHIRPS-GEFs forecast values to all site locations as well as 1000 random points generated
+#'  in convex hull of sites. `NOTE:` this function takes well over an hour to run on my local.
+#' @param raster_dir \code{character} raster directory containing CHIRPS-GEFS 5,10,15 day sub-folder
+#' @param forecast \code{integer} forecast length of interest (5,10,15), currently only looking at 10 day, but
+#'  this function should be re-useable for others
+#' @param sites spatial data frame containing sites in epsg:4326 - output of `get_site_locs()` (obj: `cccm_flood_report_sites`)
+#'
+#' @return a list of 2 data.frames containing, 1. all site_ids with there daily CHIRPS-GEFS values, 
+#'  2. 1000 random points with id, coordinate, and daily CHIRPS-GEFS values. Random points generated 
+#'  within convex_hull made from site locations (obj: `gefs_chirps_pts`)
+
+
+
 extract_chirps_gefs_to_pts <- function(raster_dir,forecast,sites=cccm_flood_report_sites){
     forecast_str = as.character(forecast)
     sub_dir <- switch(forecast_str,
@@ -531,6 +555,19 @@ extract_chirps_gefs_to_pts <- function(raster_dir,forecast,sites=cccm_flood_repo
 
 
 
+#' plot_chirps_gefs_comparison
+#' @description plots daily CHIRPS against CHIRPS-GEFS forecast based on rolling sum and forecast window
+#'  dates are aligne by: 1.  `gef_forecast_window`-1 days added CHIRPS-GEFS date, 2.  "right" aligned rolling some of `gef_forecast_window` length
+#' @param gef_values data.frame containing daily CHIRPS-GEFS values extracted to points - output of 
+#'  `extract_chirps_gefs_to_pts()`(obj:`gefs_chirps_pts`)
+#' @param chirps_values data.frame containing site_id and rainfall statistics - output of `calc_rolling_precip_sites()` (obj: `cccm_site_chirp_stats`)
+#' @param gef_forecast_window \code{integer} forecast window of CHIRPS-GEFS data
+#'
+#' @return 2 ggplot objects: one containing the daily CHIRPS & CHIRPS-GEFS values averaged across all sites plotted against eachother
+#'  2. all daily CHIRPS & CHIRPS-GEFS data for a random site plotted against each other
+
+
+
 plot_chirps_gefs_comparison <- function(gef_values, chirps_values,gef_forecast_window=10){
     ret <-  list()
     
@@ -588,6 +625,77 @@ plot_chirps_gefs_comparison <- function(gef_values, chirps_values,gef_forecast_w
     ret$averaged_across_sites <- p_gefs_chirps_site_avg
     ret$rnd_site <- p_gef_chirps_rnd_site
     return(ret)
+}
+
+
+# Not using ####################
+#################################
+
+
+load_local_chirps_stack <- function(fps, names){
+    r_stack <- terra:::rast(raster::stack(fps)) 
+    terra::set.names(x = r_stack, names)
+    r_stack[r_stack==-9999] <- NA  
+    return(wrap(r_stack))
+}
+
+roll_wrapped <- function(x){
+    x_unwrapped <- unwrap(x)
+    x_roll <- roll(x_unwrapped,
+                   n=10,
+                   fun=sum,
+                   type="to")
+    return(wrap(x_roll))
+}
+
+#' chirps_rollsum_to_sites
+#'
+#' @param raster_dir \code{character} path AA_DATA_DIR to folder containing daily chirps 
+#' @param pt 
+#' @param roll_window 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+chirps_rollsum_to_sites <- function(raster_dir, pt,roll_window){
+    full_fps <- list.files(raster_dir,full.names = T)
+    rast_names <- list.files(raster_dir)
+    
+    rast_dates <- str_extract(string = rast_names,
+                              pattern = "(?<=yem_chirps_daily_).*?(?=_r0)"
+    ) %>% 
+        str_replace_all("_","-")
+    
+    cat("loading chirps local data sets")
+    chirps_daily_full <- terra:::rast(raster::stack(full_fps))
+    terra::set.names(x = chirps_daily_full,rast_dates)
+    
+    cat("replacing -9999 with NA")
+    chirps_daily_full[chirps_daily_full==-9999] <- NA   
+    
+    ret <- list()
+    for(i in seq_along(roll_window)){
+        window_temp <- roll_window[i]
+        cat("running window ",window_temp," days")
+        chirps_roll <- terra::roll(chirps_daily_full,
+                                   n=window_temp,
+                                   fun=sum,
+                                   type="to")    
+        roll_df <- terra::extract(x = chirps_roll,y=pt)
+        gc(chirps_roll)
+        
+        ret[[paste0("precip_roll",window_temp)]] <- cbind(site_id= pt$site_id,roll_df) %>% 
+            select(-ID) %>% 
+            pivot_longer(
+                -site_id,
+                names_to="date",
+                values_to = paste0("precip_roll",window_temp)
+            )
+    }
+    return(
+        reduce(ret,left_join,by="site_id")
+    )
 }
 
 

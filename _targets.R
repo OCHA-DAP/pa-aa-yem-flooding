@@ -29,11 +29,6 @@ if(!have_gghdx){
 }
     
     
-
-new_cran <- diff(c("gghdx","tidyrgee"),req_pkgs)
-if(length(new_))
-GH_packages <- c("gghdx","tidyrgee")
-c(req_)
 library(targets)
 library(tidyverse)
 library(sf)
