@@ -215,7 +215,7 @@ for i, row in df_cccm.iterrows():
         ax.set_ylim(-0.01, 0.10)
     # Add a boolean to the dataframe whether or not
     # the floodscan data crossed the return period threshold
-    df_cccm.loc[i, f"hit_{return_period}"] = (
+    df_cccm.loc[i, f"hit_{return_period_target}"] = (
         (fs_event_area_time > return_period_value).any().values
     )
 ```
