@@ -125,16 +125,8 @@ class ChirpsGefs(_DataSourceExtension):
         super().__init__(country_config)
 
     def download(self, clobber=False):
-        """Download the chirps-gefs africa forecast for the given year and
-        day of the year We are focussing on the Africa data, since global
-        data gets massive.
-
-        Nevertheless, even for Africa it gets massive. Note that a part of
-        the data for 2020 is missing due to a change in model date: date to
-        download data for. should be a datetime object config: Config class
-        that contains parameters such as directory names days_ahead: number
-        of days ahead the forecast should predict. Can be 5,10 or 15
-        use_cache: if True, don't download if filename already exists
+        """Download the chirps-gefs forecast for the given year and
+        day of the year
         """
         days_ahead_str = f"{self._days_ahead}".zfill(2)
         raw_dir = self._raw_base_dir / f"{days_ahead_str}days"
