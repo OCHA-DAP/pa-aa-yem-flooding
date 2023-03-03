@@ -1,11 +1,13 @@
 name|type|data|command|depend|seed|path|time|size|bytes|format|repository|iteration|parent|children|seconds|warnings|error
-.Random.seed|object|d1570825d5b30a68|||||||||||||||
+.Random.seed|object|c16f035caed62037|||||||||||||||
 alos_landform_lookup|object|b415a69efa003277|||||||||||||||
 calc_rolling_precip_sites|function|22b99d05f86f97e9|||||||||||||||
+ccccm_floodscore_fp|stem|9e94ed781d08bbb2|478e693f23bfe8b4|a532b606f052f163|171835563|/Users/zackarno/Library/CloudStorage/GoogleDrive-Zachary.arno@humdata.org/Shared drives/Predictive Analytics/CERF Anticipatory Action/General - All AA projects/Data/public/exploration/yem/REACH_YEM_Dataset_CCCM National IDP Site Flood Risk Analysis_February2023.xlsx|t19404.328046331s|7835c0d6d917d86f|669778|file|local|vector|||0.001||
 ccccm_fp|stem|0251214acb818534|b0336e6d51c0a3e8|a532b606f052f163|-486892478|/Users/zackarno/Library/CloudStorage/GoogleDrive-Zachary.arno@humdata.org/Shared drives/Predictive Analytics/CERF Anticipatory Action/General - All AA projects/Data/private/exploration/yem/Yemen -  CCCM Cluster -December ML - Flooding available data.xlsx|t19409.2264186921s|42ef65cd37579ad0|767660|file|local|vector|||0.001||
 cccm_flood_impact_data|stem|bd620451e92c2e92|be2d7cfae0173cd6|354e498293c45a99|666391171||t19415.3417461499s|d242ca6584eaefd5|82211|rds|local|vector|||0.036||
 cccm_flood_impact_data_w_coords|stem|f225fde48c168af8|5be121c886ded850|11bbd310abf467f6|749182202||t19415.34231171s|b77f4aa4ab0c409c|87327|rds|local|vector|||0.005||
 cccm_flood_report_sites|stem|031ce0bdb1b01b4f|fb72fc91a0df75b3|dbad04d08712da22|1352637977||t19415.333858022s|c8c33b143233e0c6|6906|rds|local|vector|||0.038||
+cccm_floodscore_df|stem|c70caed0484804c6|3f00ad1a6d2ca66a|996d623523a3999c|1879883245||t19419.4267819293s|71f7fb72b419adc8|86316|rds|local|vector|||0.069||
 cccm_new_fp|object|29449f7c35f25035|||||||||||||||
 cccm_report_sites_with_fl|stem|96c7964446f93fbc|2fd273fa06afccfc|04f3b14ec9ad59a1|-1594398441||t19415.3423114084s|340000b2a3ad905f|4239|rds|local|vector|||48.835||
 cccm_report_sites_with_geomorph|stem|908db72f4816ee2e|25383d744ce5e6b4|27c4d7559f6b87ee|-1522455049||t19415.341745365s|f15f70ed2969fafb|3212|rds|local|vector|||7.994||
