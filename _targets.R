@@ -103,6 +103,7 @@ list(
     ),
     
     ### CCCM flood report db/workbook ----
+    
     #track path   
     tar_target(
         ccccm_fp,
@@ -118,6 +119,7 @@ list(
         command =load_cccm_wb(ccccm_fp)
     ),
     ### CCCM-REACH flood score workbook ----
+    
     # path
     tar_target(
         ccccm_floodscore_fp,
@@ -141,7 +143,6 @@ list(
     ),
     
     ## Begin Impact Data Manipulation/Analysis ----
-    
     
     ### Unique geographic locations ----
     # extract unique locations with coordinates
@@ -184,6 +185,7 @@ list(
                                      n=10)
         
     ),
+    
     ### CCCCM high flood risk pop ----
     tar_target(
         name = high_risk_flood_stats_by_cod ,
@@ -195,7 +197,6 @@ list(
                                                 ),
                                                 adm_cods=adm_sf)
     ),
-    
     
     # Rainfall - CHIRPS -------------------------------------------------------
     
@@ -212,8 +213,6 @@ list(
         name= cccm_site_chirp_stats,
         command = calc_rolling_precip_sites(df = cccm_site_chirps)
     ),
-    
-    
     
     # Rainfall + Impact -------------------------------------------------------
     
