@@ -81,7 +81,29 @@ list(
     
     # Flood Impact data -------------------------------------------------------------
     
-    # track cccm flood report workbook    
+    ## Track & Load data ----
+    
+    ###  Yemen COD db file path ----
+    tar_target(
+        cod_db_fp,
+        command = file.path(Sys.getenv("AA_DATA_DIR"),
+                            "public","raw","yem","cod_ab","yem_cod.gpkg"),
+        format = "file"
+    ),
+    
+    # load all admin CODs for yemen
+    tar_target(
+        name= adm_sf,
+        command = st_layers(cod_db_fp)$name %>% 
+        map(
+            ~st_read(cod_db_fp,layer=.x) %>% 
+                clean_names()
+        ) %>% 
+        set_names(st_layers(cod_db_fp)$name)
+    ),
+    
+    ### CCCM flood report db/workbook ----
+    #track path   
     tar_target(
         ccccm_fp,
         command = file.path(Sys.getenv("AA_DATA_DIR"),
@@ -90,7 +112,13 @@ list(
                             "yem",
                             "Yemen -  CCCM Cluster -December ML - Flooding available data.xlsx") ,format = "file"
     ),
-    # track cccm-REACH flood score workbook
+    # load workbook
+    tar_target(
+        name = cccm_wb,
+        command =load_cccm_wb(ccccm_fp)
+    ),
+    ### CCCM-REACH flood score workbook ----
+    # path
     tar_target(
         ccccm_floodscore_fp,
         command =  file.path(Sys.getenv("AA_DATA_DIR"),
@@ -100,12 +128,7 @@ list(
                              "REACH_YEM_Dataset_CCCM National IDP Site Flood Risk Analysis_February2023.xlsx"),
         format = "file"
     ),
-    
     # load workbook
-    tar_target(
-        name = cccm_wb,
-        command =load_cccm_wb(ccccm_fp)
-    ),
     tar_target(
         name = cccm_floodscore_df,
         command = read_xlsx(path = ccccm_floodscore_fp,
@@ -116,12 +139,18 @@ list(
                 site_flood_hazard_score= "x2023_cccm_idp_site_flood_hazard_score_integrating_2023_sncc_feedback"
             )
     ),
+    
+    ## Begin Impact Data Manipulation/Analysis ----
+    
+    
+    ### Unique geographic locations ----
     # extract unique locations with coordinates
     tar_target(
         name= cccm_flood_report_sites,
         command = get_site_locs(cccm_wb)
     ),
     
+    ### Clean up flood report db ----
     # clean up flood report data 
     tar_target(
         name= cccm_flood_impact_data,
@@ -142,6 +171,7 @@ list(
             ) 
     ),
     
+    ### Site prioritization (flood report db) ----
     # chose 4 different metrics to investigate which sites we could focus on
     # 1.) # shelters affected
     # 2.) # reports
@@ -154,6 +184,18 @@ list(
                                      n=10)
         
     ),
+    ### CCCCM high flood risk pop ----
+    tar_target(
+        name = high_risk_flood_stats_by_cod ,
+        command = floodscore_pop_stats_by_admin(floodscores=cccm_floodscore_df,
+                                                flood_category="High risk",
+                                                by = list(governorate=c("governorate_name"),
+                                                          governorate_district= c("governorate_name","district_pcode"),
+                                                          district_subdistrict= c("district_pcode","sub_district_pcode")
+                                                ),
+                                                adm_cods=adm_sf)
+    ),
+    
     
     # Rainfall - CHIRPS -------------------------------------------------------
     

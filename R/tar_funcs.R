@@ -700,3 +700,135 @@ chirps_rollsum_to_sites <- function(raster_dir, pt,roll_window){
 
 
 
+#' grp_data_by
+#' @description  helper function for batching cross-tabs with dplyr
+#' @param df data.frame
+#' @param by variables in data.frame you want to group by
+#'
+#' @return
+#' @export
+#'
+#' @examples
+grp_data_by <- function(df,by){
+    ret <- list()
+    if(length(by)==0|is.null(by)){
+        ret$df <- df
+    }
+    if(length(by)==1){
+        by_sym <- sym(by)
+        ret$by <- by_sym
+        ret$df <- df %>% 
+            group_by(!!by_sym)
+    }
+    if(length(by)>1){
+        by_sym <- syms(by)
+        ret$df <-  df %>% 
+            group_by(!!!by_sym)
+        ret$by <- by_sym
+    }
+    return(ret)
+}
+
+
+#' floodscore_pct_by
+#'
+#' @param df data.frame containing flood scores. In this example we filter the data.frame first to the high flood score sites (obj: `cccm_floodscore_df`)
+#' @param by \code{character} vector containing variables to group/calcualte by
+#'
+#' @return
+#' @export
+#'
+#' @examples
+floodscore_pct_by <- function(df,by){
+    df_grp <- df %>% 
+        grp_data_by(by = by)
+    
+    stats <- df_grp$df %>% 
+        summarise(
+            hhs = sum(number_of_households,na.rm=T),
+            pop = sum(site_population,na.rm=T),
+            avg_hh_size= pop/hhs,.groups = "drop_last"
+        ) %>% 
+        mutate(
+            pct_all_hhs = hhs/sum(hhs),
+            pct_all_pop = pop/sum(pop)
+        )
+    if(length(df_grp$by)>1){
+        stats %>% 
+            arrange(!!!df_grp$by,desc(pct_all_hhs)) %>% ungroup()
+    }else{
+        stats %>% 
+            arrange(!!df_grp$by,desc(pct_all_hhs)) %>% ungroup()
+    }
+        
+}
+
+
+#' floodscore_pop_stats_by_admin
+#' @description 
+#' feed in flood scores, flood category, what to make calculation `by` , and admin CODs, and return statistics
+#' about population & hhs at each admin level in the specified flood category.
+#' @param df data.frame containing flood scores (obj: `cccm_floodscore_df`)
+#' @param flood_category \code{character} flood category matching one of the categories in `site_flood_hazard_score` column of df
+#'   (default = "High risk")
+#' @param by list of by arguments to crunch stats by
+#' @param adm_cods list of admin CODs (obj: `adm_sf`)
+#'
+#' @return list of 3 spatial data.frames containing adm1, 2, and 3 CODs and hh/pop statistics about % and pop in the specified flood category
+#' @note 
+#' this are the outputs for qgis maps contained: ... enter path
+
+floodscore_pop_stats_by_admin <- function(floodscores,
+                                          flood_category="High risk",
+                                          by = list(governorate=c("governorate"),
+                                                    governorate_district= c("governorate","district_pcode"),
+                                                    district_subdistrict= c("district_pcode","sub_district_pcode")
+                                                    ),
+                                          adm_cods=adm_sf){
+    
+    ret <- list()
+    admin_stats_df <- by %>% 
+        map(
+            ~{
+                print(.x)
+                floodscores %>%
+                    filter(
+                        site_flood_hazard_score=="High risk"
+                    ) %>% 
+                    floodscore_pct_by(by = .x)
+            }
+            
+        ) %>% 
+        set_names(c("gov","district","subdistrict"))
+    
+    # unfortunately a little clean up of gov admin names this cccm-reach db required 
+    admin_stats_df$gov <- admin_stats_df$gov %>% 
+        mutate(
+            governorate_name= snakecase::to_snake_case(governorate_name)    ,
+            governorate_name = case_when(
+                governorate_name == "marib" ~"ma_rib",
+                governorate_name == "sadah"~"sa_dah",
+                governorate_name == "sanaa"~"sana_a",
+                governorate_name == "sanaa_city"~"sana_a_city",
+                governorate_name == "taiz"~"ta_iz",
+                TRUE ~governorate_name
+            )
+        ) 
+    
+    ret$adm1 <- adm_cods$yem_admbnda_adm1_govyem_cso_20191002 %>% 
+        mutate(
+            adm1_en_clean = snakecase::to_snake_case(adm1_en)
+        ) %>% 
+        left_join(admin_stats_df$gov, by = c("adm1_en_clean"="governorate_name"))
+    
+    ret$adm2  <- adm_cods$yem_admbnda_adm2_govyem_cso_20191002 %>% 
+        left_join(admin_stats_df$district, by =c("adm2_pcode"="district_pcode"))
+    
+    ret$adm3  <- adm_cods$yem_admbnda_adm3_govyem_cso_20191002 %>% 
+        left_join(admin_stats_df$subdistrict, by =c("adm3_pcode"="sub_district_pcode"))
+    return(ret)
+}
+
+
+
+
