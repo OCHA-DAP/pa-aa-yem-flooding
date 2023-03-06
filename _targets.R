@@ -138,7 +138,7 @@ list(
       "public",
       "exploration",
       "yem",
-      "REACH_YEM_Dataset_CCCM National IDP Site Flood Risk Analysis_February2023.xlsx"
+      "REACH_YEM_Dataset_CCCM-National-IDP-Site-Flood-Hazard-Analysis_February2023.xlsx"
     ),
     format = "file"
   ),
@@ -202,19 +202,21 @@ list(
     )
   ),
 
-  ### CCCCM high flood risk pop ----
+  ### CCCM high flood risk pop ----
   tar_target(
-    name = high_risk_flood_stats_by_cod,
-    command = floodscore_pop_stats_by_admin(
-      floodscores = cccm_floodscore_df,
-      flood_category = "High risk",
-      by = list(
-        governorate = c("governorate_name"),
-        governorate_district = c("governorate_name", "district_pcode"),
-        district_subdistrict = c("district_pcode", "sub_district_pcode")
-      ),
-      adm_cods = adm_sf
-    )
+      name = high_risk_flood_stats_by_cod,
+      command = floodscore_pop_stats_by_admin(
+          floodscores = cccm_floodscore_df,
+          flood_category = "High Hazard",
+          by = list(
+              # 1st level of analysis
+              governorate = c("governorate_name"),
+              # 2nd level of analysis, etc.
+              governorate_district = c("governorate_name", "district_pcode"),
+              district_subdistrict = c("district_pcode", "sub_district_pcode")
+          ),
+          adm_cods = adm_sf
+      )
   ),
 
   # Rainfall - CHIRPS -------------------------------------------------------
@@ -237,8 +239,8 @@ list(
 
   # Rainfall + Impact -------------------------------------------------------
 
-  # produce a bunch of plots over the timespan (2021-2022) of CCCM reporting
-  # comparing reported events against different window accumualations.
+  # produce a bunch of plots over the time span: 2021-2022 of CCCM reporting
+  # comparing reported events against different window accumulations.
   # also plot some historical averages against 2021-22 rainfall
 
   tar_target(
