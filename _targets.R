@@ -204,19 +204,19 @@ list(
 
   ### CCCM high flood risk pop ----
   tar_target(
-      name = high_risk_flood_stats_by_cod,
-      command = floodscore_pop_stats_by_admin(
-          floodscores = cccm_floodscore_df,
-          flood_category = "High Hazard",
-          by = list(
-              # 1st level of analysis
-              governorate = c("governorate_name"),
-              # 2nd level of analysis, etc.
-              governorate_district = c("governorate_name", "district_pcode"),
-              district_subdistrict = c("district_pcode", "sub_district_pcode")
-          ),
-          adm_cods = adm_sf
-      )
+    name = high_risk_flood_stats_by_cod,
+    command = floodscore_pop_stats_by_admin(
+      floodscores = cccm_floodscore_df,
+      flood_category = "High Hazard",
+      by = list(
+        # 1st level of analysis
+        governorate = c("governorate_name"),
+        # 2nd level of analysis, etc.
+        governorate_district = c("governorate_name", "district_pcode"),
+        district_subdistrict = c("district_pcode", "sub_district_pcode")
+      ),
+      adm_cods = adm_sf
+    )
   ),
 
   # Rainfall - CHIRPS -------------------------------------------------------
