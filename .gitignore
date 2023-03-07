@@ -160,3 +160,4 @@ dmypy.json
 *.Rcheck/
 
 *.rds
+in_prog/
