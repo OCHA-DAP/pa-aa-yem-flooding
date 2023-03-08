@@ -1,5 +1,11 @@
 # this script extracts zonal statistics fo CHIRPS and saves statistics
-# as a csv in a similar format to the FloodScan Zonal stats.
+# as a csv in a similar format to the FloodScan Zonal stats. 
+# Rolling stats are calculated with 3,5, 10, 30 day "right" aligned windows
+# Zonal stats are just calculated for the 10 day rolling and daily chirps at the moment
+# may add the 3,5, and 30 day zonal stat extraction later if we decide this 
+# type of zonal extraction is useful
+
+# WARNING: this script takes a long time to run (~30+ min)
 
 library(tidyverse)
 library(sf)
@@ -101,7 +107,7 @@ system.time(
 
 ## Pixel level rolling stats ----
 # slow also (8 min on my computer)... guess im asking alot
-
+# just going to use rolling 10 for first output
 # 10 day
 system.time(
     chirps_roll10 <- terra::roll(chirps_daily_full,n=10,fun=sum,type="to")
@@ -124,12 +130,14 @@ system.time(
 
 
 
-# descriptive zonal stats
-#########################
+
+# Extract Zonal Stats ---
+
+## Daily ----
 
 adm0_desc_stats <- exact_extract(chirps_daily_full,
                                  adm0,
-                                 append_cols="admin0Pcode",
+                                 append_cols="adm0_pcode",
                                  fun=c("mean","stdev","median","min","max","sum"), 
                                  force_df=T,
                                  full_colnames=T
@@ -137,74 +145,83 @@ adm0_desc_stats <- exact_extract(chirps_daily_full,
 
 adm1_desc_stats <- exact_extract(chirps_daily_full,
                                  adm1,
-                                 append_cols=c("admin0Pcode","admin1Pcode"),
+                                 append_cols=c("adm0_pcode","adm1_pcode"),
                                  fun=c("mean","stdev","median","min","max","sum"), 
                                  force_df=T,
                                  full_colnames=T
 )
 adm2_desc_stats <- exact_extract(chirps_daily_full,
                                  adm2,
-                                 append_cols=c("admin0Pcode","admin1Pcode","admin2Pcode"),
+                                 append_cols=c("adm0_pcode","adm1_pcode","adm2_pcode"),
                                  fun=c("mean","stdev","median","min","max","sum"), 
                                  force_df=T,
                                  full_colnames=T
 )
 
-adm0_roll_stats <- exact_extract(chirps_roll_full,
+## Zonal ----
+
+adm0_roll_stats <- exact_extract(chirps_roll10,
                                  adm0,
-                                 append_cols=c("admin0Pcode"),
+                                 append_cols=c("adm0_pcode"),
                                  fun=c("mean","median","max"),
                                  force_df=T,
                                  full_colnames=T
 )
 
-adm1_roll_stats <- exact_extract(chirps_roll_full,
+adm1_roll_stats <- exact_extract(chirps_roll10,
                                  adm1,
-                                 append_cols=c("admin0Pcode","admin1Pcode"),
+                                 append_cols=c("adm0_pcode","adm1_pcode"),
                                  fun=c("mean","median","max"),
                                  force_df=T,
                                  full_colnames=T
 )
-adm2_roll_stats <- exact_extract(chirps_roll_full,
+adm2_roll_stats <- exact_extract(chirps_roll10,
                                  adm2,
-                                 append_cols=c("admin0Pcode","admin1Pcode","admin2Pcode"),
+                                 append_cols=c("adm0_pcode","adm1_pcode","adm2_pcode"),
                                  fun=c("mean","median","max"),
                                  force_df=T,
                                  full_colnames=T
 )
 
-adm2_roll_stats %>% 
-    pivot_longer(-matches("admin\\d"))
+# Merge Zonal Stats ----
+
+### daily ---- 
+
+# separate is a bit slow, huh!?
+adm_level_desc_stats <- list(adm0_desc_stats,adm1_desc_stats,adm2_desc_stats) %>% 
+    map(
+        ~.x %>% 
+            pivot_longer(-matches("^adm\\d")) %>% 
+            separate(name,into = c('stat',"date"),sep = "\\.") %>% 
+            pivot_wider(names_from = "stat",values_from = "value")
+    ) %>% 
+    set_names(c("adm0","adm1","adm2"))
+
+## Rolling ----
+
 adm_level_roll_stats <- list(adm0_roll_stats,adm1_roll_stats,adm2_roll_stats) %>% 
     map(
         ~.x  %>% 
-            pivot_longer(-matches("^admin\\d")) %>% 
+            pivot_longer(-matches("^adm\\d")) %>% 
             separate(name,into = c('stat',"date"),sep = "\\.") %>% 
             pivot_wider(names_from = "stat",values_from = "value") %>%
             rename_with(.cols=c("mean","median","max"),~paste0("rollsum10_",.x))
     ) %>% 
     set_names(c("adm0","adm1","adm2"))
 
-adm_level_desc_stats <- list(adm0_desc_stats,adm1_desc_stats,adm2_desc_stats) %>% 
-    map(
-        ~.x %>% 
-            pivot_longer(-matches("^admin\\d")) %>% 
-            separate(name,into = c('stat',"date"),sep = "\\.") %>% 
-            pivot_wider(names_from = "stat",values_from = "value")
-    ) %>% 
-    set_names(c("adm0","adm1","adm2"))
 
+# Merge Daily with Rolling Zonal ----
 adm0_zonal <- adm_level_roll_stats$adm0 %>% 
     left_join(adm_level_desc_stats$adm0)
 
 adm1_zonal <- adm_level_roll_stats$adm1 %>% 
     left_join(adm_level_desc_stats$adm1)
 
-adm_level_roll_stats$adm2 %>% head()
-adm_level_desc_stats$adm2 %>% head()
 adm2_zonal <- adm_level_desc_stats$adm2%>% 
     left_join(adm_level_roll_stats$adm2 )
 
+
+# Write CSV ---- 
 
 if(write_zonal_stats){
     adm0_zonal %>% 
