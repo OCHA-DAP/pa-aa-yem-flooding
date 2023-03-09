@@ -47,22 +47,20 @@ showtext::showtext_auto()
 ## Loading data
 
 ```{r}
+# EM-DAT
 emdat <- read_excel(file.path(
   Sys.getenv("AA_DATA_DIR"), "public", "exploration", "yem",
   "yem_emdat_flood_natural_events.xlsx"
 ), skip = 6) %>%
   clean_names()
 
+# Desinventar
 desinv <- read_excel(file.path(Sys.getenv("AA_DATA_DIR"), "public", "exploration", "yem", "yem_desinventar_flood_events.xlsx")) %>%
   clean_names()
 desinv %>%
   glimpse()
-```
 
-Eventually we obtained data from CCCM cluster with coordinates. See appendix for useful code used to query previous workbooks.
-
-From this code we learn that there are 356 unique sites, and 260 unique sites with gps coordinates
-```{r}
+# CCCM
 cccm_new_fp <- file.path(
   Sys.getenv("AA_DATA_DIR"),
   "private",
@@ -70,31 +68,60 @@ cccm_new_fp <- file.path(
   "yem",
   "Yemen -  CCCM Cluster -December ML - Flooding available data.xlsx"
 )
-cccm_new_sheet_names <- excel_sheets(cccm_new_fp)
 
+# load in full work book as list of dfs
+cccm_new_sheet_names <- excel_sheets(cccm_new_fp)
 readxl::read_excel(path = cccm_new_fp, sheet = cccm_new_sheet_names[1])
 ss_skip_vals <- c(1, rep(0, 3))
 cccm_new <- dfs <- cccm_new_sheet_names %>%
   map2(
-    .y = skip_vals,
+    .y = ss_skip_vals,
     ~ read_excel(cccm_new_fp, sheet = .x, skip = .y) %>%
       clean_names()
   ) %>%
   set_names(cccm_new_sheet_names)
 
-# same records - hopefully the new has coordinates
-all(cccm_new %>% map(~ nrow(.)) %>% unlist() == cccm_dfs %>%
-  map(~ nrow(.x)) %>%
-  unlist())
 
-# basically a master list
+cod_db_fp <- file.path(
+  Sys.getenv("AA_DATA_DIR"),
+  "public", "raw", "yem", "cod_ab", "yem_cod.gpkg"
+)
+
+# COD
+adm <- st_layers(cod_db_fp)$name %>%
+  map(
+    ~ st_read(cod_db_fp, layer = .x) %>%
+      clean_names()
+  ) %>%
+  set_names(st_layers(cod_db_fp)$name)
+
+adm0 <- adm$yem_admbnda_adm0_govyem_cso_20191002
+adm1 <- adm$yem_admbnda_adm1_govyem_cso_20191002
+adm2 <- adm$yem_admbnda_adm2_govyem_cso_20191002
+adm3 <- adm$yem_admbnda_adm3_govyem_cso_20191002
+```
+
+## Explore CCCM
+
+Eventually we obtained data from CCCM cluster with coordinates. See appendix for useful code used to query previous workbooks.
+Below is some useful code where we obtain the following stats:
+
+- 2,302 sites in master list
+- 356 unique sites in flood list
+- 260 of the flood list sites have coordinates
+- 539 reported events in the flood list db
+
+```{r}
+# looks like a master list
 cccm_new$`ML- Flooding Available data` %>%
-  count(site_id) %>%
-  summarise(mean_n = mean(n))
-
+  distinct(site_id)
 cccm_master_list <- cccm_new$`ML- Flooding Available data`
+
+# where as this is a flood db with a subset of sites
 cccm_floodlist <- cccm_new$`CCCM FLOOD REPORT IN IDP SITES`
 
+# master list has some columns that would be useful for analysis of flood reports so lets's
+# make a look up to join later
 lat_lon_lookup <- cccm_master_list %>%
   select(site_id,
     longitude = available_coordinates_longitude,
@@ -102,15 +129,17 @@ lat_lon_lookup <- cccm_master_list %>%
     site_population
   )
 
+# 356 unique sites in flood list
 cccm_floodlist %>%
   distinct(cccm_idp_sites_master_list_site_id)
 
-# 13 sites in floodlist that do not have coordinates
+# 13 sites in floodlist that are not in master?
 cccm_floodlist %>%
   filter(!cccm_idp_sites_master_list_site_id %in% lat_lon_lookup$site_id) %>%
   count(cccm_idp_sites_master_list_site_id)
 
 
+# create a record
 cccm_floodlist_w_coords <- cccm_floodlist %>%
   left_join(lat_lon_lookup,
     by = c("cccm_idp_sites_master_list_site_id" = "site_id")
@@ -124,6 +153,7 @@ cccm_floodlist_w_coords %>%
 ```
 
 
+A little more wrangling/renaming
 looking at data.frame, pulling out some useful cols, then renaming -- this will make it easier for plotting
 ```{r}
 cccm_floodlist_w_coords %>%
@@ -257,33 +287,12 @@ ggpubr::ggarrange(p_num_frs_site,
 )
 ```
 
+
+More exploration:
+
+- events roproted reported between `2021-06-12 & 2022-09-26`
 ```{r}
-cod_db_fp <- file.path(
-  Sys.getenv("AA_DATA_DIR"),
-  "public", "raw", "yem", "cod_ab", "yem_cod.gpkg"
-)
-
-adm <- st_layers(cod_db_fp)$name %>%
-  map(
-    ~ st_read(cod_db_fp, layer = .x) %>%
-      clean_names()
-  ) %>%
-  set_names(st_layers(cod_db_fp)$name)
-
-adm0 <- adm$yem_admbnda_adm0_govyem_cso_20191002
-adm1 <- adm$yem_admbnda_adm1_govyem_cso_20191002
-adm2 <- adm$yem_admbnda_adm2_govyem_cso_20191002
-```
-
-## Start Exploring
- 
-### CCCCM 
-
-just reported between 2021-06-12& 2022-09-26
-```{r}
-cm_flood <- cccm_new$`CCCM FLOOD REPORT IN IDP SITES`
-
-cm_flood <- cm_flood %>% select(date_of_episode,
+cm_flood <- cccm_floodlist %>% select(date_of_episode,
   num_init_hhs = initial_figures_h_hs,
   num_verified_hhs = verified_figures_h_hs,
   num_shelters_affefcted = how_many_shelters_were_affected,
@@ -296,9 +305,7 @@ cm_flood$date_of_episode %>% range()
 
 
 
-Make CCCM plots
-
-checkout flood reports on a timeline
+Make CCCM temporal CCCM plots
 
 ```{r}
 p_cccm_total_hhs_v <- cm_flood %>%
@@ -673,15 +680,15 @@ ggpubr::ggarrange(p_total_affected_by_mo,
 
 ***note:**  if NA shows in admin1 column that means I have not found a suitable admin1 from the master list
 
+Below is code that could be developed further to pull out admin 1s and harmonize to COD...
 
 ```{r}
-adm3$admin1Name_en %>%
+adm3$adm1_en %>%
   unique() %>%
   sort()
-to_snake_case(adm3$admin1Name_en) %>%
+to_snake_case(adm3$adm1_en) %>%
   unique() %>%
   sort()
-
 
 emf %>%
   tidyr::separate_rows(location, sep = ",") %>%
@@ -745,7 +752,9 @@ what if we combine the desinventar flood dates with the EM-DAT. Below I add vert
 ```{r}
 p_affected_by_date <- emf_impact_yrmo %>%
   mutate(
-    aff_lab = if_else(total_affected > 5e4, glue("{month_chr} ({str_sub(year(date),3,4)})"), NA_character_)
+    aff_lab = if_else(total_affected > 5e4,
+      glue("{month_chr} ({str_sub(year(date),3,4)})"), NA_character_
+    )
   ) %>%
   filter(year(date) <= 2023) %>%
   ggplot(aes(x = date, y = total_affected)) +
@@ -754,8 +763,8 @@ p_affected_by_date <- emf_impact_yrmo %>%
   scale_x_date(date_breaks = "year", date_labels = "%Y") +
   scale_y_continuous_hdx(labels = scales::comma, limits = (c(0, 375e3))) +
   labs(
-    title = "EM-DAT Flood Data: People Affected",
-    subtitle = "Yemen (1972-2022)"
+    title = "EM-DAT & Desinventar Flood Data: People Affected",
+    subtitle = "Vertical lines are Desinventar dates, points are EM-DAT Figures"
   ) +
   geom_vline(xintercept = desinv %>% filter(!is.na(date_fix)) %>% pull(date_fix)) +
   theme_hdx() +
@@ -763,17 +772,14 @@ p_affected_by_date <- emf_impact_yrmo %>%
     axis.text.x = element_text(angle = 90),
     axis.title = element_blank()
   )
-```
 
-```{r}
 p_affected_by_date
 ```
 
 ## Appendix
 
-This portion of code was just run to quickyl query the various files received from CCCM
+This is old scrapy cold that was used to query different versions of CCCM data we were recieving until we recieved the correct one. It was useful in understanding what was missing and communicating with sector
 
-Seems neither has any gps locations - emailed CCCCM colleagues Feb 15 to ask about this
 ```{r}
 cccm_master_fp <- file.path(
   Sys.getenv("AA_DATA_DIR"),
