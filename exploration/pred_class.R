@@ -113,15 +113,8 @@ rain_impact_harm <- merge_rainfall_cccm_impact(site_rainfall =cccm_site_chirp_st
                                                site_flooding = cccm_flood_impact_data)
 rain_impact_harm_simp <- rain_impact_harm %>% 
     select(site_id, date, precip_roll10, fevent)
-wth <- rain_impact_harm_simp %>% 
-    mutate(row_id= row_number() ) %>% 
-    filter(row_id %in% c(970:990))
-
-wth %>% 
-    mutate(
-        asdf= consecutive_inclusion(x = precip_roll10,y=fevent, thresh=20)
-    )
-debugonce(consecutive_inclusion)
+rain_single_site <- rain_impact_harm_simp %>% 
+    filter(site_id =="YE1118_0053")
 
 rain_impact_harm_simp %>% 
     mutate(row_id= row_number() ) %>%
@@ -232,85 +225,204 @@ threshold_classification_table2 <- function(df,
         )
     return(classification_tbl)
 }
-test_v <-  c(1,4,5,1,2,5,3,1)
-rollsum(x = test_v,k = 3,align = "right",fill = NA)
 
+
+#tar_load(cccm_site_chirp_stats)
+#tar_load(cccm_flood_impact_data)
+rain_impact_harm <- merge_rainfall_cccm_impact(site_rainfall =cccm_site_chirp_stats,
+                                               site_flooding = cccm_flood_impact_data)
 rain_impact_harm_simp <- rain_impact_harm %>% 
-    # select(site_id, date, precip_roll10,precip_roll3,precip_roll30, fevent) %>% 
-    select(site_id, date, precip_roll10,fevent) %>% 
-    arrange(date) %>% 
-    mutate(
-        precip_roll10MA5_r = rollmean(x=precip_roll10,k = 5,fill = NA,align = "right"),
-        precip_roll10MA5_l = rollmean(x=precip_roll10,k = 5,fill = NA,align = "left")
-    )
-
-
-bla <- rain_impact_harm_simp %>% 
-    filter(site_id =="YE1114_0016")
-
-mean(bla[2:32,]$precip_roll10,na.rm=T)
-mean(bla[32:62,]$precip_roll10,na.rm=T)
-bla[30:33,]
+    select(site_id, date, precip_roll10, fevent)
 rain_single_site <- rain_impact_harm_simp %>% 
-    filter(site_id =="YE1114_0016") %>% View()
-    # print(n=20)
-    pivot_longer(starts_with("precip_"))
-mean(c(1.63,1.63,1.63,1.63,0))
+    filter(site_id =="YE1118_0053") %>% 
+    arrange(date)
+
+function(df=rain_single_site ,thresh= 25,look_back = 7,look_ahead=3){
+    x <- df$precip_roll10
+    y <-  df$fevent
+    x_gte<- x>thresh
+    event_idx <-  which(y)
+    
+    # classify event as TP or FP....
+    event_classification <- event_idx %>% 
+        map_dfr(
+            \(idx){
+                search_window<- (idx-look_back):(idx+look_ahead)
+                thresh_in_window<- any(x[search_window]>=thresh)
+                data.frame(idx= idx,
+                           start_idx=idx-look_back,
+                           end_idx= idx+look_ahead,
+                           positive=thresh_in_window
+                           )
+            }
+        )
+    event_classification <- event_classification %>% 
+        mutate(
+            post_search_end_fp = replace_na(lead(start_idx),length(x)),
+            pre_search_start_fp = replace_na(lag(end_idx)+1,0)
+        )
+    
+    # now FNs hmmm
+    # well we can remove the search window!
+    
+    # then to get rid of middle we do 
+    # deriv =deltay/delta_x to get % increase
+    # we smooth it to remove minor blips
+    # then apply conditional
+    # if smoothed_deriv>0 |  # smoothed deriv will cancel values up to peak
+    #    x_gte | # this will take care of rest until back at thres.
+    
+    # make lgl FP search vector to include dates idxs to look for FPs 
+    # will add F based on below
+    FP_search_vector <- rep(T, length(x))
+    length(FP_search_vector)
+    length(x_gte)
+    FP_list<- event_classification %>% 
+        pmap(function(...){
+            temp_df <- tibble(...)
+            TP_search_window<- temp_df$start_idx :temp_df$end_idx 
+            post_search_window <- (temp_df$end_idx+1) :(temp_df$post_search_end_fp-1) 
+            pre_search_window <- (temp_df$pre_search_start_fp+1) :(temp_df$start_idx-1) 
+            
+            # if it is in the TP window - make it F
+            FP_search_vector[TP_search_window] <- F
+            
+            # if post or pre search windows -- should have a look
+            FP_search_vector[post_search_window] <- T
+            FP_search_vector[pre_search_window] <- T
+            
+            # however they must be >= threshold
+            FP_search_window <- FP_search_vector& x_gte
+            
+            # consecutive values over threshold after event should not be FPs
+            consecutive_gte <- diff(cumsum(c(0,x_gte[post_search_window])))>0
+            FP_search_window[post_search_window] <- !consecutive_gte
+            
+            return(FP_search_window)
+        }
+            
+        )
+    
+    
+    
+    
+    FP_ret_combined<- Reduce('&',FP_list)
+
+    # if these events are both TPs, what are there  FPs as well?
+    FP_search_vector <- rep(T, length(x))
+    TP_search_window<- event_classification[1,]$start_idx :event_classification[1,]$end_idx 
+    post_search_window <- (event_classification[1,]$end_idx+1) :(event_classification[1,]$post_search_end_fp-1) 
+    pre_search_window <- (event_classification[1,]$pre_search_start_fp+1) :(event_classification[1,]$start_idx-1) 
+    FP_search_vector[TP_search_window] <- F
+    FP_search_vector[post_search_window] <- T
+    FP_search_vector[pre_search_window] <- T
+    delta_x<- x-lag(x)
+    # x_gte
+    FP_search_lt <- FP_search_vector& x_gte
+    
+    
+    
+    
+    
+    
+}
+
+
 rain_single_site %>% 
+    mutate(
+        idx_test=FP_ret_combined,
+        # idx_test=FP_search_lt,
+        idx= row_number()
+    ) %>% 
+    # pivot_longer()
     filter(date>="2022-07-04",date<="2022-09-10") %>% 
-    ggplot(aes(x= date, y=value, color=name)) +
+    ggplot(aes(x= date, y=precip_roll10)) +
     scale_x_date(breaks = "days",date_labels = "%b %d")+
     scale_y_continuous(breaks=seq(0,90, 5))+
     geom_line()+
+    geom_point(data=. %>% filter(idx_test))+
+    geom_label(data=. %>% filter(idx_test),aes(label=idx))+
     geom_vline(data=rain_single_site %>% 
-                   filter(fevent,name=="precip_roll10"),aes(xintercept=date), color="red")+
+                   filter(fevent),aes(xintercept=date), color="red")+
     geom_hline(yintercept = 15,linetype="dashed", color= "blue")+
     geom_hline(yintercept = 25, linetype ="dashed", color="blue")+
+    geom_hline(yintercept = 50, linetype ="dashed", color="blue")+
     geom_text(aes(x=ymd("2022-08-20"), y=17,label ="threshold a: 15 mm"))+
-    geom_text(aes(x=ymd("2022-08-20"), y=27,label ="threshold b: 25 mm"),stat="identity")+
-    geom_text(aes(x=ymd("2022-08-07"), y=68,label ="Reported event"),angle = 90, stat="identity")+
-    theme_hdx()+
+    geom_text(aes(x=ymd("2022-08-20"), y=27,label ="threshold b: 25 mm"))+
+    geom_text(aes(x=ymd("2022-08-07"), y=68,label ="Reported event"),angle = 90)+
+    # theme_hdx()+
     labs(y= "10 day rain accumulation (mm)")+
     theme(
-        axis.title.x = element_blank(),
         axis.text.x = element_text(angle=90)
     )
 
+
 function(df=rain_single_site,
-         date,
-         value,
-         event,
+         date="date",
+         value="precip_roll10",
+         event='fevent',
          thresh=10){
     
-    gte_thresh <- df %>% 
+    # df2 <- df %>% 
+    #     mutate(
+    #         x_gte = !!sym(value)>=thresh,
+    #         ckgroup = as.character(data.table::rleid(x_gte)),
+    #         ckgroup =ifelse(x_gte==F,"less",ckgroup),
+    #         x_gte_roll2_r = rollsum(x_gte,k=2, align = "right",na.pad = T),
+    #         x_gte_event = x_gte & !!sym(event),
+    #         x_gte_fill = ifelse(x_gte,row_number(),NA),
+    #         event_fill = ifelse(x_gte_event,paste0("event_",!!sym(event)+row_number()-1),NA)
+    #     ) %>% 
+    #     fill(event_fill,.direction = "downup") 
+    # df2 %>% print(n=nrow(.))
+    # df2 %>% 
+    #     filter(x_gte_roll2_r>0)
+    # df2 %>% 
+    #     group_by(event_fill, ckgroup) %>% 
+    #     summarise(
+    #         count= n()
+    #     ) %>% filter(ckgroup!="less") %>% 
+    #     ggplot(aes(x=count))+
+    #     geom_histogram(bins=100)+
+    #     facet_wrap(~event_fill)
+    # 
+    
+    gte_thresh <- df2 %>% 
         filter(!!sym(value)>=thresh)
+    
+    gte_thresh %>% 
+        group_by(event_fill) %>% 
+        mutate(
+            prev_b4 = replace_na(as.integer(date-lag(date)),0),
+            consec_days = prev_b4 %in% c(0,1)
+        ) %>% 
+        filter(!consec_days)
+    x_gte_event <-  x_gte & y # TPs
+    event_df<- tibble(
+        x,
+        y,
+        x_gte = x_gte,
+        x_gte_event= x_gte_event,
+        event = ifelse(x_gte_event,paste0("event_",y+row_number()-1),NA)
+    )
+    event_df <- event_df %>% 
+        tidyr::fill(event) %>% 
+    
+    gte_thresh %>% 
+        mutate(
+            since_prev = replace_na(as.integer((date- lag(date))),0)
+        )
     
     event_df <- df %>% 
         filter(!!sym(event))
+    event_dates <- event_df %>% 
+        pull(date)
     
     gte_thresh %>% 
-        left_join(event_df, by="date") %>% 
-        mutate(row_idx = row_number()) %>% 
-        filter(row_idx %in% c(:150))
+        filter(date>= event_dates-7, 
+               date<=event_dates+3)
     
-    df %>% 
-        filter(date>="2022-07-04",date<="2022-09-10") %>% 
-        ggplot(aes(x= date, y=precip_roll10)) +
-        scale_x_date(breaks = "days",date_labels = "%b %d")+
-        scale_y_continuous(breaks=seq(0,90, 5))+
-        geom_line()+
-        geom_vline(data=gte_thresh %>% 
-                       filter(fevent),aes(xintercept=date), color="red")+
-        geom_hline(yintercept = 15,linetype="dashed", color= "blue")+
-        geom_hline(yintercept = 25, linetype ="dashed", color="blue")+
-        geom_text(label ="threshold a: 15 mm",x=ymd("2022-08-20"), y=17)+
-        geom_text(label ="threshold b: 25 mm",x=ymd("2022-08-20"), y=27)+
-        geom_text(label ="Reported event",x=ymd("2022-08-07"), y=68,angle = 90)+
-        theme_hdx()+
-        labs(y= "10 day rain accumulation (mm)")+
-        theme(
-            axis.text.x = element_text(angle=90)
-        )
+
     
     
     value <- df$precip_roll10
@@ -318,4 +430,53 @@ function(df=rain_single_site,
     value[value>=thresh]
     value[event==T]
 }
+
+
+
+rain_impact_harm <- merge_rainfall_cccm_impact(site_rainfall =cccm_site_chirp_stats,
+                                               site_flooding = cccm_flood_impact_data)
+rain_impact_harm_simp <- rain_impact_harm %>% 
+    select(site_id, date, precip_roll10, fevent)
+
+rain_single_site <- rain_impact_harm_simp %>% 
+    filter(site_id =="YE1118_0053")
+    
+
+rain_impact_harm_simp <- rain_impact_harm %>% 
+    # select(site_id, date, precip_roll10,precip_roll3,precip_roll30, fevent) %>% 
+    select(site_id, date, precip_roll10,fevent) %>% 
+    group_by(site_id) %>% 
+    arrange(date) %>% 
+    mutate(
+        precip_roll10MA5_r = rollmean(x=precip_roll10,k = 5,fill = NA,align = "right"),
+        precip_roll10MA5_l = rollmean(x=precip_roll10,k = 5,fill = NA,align = "left")
+    ) %>% 
+    ungroup()
+
+rain_single_site <- rain_impact_harm_simp %>% 
+    filter(site_id =="YE1114_0016") 
+
+rain_single_site %>% 
+    mutate(
+        idx_test=bla
+    ) %>% 
+    # pivot_longer()
+    filter(date>="2022-07-04",date<="2022-09-10") %>% 
+    ggplot(aes(x= date, y=precip_roll10)) +
+    scale_x_date(breaks = "days",date_labels = "%b %d")+
+    scale_y_continuous(breaks=seq(0,90, 5))+
+    geom_line()+
+    geom_point(data=. %>% filter(idx_test))+
+    geom_vline(data=rain_single_site %>% 
+                   filter(fevent),aes(xintercept=date), color="red")+
+    geom_hline(yintercept = 15,linetype="dashed", color= "blue")+
+    geom_hline(yintercept = 25, linetype ="dashed", color="blue")+
+    geom_text(aes(x=ymd("2022-08-20"), y=17,label ="threshold a: 15 mm"))+
+    geom_text(aes(x=ymd("2022-08-20"), y=27,label ="threshold b: 25 mm"))+
+    geom_text(aes(x=ymd("2022-08-07"), y=68,label ="Reported event"),angle = 90)+
+    # theme_hdx()+
+    labs(y= "10 day rain accumulation (mm)")+
+    theme(
+        axis.text.x = element_text(angle=90)
+    )
 
