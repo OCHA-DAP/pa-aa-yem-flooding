@@ -831,4 +831,33 @@ floodscore_pop_stats_by_admin <- function(floodscores,
 
 
 
+plot_performance_all_sites <- function(site_rainfall, 
+                                       site_flooding,
+                                       x=precip_roll10,
+                                       event = fevent,
+                                       thresh=25,
+                                       day_window=60
+){
+    rain_impact_merged <- merge_rainfall_cccm_impact(site_rainfall =site_rainfall,
+                                                   site_flooding = site_flooding)
+    p_sites_level_performance<- rain_impact_merged$site_id %>% 
+        unique() %>% 
+        map(
+            ~{
+                plot_site_events_classified(df=rain_impact_merged %>% 
+                                                filter(site_id==.x) %>% 
+                                                arrange(date),
+                                            plot_title = .x,
+                                            x=precip_roll10,
+                                            event = fevent,
+                                            thresh=25,day_window=60)
+            }
+        )
+    return(p_sites_level_performance)
+    
+}
+
+
+
+
 

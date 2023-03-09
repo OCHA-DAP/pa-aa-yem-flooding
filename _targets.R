@@ -271,5 +271,21 @@ list(
     tar_target(
         name = p_chirps_vs_gefs,
         command = plot_chirps_gefs_comparison(gef_values= gefs_chirps_pts,chirps_values=cccm_site_chirp_stats,gef_forecast_window = 10)
+    ),
+    
+    # Performance Testing -----------------------------------------------------
+    
+    ## Plot all sites with a dummy threshold to make sure it behaving as desired
+    tar_target(
+        name= p_all_sites_events_pred_classifications,
+        command= plot_performance_all_sites(site_rainfall=cccm_site_chirp_stats, 
+                                                        site_flooding=cccm_flood_impact_data,
+                                                        x=precip_roll10,
+                                                        event = fevent,
+                                                        thresh=25,
+                                                        day_window=60
+        )
     )
+    
+    
 )

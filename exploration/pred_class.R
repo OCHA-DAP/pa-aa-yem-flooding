@@ -80,34 +80,7 @@ consecutive_inclusion <- function(x,
 
 
 
-#' merge_rainfall_cccm_impact
-#'
-#' @param site_rainfall 
-#' @param site_flooding 
-#'
-#' @return site_rainfall data.frame filtered to the time range of ccccm and fevent logical column
-#'  indicating if a flood occured at the site and date specified in each row.
-#' @export
-#'
-#' @examples
-merge_rainfall_cccm_impact <-  function(site_rainfall, site_flooding){
-    site_lookup <- site_flooding %>% 
-        distinct(governorate_name,site_id, site_name)
-    
-    site_report_date_range <-  site_flooding$date_of_episode %>% range(na.rm=T)
-    
-    rainfall_time_constrained <- site_rainfall %>%
-        mutate(date= ymd(date)) %>% 
-        filter(date>=site_report_date_range[1],
-               date<=site_report_date_range[2]) %>% 
-        mutate(
-            fevent= paste0(site_id,date)%in% paste0(site_flooding$site_id,
-                                                    site_flooding$date_of_episode)
-        ) 
-    return(rainfall_time_constrained)
-    
-    
-}
+
 
 rain_impact_harm <- merge_rainfall_cccm_impact(site_rainfall =cccm_site_chirp_stats,
                                                site_flooding = cccm_flood_impact_data)
@@ -237,148 +210,23 @@ rain_single_site <- rain_impact_harm_simp %>%
     filter(site_id =="YE1118_0053") %>% 
     arrange(date)
 
-rain_single_site %>% 
-    calc_TPFPFN()
-
-calc_TPFPFN <- function(df,
-                        x=precip_roll10 ,
-                        event=fevent,
-                        thresh= 25,
-                        look_back = 7,
-                        look_ahead=3){
+rain_impact_harm_simp %>% 
+    filter(site_id=="YE1114_2749") %>% 
+    plot_site_events_classified(x = precip_roll10,event = fevent,thresh = 25)
     
-    x <- df %>% pull({{x}})
-    event <- df %>% pull({{event}})
-    x_gte <- x >= thresh
-    event_idx <-  which(event)
-    
-    # classify event as TP or FP....
-    event_classification <- event_idx %>% 
-        map_dfr(
-            \(idx){
-                if(idx<look_back){
-                    look_back <- (idx-1)
-                }
-                if((idx+look_ahead)>=length(x)){
-                    look_ahead <- length(x)-idx
-                }
-                search_window<- (idx-look_back):(idx+look_ahead)
-                thresh_in_window<- any(x[search_window]>=thresh)
-                tibble(idx= idx,
-                           start_idx=idx-look_back,
-                           end_idx= idx+look_ahead,
-                           positive=thresh_in_window,
-                           TPFN = ifelse(thresh_in_window,"TP","FN")
-                           )
-            }
-        )
-    event_classification <- event_classification %>% 
-        mutate(
-            post_search_end_fp = replace_na(lead(start_idx),length(x)),
-            pre_search_start_fp = replace_na(lag(end_idx)+1,0)
-        )
-    
-    # now FNs hmmm
-    # well we can remove the search window!
-    
-    # then to get rid of middle we do 
-    # deriv =deltay/delta_x to get % increase
-    # we smooth it to remove minor blips
-    # then apply conditional
-    # if smoothed_deriv>0 |  # smoothed deriv will cancel values up to peak
-    #    x_gte | # this will take care of rest until back at thres.
-    
-    # make lgl FP search vector to include dates idxs to look for FPs 
-    # will add F based on below
-    FP_search_vector <- rep(T, length(x))
-    
-    
-    FP_list<- event_classification %>% 
-        pmap(function(...){
-            temp_df <- tibble(...)
-            TP_search_window<- temp_df$start_idx :temp_df$end_idx 
-            post_search_window <- (temp_df$end_idx+1) :(temp_df$post_search_end_fp-1) 
-            pre_search_window <- (temp_df$pre_search_start_fp+1) :(temp_df$start_idx-1) 
-            
-            if(temp_df$positive){
-                # if it is in the TP window - make it F
-                FP_search_vector[TP_search_window] <- F
-                
-                FP_search_vector[pre_search_window] <- T
-                # however they must be >= threshold
-                FP_search_vector[post_search_window] <- T   
-                FP_search_window <- FP_search_vector& x_gte 
-            }
-            
-            # if post or pre search windows -- should have a look
-            if(!(temp_df$end_idx>=temp_df$post_search_end_fp)|temp_df$positive){
-                 
-                # consecutive values over threshold after event should not be FPs
-                consecutive_gte <- diff(cumsum(c(0,x_gte[post_search_window])))>0
-                FP_search_window[post_search_window] <- !consecutive_gte & x_gte
-            }
-            if(!temp_df$positive){
-                FP_search_window <- x_gte
-            }
-            
-            
-            
-            
-            
-            return(FP_search_window)
-        }
-            
-        )
-    
-    
-    FP_ret_combined<- Reduce('&',FP_list)
-    ret <- list()
-    ret$FPs <- FP_ret_combined
-    ret$event <- event_classification
-    return(ret)
-
-    
-    
-    
-}
 
 
-plot_site_events_classified <- function(df, 
-                                        x,
-                                        event,
-                                        thresh=thresh){
-    site_classification_list<- calc_TPFPFN(df = df,x = {{x}},event = {{event}},thresh = thresh)
-    site_class_simp <- site_classification_list$event %>% 
-        select(idx,TPFN)
-    df_p <- df %>% 
-        mutate(
-            FPs=site_classification_list$FPs,
-            idx = row_number()
-            ) %>% 
-        left_join(site_class_simp)
-    
-    p1 <- plot_site_events(df=df_p,
-                           x={{x}},
-                           event = {{event}},
-                           thresh=thresh)+
-        geom_point(data=. %>% filter(FPs))+
-        geom_label(data=. %>% filter(!is.na(TPFN)),
-                   aes(label=TPFN,y=50)
-                   )
-    
-    return(p1)
-    
-    
-}
 plot_site_events_classified(df=rain_single_site, x=precip_roll10,event = fevent,thresh=25)
 
-# debugonce(calc_TPFPFN)
+# debugonce(calc_TPFPFN2)
 # debugonce(plot_site_events_classified)
 plot_site_events_classified(df=rain_impact_harm_simp %>% 
-                                filter(site_id =="YE1514_0259"),
+                                filter(site_id =="YE1521_0338") %>% 
+                                arrange(date),
+                            plot_title="boom",
                             x=precip_roll10,
                             event = fevent,
-                            thresh=25)
+                            thresh=25,day_window = 60)
 
 p_names <- rain_impact_harm_simp$site_id %>% 
     unique()
@@ -389,12 +237,17 @@ p_sites_thresh25_roll10<- rain_impact_harm_simp$site_id %>%
         ~{print(.x)
             plot_site_events_classified(df=rain_impact_harm_simp %>% 
                                         filter(site_id==.x),
-                                     x=precip_roll10,event = fevent,thresh=25)
+                                        plot_title = .x,
+                                     x=precip_roll10,
+                                     event = fevent,
+                                     thresh=25,day_window=60)
+                
         }
     )
 
 
-p_sites_thresh25_roll10[[100]]
+
+
 library(animation)
 n_frames <- length(p_sites_thresh25_roll10)
 duration <- 2  # seconds
@@ -413,7 +266,7 @@ saveGIF(
     movie.name = "animation.gif",
     nmax = n_frames,
     # interval = duration/n_frames,
-    # ani.width = 500,
+    ani.width = 750,
     ani.height = 500
 )
 
@@ -429,41 +282,6 @@ plot_site_events(df=rain_impact_harm_simp %>%
 
 
 
-
-plot_site_events <- function(df, x,event,thresh){
-    event_dates <- df %>% 
-        filter({{event}}) %>% 
-        pull(date)
-    date_range <- range(event_dates)
-    min_date <- date_range[1]-30
-    max_date <-  date_range[2]+30
-    df_plot <- df %>% 
-        filter(date>=min_date,date<=max_date)
-    
-    df_plot %>% 
-        ggplot(aes(x= date, y={{x}})) +
-        scale_x_date(breaks = "days",date_labels = "%b %d")+
-        scale_y_continuous(breaks=seq(0,90, 5))+
-        geom_line()+
-        # geom_point(data=. %>% filter(idx_test))+
-        # geom_label(data=. %>% filter(idx_test),aes(label=idx))+
-        geom_vline(data=. %>% 
-                       filter({{event}}),
-                   aes(xintercept=date), 
-                   color="red")+
-        geom_hline(yintercept = thresh, linetype ="dashed", color="blue")+
-        # geom_text(aes(x=ymd("2022-08-20"), y=17,label ="threshold a: 15 mm"))+
-        # geom_text(aes(x=ymd("2022-08-20"), y=27,label ="threshold b: 25 mm"))+
-        geom_text(data=. %>% 
-                      filter({{event}}),
-                  aes(x=ymd(date), y=68,label ="Reported event"),angle = 90)+
-        # theme_hdx()+
-        labs(y= "10 day rain accumulation (mm)")+
-        theme(
-            axis.text.x = element_text(angle=90)
-        )
-    
-}
 rain_single_site %>% 
     mutate(
         idx_test=FP_ret_combined,
