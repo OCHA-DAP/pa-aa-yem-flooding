@@ -1,0 +1,843 @@
+---
+title: "Yemen Impact Flooding Data"
+output: html_document
+date: "2023-02-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Yemen Impact Flooding Data
+
+This doc is to mainly understand the various impact data source that could potentially be used in our analysis:
+
+So far we have identified the following:
+
+- EMDAT
+- Desinventar
+- REACH/CCCM
+- CCCM
+    + CCCM flood incident reporting (2021 & 2022)
+    + CCCM Site master list
+
+This doc is purely exploratory. In it's current state it is meant to be run line by line, but can be refactored for knitting if necessary
+
+**takeaway:** CCCM data seems most promising source of impact data
+
+
+```{r yem_impact_libs}
+library(tidyverse)
+library(here)
+library(readxl)
+library(janitor)
+library(sf)
+library(lubridate)
+library(snakecase)
+library(gghdx)
+library(glue)
+library(sysfonts)
+library(ggpubr)
+
+font_add_google("Source Sans Pro")
+showtext::showtext_auto()
+```
+
+
+## Loading data
+
+```{r}
+# EM-DAT
+emdat <- read_excel(file.path(
+  Sys.getenv("AA_DATA_DIR"), "public", "exploration", "yem",
+  "yem_emdat_flood_natural_events.xlsx"
+), skip = 6) %>%
+  clean_names()
+
+# Desinventar
+desinv <- read_excel(file.path(Sys.getenv("AA_DATA_DIR"), "public", "exploration", "yem", "yem_desinventar_flood_events.xlsx")) %>%
+  clean_names()
+desinv %>%
+  glimpse()
+
+# CCCM
+cccm_new_fp <- file.path(
+  Sys.getenv("AA_DATA_DIR"),
+  "private",
+  "exploration",
+  "yem",
+  "Yemen -  CCCM Cluster -December ML - Flooding available data.xlsx"
+)
+
+# load in full work book as list of dfs
+cccm_new_sheet_names <- excel_sheets(cccm_new_fp)
+readxl::read_excel(path = cccm_new_fp, sheet = cccm_new_sheet_names[1])
+ss_skip_vals <- c(1, rep(0, 3))
+cccm_new <- dfs <- cccm_new_sheet_names %>%
+  map2(
+    .y = ss_skip_vals,
+    ~ read_excel(cccm_new_fp, sheet = .x, skip = .y) %>%
+      clean_names()
+  ) %>%
+  set_names(cccm_new_sheet_names)
+
+
+cod_db_fp <- file.path(
+  Sys.getenv("AA_DATA_DIR"),
+  "public", "raw", "yem", "cod_ab", "yem_cod.gpkg"
+)
+
+# COD
+adm <- st_layers(cod_db_fp)$name %>%
+  map(
+    ~ st_read(cod_db_fp, layer = .x) %>%
+      clean_names()
+  ) %>%
+  set_names(st_layers(cod_db_fp)$name)
+
+adm0 <- adm$yem_admbnda_adm0_govyem_cso_20191002
+adm1 <- adm$yem_admbnda_adm1_govyem_cso_20191002
+adm2 <- adm$yem_admbnda_adm2_govyem_cso_20191002
+adm3 <- adm$yem_admbnda_adm3_govyem_cso_20191002
+```
+
+## Explore CCCM
+
+Eventually we obtained data from CCCM cluster with coordinates. See appendix for useful code used to query previous workbooks.
+Below is some useful code where we obtain the following stats:
+
+- 2,302 sites in master list
+- 356 unique sites in flood list
+- 260 of the flood list sites have coordinates
+- 539 reported events in the flood list db
+
+```{r}
+# looks like a master list
+cccm_new$`ML- Flooding Available data` %>%
+  distinct(site_id)
+cccm_master_list <- cccm_new$`ML- Flooding Available data`
+
+# where as this is a flood db with a subset of sites
+cccm_floodlist <- cccm_new$`CCCM FLOOD REPORT IN IDP SITES`
+
+# master list has some columns that would be useful for analysis of flood reports so lets's
+# make a look up to join later
+lat_lon_lookup <- cccm_master_list %>%
+  select(site_id,
+    longitude = available_coordinates_longitude,
+    latitude = available_coordinates_latitude,
+    site_population
+  )
+
+# 356 unique sites in flood list
+cccm_floodlist %>%
+  distinct(cccm_idp_sites_master_list_site_id)
+
+# 13 sites in floodlist that are not in master?
+cccm_floodlist %>%
+  filter(!cccm_idp_sites_master_list_site_id %in% lat_lon_lookup$site_id) %>%
+  count(cccm_idp_sites_master_list_site_id)
+
+
+# create a record
+cccm_floodlist_w_coords <- cccm_floodlist %>%
+  left_join(lat_lon_lookup,
+    by = c("cccm_idp_sites_master_list_site_id" = "site_id")
+  ) %>%
+  filter(!is.na(latitude)) %>%
+  rename(site_id = "cccm_idp_sites_master_list_site_id")
+
+# 260 unique
+cccm_floodlist_w_coords %>%
+  distinct(site_id)
+```
+
+
+A little more wrangling/renaming
+looking at data.frame, pulling out some useful cols, then renaming -- this will make it easier for plotting
+```{r}
+cccm_floodlist_w_coords %>%
+  glimpse()
+
+site_level_stats <- cccm_floodlist_w_coords %>%
+  rename(
+    num_init_hhs = initial_figures_h_hs,
+    num_verified_hhs = verified_figures_h_hs,
+    num_shelters_affected = how_many_shelters_were_affected,
+    num_hhs_lost_documentation = if_yes_how_many_h_hs_did_they_lose_their_personal_legal_documentations_due_to_the_flooding,
+    site_name = cccm_idp_sites_master_list_site_name
+  ) %>%
+  mutate(
+    # https://fscluster.org/sites/default/files/documents/operational_guidance_note_-_minimum_expenditure_basket_september_2022.pdf
+    pop_affected = num_shelters_affected * 7,
+    pct_pop_affected = pop_affected / site_population
+  ) %>%
+  group_by(governorate_name, district_name, sub_district_name, site_name, site_id) %>%
+  summarise(
+    num_flood_reports = n(),
+    max_affected_storm = max(num_shelters_affected),
+    across(starts_with("num_"), ~ sum(.x, na.rm = T)),
+    site_population = unique(site_population),
+    mean_pct_pop_affected = mean(pct_pop_affected, na.rm = T),
+    max_pct_pop_affected = max(pct_pop_affected),
+    .groups = "drop"
+  )
+```
+
+
+here i am exploring ways to prioritize sites through some visualizations.
+
+```{r}
+# by number of flood reports
+p_num_frs_site <- site_level_stats %>%
+  slice_max(order_by = num_flood_reports, n = 10) %>%
+  arrange(desc(num_flood_reports)) %>%
+  slice(1:10) %>%
+  mutate(
+    loc_label = glue("{site_name} ({district_name})")
+  ) %>%
+  ggplot(aes(x = reorder(loc_label, num_flood_reports), y = num_flood_reports)) +
+  geom_col() +
+  labs(y = "# Floods Reported", title = "Number of flood events reported (top 10 tites)", subtitle = "Yemen: CCCM Flood Report Database (2021-2022)") +
+  coord_flip() +
+  theme_hdx() +
+  theme(
+    axis.title.y = element_blank()
+  )
+
+
+p_shelters_affected_site <- site_level_stats %>%
+  slice_max(order_by = num_shelters_affected, n = 10) %>%
+  arrange(desc(num_shelters_affected)) %>%
+  slice(1:10) %>%
+  mutate(
+    loc_label = glue("{site_name} ({district_name})")
+  ) %>%
+  ggplot(aes(x = reorder(loc_label, num_shelters_affected), y = num_shelters_affected)) +
+  geom_col() +
+  labs(
+    y = "# Shelters Affected by flooding",
+    title = "Number Shelters Affected (top 10 tites)",
+    subtitle = "Yemen: CCCM Flood Report Database (2021-2022)"
+  ) +
+  coord_flip() +
+  theme_hdx() +
+  theme(
+    axis.title.y = element_blank()
+  )
+p_pct_affected_site <- site_level_stats %>%
+  slice_max(order_by = mean_pct_pop_affected, n = 10) %>%
+  arrange(desc(mean_pct_pop_affected)) %>%
+  slice(1:10) %>%
+  mutate(
+    loc_label = glue("{site_name} ({district_name})")
+  ) %>%
+  ggplot(aes(x = reorder(loc_label, mean_pct_pop_affected), y = mean_pct_pop_affected)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    y = "% Affected by flooding",
+    title = "% of Individuals Affected (top 10 tites)",
+    subtitle = "Yemen: CCCM Flood Report Database (2021-2022)",
+    caption = "Individuals affected calculated by multiplying shelters by 7"
+  ) +
+  coord_flip() +
+  theme_hdx() +
+  theme(
+    axis.title.y = element_blank()
+  )
+
+
+top_weird_ratio <- site_level_stats %>%
+  mutate(weird_ratio = num_shelters_affected / (10 - mean_pct_pop_affected)) %>%
+  arrange(desc(weird_ratio)) %>%
+  slice(1:10) %>%
+  pull(site_id)
+
+p_ratio <- site_level_stats %>%
+  mutate(
+    top_weird = ifelse(site_id %in% top_weird_ratio, "top", "not"),
+    # loc_label = glue("{site_name} ({district_name})"),
+    pt_label = ifelse(site_id %in% top_weird_ratio, site_name, "")
+  ) %>%
+  ggplot(aes(x = num_shelters_affected, y = mean_pct_pop_affected, color = top_weird)) +
+  geom_point() +
+  ggrepel::geom_text_repel(aes(label = pt_label)) +
+  # geom_text(aes(label=pt_label))+
+  labs(
+    x = "Number Shelters Affected",
+    y = "Average % Individuals Affected",
+    title = "Potential zoom in  based on Number Affected and % Individuals Affected",
+    subtitle = "Yemen: CCCM Flood Report Database (2021-2022)"
+  ) +
+  scale_x_log10() +
+  scale_y_continuous(labels = scales::percent) +
+  theme_hdx() +
+  theme(
+    legend.position = "none"
+  )
+
+
+
+ggpubr::ggarrange(p_num_frs_site,
+  p_shelters_affected_site,
+  p_pct_affected_site,
+  p_ratio,
+  ncol = 2, nrow = 2
+)
+```
+
+
+More exploration:
+
+- events roproted reported between `2021-06-12 & 2022-09-26`
+```{r}
+cm_flood <- cccm_floodlist %>% select(date_of_episode,
+  num_init_hhs = initial_figures_h_hs,
+  num_verified_hhs = verified_figures_h_hs,
+  num_shelters_affefcted = how_many_shelters_were_affected,
+  num_hhs_lost_documentation = if_yes_how_many_h_hs_did_they_lose_their_personal_legal_documentations_due_to_the_flooding,
+  everything()
+)
+cm_flood %>% glimpse()
+cm_flood$date_of_episode %>% range()
+```
+
+
+
+Make CCCM temporal CCCM plots
+
+```{r}
+p_cccm_total_hhs_v <- cm_flood %>%
+  group_by(date_of_episode) %>%
+  summarise(
+    across(starts_with("num_"), ~ sum(.x, na.rm = T))
+  ) %>%
+  ggplot(aes(x = ymd(date_of_episode), y = num_verified_hhs)) +
+  geom_point() +
+  scale_x_date(
+    date_breaks = "month",
+    date_labels = "%b-%y"
+  ) +
+  labs(title = "CCCM Flood Report Data: Number Verified HHs Affected", subtitle = "Yemen (2021-2022)") +
+  theme_hdx() +
+  theme(
+    axis.text.x = element_text(angle = 90),
+    axis.title = element_blank()
+  )
+p_cccm_total_hhs_v
+```
+
+by governorate - this plot seem potentially useful
+```{r}
+p_cccm_total_hhs_v_gov <- cm_flood %>%
+  group_by(date_of_episode, governorate_name) %>%
+  summarise(
+    across(starts_with("num_"), ~ sum(.x, na.rm = T)),
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(
+    x = ymd(date_of_episode), y = num_verified_hhs, group = governorate_name,
+    color = governorate_name
+  )) +
+  geom_point() +
+  geom_line() +
+  scale_x_date(
+    date_breaks = "month",
+    date_labels = "%b-%y"
+  ) +
+  scale_y_log10_hdx() +
+  # scale()+
+  labs(title = "CCCM Flood Report Data: Number Verified HHs Affected by Governorate", subtitle = "Yemen (2021-2022)") +
+  facet_wrap(~governorate_name) +
+  theme_hdx() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(angle = 90),
+    axis.title = element_blank()
+  )
+
+p_cccm_total_hhs_v_gov
+```
+
+Also by governorate, but just records... not summarised number affected.
+```{r}
+reported_floods_tbl <- cm_flood %>%
+  group_by(governorate_name) %>%
+  summarise(
+    num_records = n()
+  ) %>%
+  mutate(
+    source = "flood reported"
+  )
+
+reported_floods_tbl %>%
+  ggplot(aes(x = reorder(governorate_name, num_records), y = num_records)) +
+  geom_col() +
+  geom_text(aes(label = num_records), hjust = -1.2) +
+  scale_y_continuous(breaks = seq(0, 175, by = 25), limits = c(0, 150)) +
+  coord_flip() +
+  labs(
+    title = "CCCM Flood Report Data: Number Reports by Governorate",
+    subtitle = "Yemen (2021-2022)"
+  ) +
+  theme_hdx() +
+  theme(
+    axis.text.x = element_text(angle = 90),
+    axis.title = element_blank()
+  )
+```
+
+I wonder is this just proportional to the # of sites CCCM is monitoring per governorate --  The two plots below show that it is
+
+```{r}
+idp_sites_per_gov_tbl <- cccm_master_list %>%
+  group_by(governorate_name) %>%
+  summarise(
+    num_records = n()
+  ) %>%
+  mutate(
+    source = "master"
+  )
+
+bind_rows(idp_sites_per_gov_tbl, reported_floods_tbl) %>% arrange(governorate_name)
+
+bind_rows(idp_sites_per_gov_tbl, reported_floods_tbl) %>%
+  ggplot(aes(
+    x = reorder(governorate_name, num_records),
+    y = num_records, fill = source
+  )) +
+  geom_col(position = "dodge") +
+  # geom_text(aes(label=num_records),hjust=-1.2)+
+  # scale_y_continuous(breaks = seq(0,175, by=25), limits = c(0,150))+
+  coord_flip() +
+  labs(
+    title = "CCCM Flood Report Data: # of Sites vs # Flood Reports",
+    subtitle = "Yemen (2021-2022) by governorate"
+  ) +
+  theme_hdx() +
+  theme(
+    axis.text.x = element_text(angle = 90),
+    axis.title = element_blank()
+  )
+
+
+bind_rows(idp_sites_per_gov_tbl, reported_floods_tbl) %>%
+  pivot_wider(id_cols = governorate_name, names_from = source, values_from = num_records) %>%
+  ggplot(aes(x = master, y = `flood reported`)) +
+  geom_point()
+```
+
+## EM-DAT
+
+Let's look at some summary stats and completeness of data to what might be useable:
+
+ - year - great (100% completeness)
+ - month decent (95%)
+ - deaths (80%)
+ - total affected (76 %)
+ 
+ - coordinates unusable (0%)
+ - river basin has (0%)
+ 
+```{r}
+skimr::skim(emdat)
+```
+
+let's breakd down the types and subtypes to make sure we are not missing anything... from this table it looks like filtering to disaster
+```{r}
+emdat %>% count(event_name)
+```
+
+break down types further and decide to filter based on `disaster_type` for now
+```{r}
+emdat %>% count(disaster_subgroup, disaster_type, disaster_subtype, disaster_subsubtype)
+
+emf <- emdat %>%
+  filter(disaster_type == "Flood")
+```
+
+
+after filter let's skim again
+```{r}
+skimr::skim(emf)
+```
+
+unfortunately the admin1 codes do not bear any semblance of admin1 codes in the COD which are 2 digit numbers that follow a "Y"
+```{r}
+emf %>%
+  count(country, iso, region, location)
+
+emf %>%
+  count(country, iso, region, admin1_code) %>%
+  print(n = nrow(.))
+
+emf %>%
+  tidyr::separate_rows(admin1_code, sep = ";") %>%
+  select(admin1_code, everything()) %>%
+  count(admin1_code) %>%
+  print(n = nrow(.))
+```
+
+
+Let's visualized
+
+- number of incidents on a timeline
+```{r}
+p_number_incidents <- emf %>%
+  count(year) %>%
+  mutate(year = as.numeric(year)) %>%
+  complete(year = full_seq(year, period = 1), fill = list(n = NA)) %>%
+  ggplot(aes(x = year, y = n)) +
+  geom_point() +
+  labs(y = "# incidents", title = "EM-DAT: Number of Flood Related Records Per Year", subtitle = "Yemen") +
+  theme_hdx()
+
+p_number_incidents
+```
+
+same thing, but by type
+
+```{r}
+emf %>%
+  count(year, disaster_subtype) %>%
+  mutate(
+    year = as.numeric(year),
+    # type=fct_explicit_na(disaster_subtype)
+    `Flood Type` = ifelse(is.na(disaster_subtype), "Unreported Type", disaster_subtype)
+  ) %>%
+  complete(year = full_seq(year, period = 1), fill = list(n = NA)) %>%
+  ggplot(aes(x = year, y = n, color = `Flood Type`)) +
+  geom_point() +
+  labs(y = "# incidents", title = "EM-DAT: Number of Flood Related Records Per Year", subtitle = "Yemen") +
+  scale_color_discrete(na.translate = FALSE) +
+  theme_hdx()
+```
+
+
+summarise affected/deaths by year and year/month to get some sumnary stats to plot
+
+```{r}
+emf_impact_yearly <- emf %>%
+  group_by(year) %>%
+  summarise(
+    across(c("total_affected", "total_deaths"), ~ sum(.x, na.rm = T))
+  )
+emf_impact_yrmo <- emf %>%
+  group_by(year, start_month) %>%
+  summarise(
+    across(c("total_affected", "total_deaths"), ~ sum(.x, na.rm = T)),
+    .groups = "drop"
+  )
+
+emf_impact_type_yearly <- emf %>%
+  mutate(
+    `Flood Type` = ifelse(is.na(disaster_subtype), "Unreported Type", disaster_subtype)
+  ) %>%
+  group_by(year, `Flood Type`) %>%
+  summarise(
+    across(c("total_affected", "total_deaths"), ~ sum(.x, na.rm = T)),
+    .groups = "drop"
+  )
+
+p_total_affected <- emf_impact_yearly %>%
+  mutate(year = as.numeric(year)) %>%
+  complete(year = full_seq(year, period = 1), fill = list(n = NA)) %>%
+  ggplot(aes(x = year, y = total_affected)) +
+  geom_point() +
+  scale_y_continuous(labels = scales::comma) +
+  labs(y = "# Affected", title = "EM-DAT Flood Data: People Affected", subtitle = "Yemen") +
+  theme_hdx() +
+  theme(
+    axis.title.y = element_blank()
+  )
+
+p_total_deaths <- emf_impact_yearly %>%
+  mutate(year = as.numeric(year)) %>%
+  complete(year = full_seq(year, period = 1), fill = list(n = NA)) %>%
+  ggplot(aes(x = year, y = total_deaths)) +
+  geom_point() +
+  scale_y_continuous(labels = scales::comma) +
+  labs(y = "# Deaths", title = "EM-DAT Flood Data: Reported Deaths", subtitle = "Yemen") +
+  theme_hdx() +
+  theme(
+    axis.title.y = element_blank()
+  )
+
+p_type_affected <- emf_impact_type_yearly %>%
+  mutate(year = as.numeric(year)) %>%
+  complete(year = full_seq(year, period = 1), fill = list(n = NA)) %>%
+  ggplot(aes(x = year, y = total_affected, color = `Flood Type`)) +
+  geom_point() +
+  scale_y_continuous(labels = scales::comma) +
+  labs(y = "# Affected", title = "EM-DAT Flood Data: People Affected", subtitle = "Yemen") +
+  theme_hdx() +
+  theme(
+    axis.title.y = element_blank()
+  ) +
+  scale_color_discrete(na.translate = FALSE)
+
+p_type_death <- emf_impact_type_yearly %>%
+  mutate(year = as.numeric(year)) %>%
+  complete(year = full_seq(year, period = 1), fill = list(n = NA)) %>%
+  ggplot(aes(x = year, y = total_deaths, color = `Flood Type`)) +
+  geom_point() +
+  scale_y_continuous(labels = scales::comma) +
+  labs(y = "# Deaths", title = "EM-DAT Flood Data: Reported Deaths", subtitle = "Yemen") +
+  theme_hdx() +
+  theme(
+    axis.title.y = element_blank()
+  ) +
+  scale_color_discrete(na.translate = FALSE)
+```
+
+plot reported deaths/affetcted over time and by type
+
+```{r}
+ggpubr::ggarrange(p_total_affected,
+  p_type_affected,
+  p_total_deaths,
+  p_type_death,
+  ncol = 2, nrow = 2
+)
+```
+
+
+
+Let's look at affected by month to see if there is a pattern. Also let's put all events on a complete timeline and label events with especially high numbers of people affected
+
+```{r}
+emf_impact_yrmo <- emf_impact_yrmo %>%
+  mutate(year = as.numeric(year)) %>%
+  complete(
+    year = full_seq(year, period = 1), fill = list(n = NA),
+  ) %>%
+  complete(
+    year,
+    start_month = full_seq(1:12, period = 1), fill = list(n = NA)
+  ) %>%
+  arrange(year, start_month) %>%
+  mutate(
+    month_chr = month(start_month, abbr = T, label = T),
+    date = make_date(year = year, month = start_month, day = 1)
+  )
+
+
+
+
+p_total_affected_by_mo <- emf_impact_yrmo %>%
+  group_by(month_chr) %>%
+  summarise(
+    total_affected = sum(total_affected, na.rm = T),
+    total_deaths = sum(total_deaths, na.rm = T)
+  ) %>%
+  filter(!is.na(month_chr)) %>%
+  # pivot_longer(total_affected:total_deaths,names_to = "death_affected") %>%
+  ggplot(aes(x = month_chr, y = total_affected)) +
+  scale_y_continuous_hdx(labels = scales::comma) +
+  geom_bar(stat = "identity") +
+  theme_hdx() +
+  labs(
+    title = "EM-DAT Flood Data: People Affected By Month",
+    subtitle = "Yemen (1972-2022)"
+  ) +
+  theme(
+    legend.position = "none",
+    axis.title = element_blank()
+  )
+
+
+
+
+p_affected_by_date <- emf_impact_yrmo %>%
+  mutate(
+    aff_lab = if_else(total_affected > 5e4, glue("{month_chr} ({str_sub(year(date),3,4)})"), NA_character_)
+  ) %>%
+  filter(year(date) <= 2023) %>%
+  ggplot(aes(x = date, y = total_affected)) +
+  geom_point() +
+  geom_text(aes(label = aff_lab), vjust = 2) +
+  scale_x_date(date_breaks = "year", date_labels = "%Y") +
+  scale_y_continuous_hdx(labels = scales::comma, limits = (c(0, 375e3))) +
+  labs(
+    title = "EM-DAT Flood Data: People Affected",
+    subtitle = "Yemen (1972-2022)"
+  ) +
+  theme_hdx() +
+  theme(
+    axis.text.x = element_text(angle = 90),
+    axis.title = element_blank()
+  )
+
+ggpubr::ggarrange(p_total_affected_by_mo,
+  p_affected_by_date,
+  ncol = 1, nrow = 2
+)
+```
+
+- hmm so I wonder if we can pull precip/spi in and look at those dates...but what about the geographic component
+- here is initially data cleaning work to disaggregate the data by admin 1 - this might be useful, but will require some assumptions.
+
+***note:**  if NA shows in admin1 column that means I have not found a suitable admin1 from the master list
+
+Below is code that could be developed further to pull out admin 1s and harmonize to COD...
+
+```{r}
+adm3$adm1_en %>%
+  unique() %>%
+  sort()
+to_snake_case(adm3$adm1_en) %>%
+  unique() %>%
+  sort()
+
+emf %>%
+  tidyr::separate_rows(location, sep = ",") %>%
+  mutate(
+    loc_snake = to_snake_case(location),
+    loc_snake = stringi::stri_trans_general(str = loc_snake, id = "Latin-ASCII"),
+    location = trimws(location),
+    admin1 = case_when(
+      str_detect(loc_snake, "san") ~ "sana_a",
+      str_detect(loc_snake, "sad|saad|sa_ad") ~ "sa_dah",
+      str_detect(loc_snake, "aby|abin") ~ "abyan",
+      str_detect(loc_snake, "ade") ~ "aden",
+      str_detect(loc_snake, "^ib") ~ "ibb",
+      str_detect(loc_snake, "^ad_dal|^al_dhal|^al_dal|dhale") ~ "ad_dali",
+      str_detect(loc_snake, "^al_bay") ~ "al_bayda",
+      str_detect(loc_snake, "^al_hode|^al_hudayd|hodeida|hudayda") ~ "al_hodeidah",
+      str_detect(loc_snake, "^al_mahr|^al_mahar") ~ "al_maharah",
+      str_detect(loc_snake, "^al_mahw") ~ "al_mahwit",
+      str_detect(loc_snake, "^el_jouf|alljawf|al_jawf|aljawf") ~ "al_jawf",
+      str_detect(loc_snake, "marib|ma_rib|mareb") ~ "ma_rib",
+      str_detect(loc_snake, "hadram|hadhram") ~ "hadramawt",
+      str_detect(loc_snake, "dhama") ~ "dhamar",
+      str_detect(loc_snake, "hajja") ~ "hajjah",
+      str_detect(loc_snake, "rayma") ~ "raymah",
+      str_detect(loc_snake, "^lahj|^lah[ei]j") ~ "lahj",
+      str_detect(loc_snake, "ta[ie]z") ~ "ta_iz",
+      str_detect(loc_snake, "shabwa") ~ "shabwah",
+      str_detect(loc_snake, "socotra") ~ "socotra",
+      str_detect(loc_snake, "amran") ~ "amran",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  count(location, admin1) %>%
+  arrange(location) %>%
+  print(n = nrow(.))
+```
+
+
+## Desinventar
+
+let's skim desvintar dta
+
+all data is flood
+
+```{r}
+desinv %>%
+  skimr::skim()
+
+desinv %>%
+  count(event)
+
+desinv <- desinv %>%
+  mutate(
+    date_fix = janitor::excel_numeric_to_date(as.numeric(date))
+  )
+```
+
+
+
+what if we combine the desinventar flood dates with the EM-DAT. Below I add vertical lines for Desinventar flood dates:
+```{r}
+p_affected_by_date <- emf_impact_yrmo %>%
+  mutate(
+    aff_lab = if_else(total_affected > 5e4,
+      glue("{month_chr} ({str_sub(year(date),3,4)})"), NA_character_
+    )
+  ) %>%
+  filter(year(date) <= 2023) %>%
+  ggplot(aes(x = date, y = total_affected)) +
+  geom_point() +
+  geom_text(aes(label = aff_lab), vjust = 2) +
+  scale_x_date(date_breaks = "year", date_labels = "%Y") +
+  scale_y_continuous_hdx(labels = scales::comma, limits = (c(0, 375e3))) +
+  labs(
+    title = "EM-DAT & Desinventar Flood Data: People Affected",
+    subtitle = "Vertical lines are Desinventar dates, points are EM-DAT Figures"
+  ) +
+  geom_vline(xintercept = desinv %>% filter(!is.na(date_fix)) %>% pull(date_fix)) +
+  theme_hdx() +
+  theme(
+    axis.text.x = element_text(angle = 90),
+    axis.title = element_blank()
+  )
+
+p_affected_by_date
+```
+
+## Appendix
+
+This is old scrapy cold that was used to query different versions of CCCM data we were recieving until we recieved the correct one. It was useful in understanding what was missing and communicating with sector
+
+```{r}
+cccm_master_fp <- file.path(
+  Sys.getenv("AA_DATA_DIR"),
+  "public",
+  "exploration",
+  "yem",
+  "Yemen -  CCCM Cluster -December IDP Sites Master List - 20221231.xlsx"
+)
+
+cccm_fp <- file.path(
+  Sys.getenv("AA_DATA_DIR"),
+  "public",
+  "exploration",
+  "yem",
+  "Yemen -  CCCM Cluster -December ML - Flooding available data(18).xlsx"
+)
+
+# grab sheet names
+cccm_sheets <- cccm_fp %>%
+  excel_sheets()
+
+cccm_master_sheets <- cccm_master_fp %>%
+  excel_sheets()
+
+# read in alll tabs of master list
+cccm_master_skips <- c(1, 1, 0, 3, 1, 1)
+cccm_master_dfs <- cccm_master_sheets %>%
+  map2(
+    .y = cccm_master_skips,
+    ~ read_excel(cccm_master_fp, sheet = .x, skip = .y)
+  ) %>%
+  set_names(cccm_master_sheets)
+
+# query for gps/coordinate info
+data.frame(
+  cccm_colnames = cccm_master_dfs %>%
+    map(~ colnames(.x)) %>%
+    unlist() %>%
+    to_snake_case()
+) %>%
+  filter(str_detect(cccm_colnames, "loc|gps|coord|geo"))
+
+
+skip_vals <- c(1, rep(0, 3))
+
+cccm_dfs <- cccm_sheets %>%
+  map2(
+    .y = skip_vals,
+    ~ read_excel(cccm_fp, sheet = .x, skip = .y) %>%
+      clean_names()
+  ) %>%
+  set_names(cccm_sheets)
+
+data.frame(
+  cccm_colnames = cccm_dfs %>%
+    map(~ colnames(.x)) %>% unlist() %>%
+    to_snake_case()
+) %>%
+  filter(str_detect(cccm_colnames, "location|gps|coordinate|latit|long"))
+```
+
