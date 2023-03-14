@@ -1,7 +1,7 @@
 import argparse
 import logging
 
-from src import constants  # noqa: F401
+from src import utils
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -15,7 +15,12 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_pipeline(clobber: bool = False):
-    pass
+    # Floodscan
+    # utils.process_floodscan_admin(admin_level=0)
+    # utils.process_floodscan_admin(admin_level=1)
+    # utils.process_floodscan_admin(admin_level=2)
+    # Chirps
+    utils.download_and_process_chirps(clobber=clobber)
 
 
 if __name__ == "__main__":

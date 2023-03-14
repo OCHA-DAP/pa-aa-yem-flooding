@@ -155,10 +155,15 @@ dmypy.json
 *.docx
 *.xlsx
 *.httr-oauth
+*.rds
 
 # Package-specific files
 *.tar.gz
 *.Rcheck/
 
-*.rds
+
+# notebooks
+*.ipynb
+
 in_prog/
+
