@@ -5,27 +5,29 @@
 
 # Load packages required to define the pipeline:
 
-req_CRAN_pkgs <- c("targets",
-                   "tidyverse",
-                   "sf",
-                   "terra",
-                   "exactextractr",
-                   "lubridate",
-                   "readxl",
-                   "janitor",
-                   "zoo",
-                   "rgee",
-                   "ggrepel",
-                   "tidyrgee")
+req_CRAN_pkgs <- c(
+  "targets",
+  "tidyverse",
+  "sf",
+  "terra",
+  "exactextractr",
+  "lubridate",
+  "readxl",
+  "janitor",
+  "zoo",
+  "rgee",
+  "ggrepel",
+  "tidyrgee"
+)
 
-new_CRAN_pkgs<- req_CRAN_pkgs[!(req_CRAN_pkgs %in% installed.packages()[,"Package"])]
-if(length(new_CRAN_pkgs)>0){
-    install.packages(new_CRAN_pkgs)
+new_CRAN_pkgs <- req_CRAN_pkgs[!(req_CRAN_pkgs %in% installed.packages()[, "Package"])]
+if (length(new_CRAN_pkgs) > 0) {
+  install.packages(new_CRAN_pkgs)
 }
-have_gghdx <- c("gghdx") %in% installed.packages()[,"Package"]
-if(!have_gghdx){
-    remotes::install_github("caldwellst/gghdx")
-    install.packages("showtext")
+have_gghdx <- c("gghdx") %in% installed.packages()[, "Package"]
+if (!have_gghdx) {
+  remotes::install_github("caldwellst/gghdx")
+  install.packages("showtext")
 }
 
 
@@ -43,14 +45,18 @@ library(ggrepel)
 library(tidyrgee)
 library(gghdx)
 
+<<<<<<< HEAD
 # ee_Initialize(drive= T)
+=======
+ee_Initialize(drive = T)
+>>>>>>> da6c9776c164f08b5d6859ccdb63b80060b4f32b
 # library(tarchetypes) # Load other packages as needed. # nolint
 
 # Set target options:
 tar_option_set(
-    packages = c("tibble"), # packages that your targets need to run
-    format = "rds" # default storage format
-    # Set other options as needed.
+  packages = c("tibble"), # packages that your targets need to run
+  format = "rds" # default storage format
+  # Set other options as needed.
 )
 
 # tar_make_clustermq() configuration (okay to leave alone):
@@ -64,60 +70,69 @@ tar_source()
 # source("other_functions.R") # Source other scripts as needed. # nolint
 
 
-chirps_dir <- file.path(Sys.getenv("AA_DATA_DIR"),
-                        "public",
-                        "processed",
-                        "yem","chirps")
+chirps_dir <- file.path(
+  Sys.getenv("AA_DATA_DIR"),
+  "public",
+  "processed",
+  "yem", "chirps"
+)
 
-chirps_gefs_dir <- file.path(Sys.getenv("AA_DATA_DIR"),
-                             "public",
-                             "raw",
-                             "yem",
-                             "chirps_gefs") 
+chirps_gefs_dir <- file.path(
+  Sys.getenv("AA_DATA_DIR"),
+  "public",
+  "raw",
+  "yem",
+  "chirps_gefs"
+)
 
 
 # Replace the target list below with your own:
 list(
-    
-    # Flood Impact data -------------------------------------------------------------
-    
-    ## Track & Load data ----
-    
-    ###  Yemen COD db file path ----
-    tar_target(
-        cod_db_fp,
-        command = file.path(Sys.getenv("AA_DATA_DIR"),
-                            "public","raw","yem","cod_ab","yem_cod.gpkg"),
-        format = "file"
+
+  # Flood Impact data -------------------------------------------------------------
+
+  ## Track & Load data ----
+
+  ###  Yemen COD db file path ----
+  tar_target(
+    cod_db_fp,
+    command = file.path(
+      Sys.getenv("AA_DATA_DIR"),
+      "public", "raw", "yem", "cod_ab", "yem_cod.gpkg"
     ),
-    
-    # load all admin CODs for yemen
-    tar_target(
-        name= adm_sf,
-        command = st_layers(cod_db_fp)$name %>% 
-        map(
-            ~st_read(cod_db_fp,layer=.x) %>% 
-                clean_names()
-        ) %>% 
-        set_names(st_layers(cod_db_fp)$name)
-    ),
-    
-    ### CCCM flood report db/workbook ----
-    
-    #track path   
-    tar_target(
-        ccccm_fp,
-        command = file.path(Sys.getenv("AA_DATA_DIR"),
-                            "private",
-                            "exploration",
-                            "yem",
-                            "Yemen -  CCCM Cluster -December ML - Flooding available data.xlsx") ,format = "file"
-    ),
-    # load workbook
-    tar_target(
-        name = cccm_wb,
-        command =load_cccm_wb(ccccm_fp)
-    ),
+    format = "file"
+  ),
+
+  # load all admin CODs for yemen
+  tar_target(
+    name = adm_sf,
+    command = st_layers(cod_db_fp)$name %>%
+      map(
+        ~ st_read(cod_db_fp, layer = .x) %>%
+          clean_names()
+      ) %>%
+      set_names(st_layers(cod_db_fp)$name)
+  ),
+
+  ### CCCM flood report db/workbook ----
+
+  # track path
+  tar_target(
+    ccccm_fp,
+    command = file.path(
+      Sys.getenv("AA_DATA_DIR"),
+      "private",
+      "exploration",
+      "yem",
+      "Yemen -  CCCM Cluster -December ML - Flooding available data.xlsx"
+    ), format = "file"
+  ),
+  # load workbook
+  tar_target(
+    name = cccm_wb,
+    command = load_cccm_wb(ccccm_fp)
+  ),
+
     ### CCCM-REACH flood score workbook ----
     
     # path
