@@ -154,6 +154,7 @@ dmypy.json
 *.pdf
 *.docx
 *.xlsx
+*.httr-oauth
 
 # Package-specific files
 *.tar.gz

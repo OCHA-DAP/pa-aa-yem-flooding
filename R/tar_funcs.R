@@ -129,9 +129,12 @@ clean_cccm_impact_data <- function(wb, floodsites) {
       num_hhs_lost_documentation = "if_yes_how_many_h_hs_did_they_lose_their_personal_legal_documentations_due_to_the_flooding",
     ) %>%
     mutate(
-      # https://fscluster.org/sites/default/files/documents/operational_guidance_note_-_minimum_expenditure_basket_september_2022.pdf
+        
+      # hh size 7 from: https://fscluster.org/sites/default/files/documents/operational_guidance_note_-_minimum_expenditure_basket_september_2022.pdf
       pop_affected = num_shelters_affected * 7,
       pct_pop_affected = pop_affected / site_population,
+      # pct_pop_affected > 1 in many cases, just using 10-pct_pop in denom to
+      # ensure ratio should get bigger with higher %
       ratio_shelters_to_pct_pop = num_shelters_affected / (10 - pct_pop_affected)
     )
 }
