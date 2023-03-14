@@ -138,7 +138,7 @@ calc_TPFPFN2 <- function(df,
             FP_search_vector <- rep(T, length(x))
             TP_search_window <- ec$start_idx:ec$end_idx
             if(ec$end_idx==length(x)){
-                post_search_window <- NULL
+                post_search_window <- ec$end_idx
             }else{
                 post_search_window <- (ec$end_idx+1) :(ec$post_search_end_fp)     
             }
@@ -184,6 +184,8 @@ calc_TPFPFN2 <- function(df,
         )
     
     FP_ret_combined<- Reduce('&',FP_list)
+
+    
     ret <- list()
     ret$FPs <- FP_ret_combined
     ret$event <- event_classification
@@ -191,6 +193,52 @@ calc_TPFPFN2 <- function(df,
     
 }
 
+
+
+
+
+test_threshold_performance_all_sites <-  function(df,
+                                                  x ,
+                                                  event,
+                                                  look_back = 7,
+                                                  look_ahead=3,
+                                                  thresholds=NULL){
+    sites_level_performance<- df$site_id %>%
+        unique() %>%
+        map_dfr(
+            \(site){
+                cat(site,"\n")
+            df_site <- df %>%
+                filter(site_id ==site)
+            
+            max_x <- df_site %>%
+                pull({{x}}) %>%
+                max(na.rm=T)
+            max_x <- ceiling(max_x)
+            if(is.null(thresholds)){
+               thresholds_iter <- seq(0,max_x,by=1) 
+            }
+            if(!is.null(thresholds)){
+                thresholds_iter <- thresholds
+            }
+            thresholds_iter %>%
+                map_dfr(\(thresh_temp){
+                    cat(thresh_temp,"\n")
+                    stats_temp<- calc_TPFPFN2(df = df_site,
+                                              x = {{x}},
+                                              event = {{event}},
+                                              thresh = thresh_temp)
+                    
+                    num_FPs <- data.frame(class="FP",n=sum(stats_temp$FPs))
+                    num_TPFN <- stats_temp$event %>%
+                        count(TPFN) %>%
+                        rename(class = "TPFN")
+                    bind_rows(num_TPFN,num_FPs) %>%
+                        mutate(site_id = site,
+                               thresh=thresh_temp)
+                })
+        })
+}
 
 
 
@@ -298,8 +346,131 @@ merge_rainfall_cccm_impact <-  function(site_rainfall, site_flooding){
         mutate(
             fevent= paste0(site_id,date)%in% paste0(site_flooding$site_id,
                                                     site_flooding$date_of_episode)
-        ) 
+        ) %>% 
+        left_join(site_lookup)
     return(rainfall_time_constrained)
     
     
 }
+
+
+
+
+# site level performance stats
+#' Title
+#'
+#' @param site_rainfall 
+#' @param site_flooding 
+#' @param x 
+#' @param event 
+#' @param thresh 
+#' @param day_window 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+#' 
+# library(lubridate)
+# ck <- site_level_performance(site_rainfall=cccm_site_chirp_stats, 
+#                              site_flooding=cccm_flood_impact_data,
+#                              x=precip_roll10,
+#                              event = fevent,
+#                              thresh=25
+# )
+# site_level_performance <- function(df,
+#                                    x=precip_roll10,
+#                                    event = fevent,
+#                                    site_id ="site_id",
+#                                    thresh=25
+#                                    
+# ){
+#     
+#     
+#     
+#     
+#     sites_level_performance<- df[[site_id]] %>% 
+#         unique() %>% 
+#         map_dfr(
+#             ~{
+#                 df_temp <- df %>% 
+#                     filter(site_id ==.x)
+#                 gov_name <- unique(df_temp$governorate_name)
+#                 
+#                 if(iterate_thresholds){
+#                     max_x <- df_temp %>% 
+#                     pull({{x}}) %>% 
+#                     max(na.rm=T)    
+#                     max_x <- ceiling(max_x)
+#                     
+#                     seq(0,max_x,by=1) %>% 
+#                         map(
+#                             stats_temp<- calc_TPFPFN2(df = df_temp,
+#                                                       x = {{x}},
+#                                                       event = {{event}},
+#                                                       thresh = thresh)
+#                         )
+#                 }
+#                 
+#                 
+#                 stats_temp<- calc_TPFPFN2(df = df_temp,
+#                                           x = {{x}},
+#                                           event = {{event}},
+#                                           thresh = thresh)
+#                 num_FPs <- data.frame(class="FP",n=sum(stats_temp$FPs))
+#                 num_TPFN <- stats_temp$event %>%
+#                     count(TPFN) %>% 
+#                     rename(class = "TPFN")
+#                 bind_rows(num_TPFN,num_FPs) %>% 
+#                     mutate(site_id = .x,
+#                            governorate_name = gov_name)
+#                 
+#             }
+#         )
+#     return(sites_level_performance)
+#     
+# }
+# iterate_site_perf <- function(df){
+#     
+#     
+# }
+# site_classifcation_freq_tbl <-  function(){
+#    
+#                 gov_name <- unique(df_temp$governorate_name)
+#                 
+#                 
+#                 stats_temp<- calc_TPFPFN2(df = df_temp,
+#                                           x = {{x}},
+#                                           event = {{event}},
+#                                           thresh = thresh)
+#                 num_FPs <- data.frame(class="FP",n=sum(stats_temp$FPs))
+#                 num_TPFN <- stats_temp$event %>%
+#                     count(TPFN) %>% 
+#                     rename(class = "TPFN")
+#                 bind_rows(num_TPFN,num_FPs) %>% 
+#                     mutate(site_id = .x,
+#                            governorate_name = gov_name)
+#                 
+#             }
+#         )
+#     
+# }
+# 
+# merge_rainfall_cccm_impact(site_rainfall =cccm_site_chirp_stats,
+#                            site_flooding = cccm_flood_impact_data)
+# 
+# loop_thresholds <- function(){
+#     rain_impact_merged <- merge_rainfall_cccm_impact(site_rainfall =site_rainfall,
+#                                                      site_flooding = site_flooding)
+#     
+#     
+# } site_level_performance(site_rainfall=cccm_site_chirp_stats, 
+#                                            site_flooding=cccm_flood_impact_data,
+#                                            x=precip_roll10,
+#                                            event = fevent,
+#                                            thresh=.x
+# ) %>% 
+#     mutate(thresh =.x)
+# }
+# 
+

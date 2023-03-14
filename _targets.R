@@ -43,7 +43,7 @@ library(ggrepel)
 library(tidyrgee)
 library(gghdx)
 
-ee_Initialize(drive= T)
+# ee_Initialize(drive= T)
 # library(tarchetypes) # Load other packages as needed. # nolint
 
 # Set target options:
@@ -127,7 +127,7 @@ list(
                              "public",
                              "exploration",
                              "yem",
-                             "REACH_YEM_Dataset_CCCM National IDP Site Flood Risk Analysis_February2023.xlsx"),
+                             "REACH_YEM_Dataset_CCCM-National-IDP-Site-Flood-Hazard-Analysis_February2023.xlsx"),
         format = "file"
     ),
     # load workbook
@@ -274,6 +274,11 @@ list(
     ),
     
     # Performance Testing -----------------------------------------------------
+    tar_target(
+        name = rainfall_impact_tbl,
+        command = merge_rainfall_cccm_impact(site_rainfall = cccm_site_chirp_stats,
+                                             site_flooding = cccm_flood_impact_data)
+    ),
     
     ## Plot all sites with a dummy threshold to make sure it behaving as desired
     tar_target(
@@ -285,7 +290,15 @@ list(
                                                         thresh=25,
                                                         day_window=60
         )
+    ),
+    tar_target(
+        name = thresh_class_freq_10d,
+        command = test_threshold_performance_all_sites(df = rainfall_impact_tbl ,
+                                                               x=precip_roll10,
+                                                               event=fevent,
+                                                       look_back = 7,
+                                                       look_ahead = 3,
+                                                       thresholds = seq(0,235,1))
     )
-    
-    
+
 )

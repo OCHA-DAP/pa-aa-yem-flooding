@@ -531,4 +531,19 @@ rain_and_events <- cccm_site_chirp_stats %>%
 rain_and_events %>% filter(fevent) %>% 
     pivot_wider(names_from = name, values_from = value)
 
+rainfall_impact_tbl %>% 
+    filter(fevent)
+    slice()
     
+bla <- c(1:300) %>% 
+    map_dfr(
+        \(thresh){
+            num_FN <- rainfall_impact_tbl %>% 
+                filter(precip_roll10<thresh) %>% 
+                nrow()
+            data.frame(threshold= thresh,num_FN= num_FN)
+        }
+    )
+bla %>% 
+    ggplot(aes(x= threshold, y= num_FN))+
+    geom_point()
