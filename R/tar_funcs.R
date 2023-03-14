@@ -129,9 +129,12 @@ clean_cccm_impact_data <- function(wb, floodsites) {
       num_hhs_lost_documentation = "if_yes_how_many_h_hs_did_they_lose_their_personal_legal_documentations_due_to_the_flooding",
     ) %>%
     mutate(
-      # https://fscluster.org/sites/default/files/documents/operational_guidance_note_-_minimum_expenditure_basket_september_2022.pdf
+        
+      # hh size 7 from: https://fscluster.org/sites/default/files/documents/operational_guidance_note_-_minimum_expenditure_basket_september_2022.pdf
       pop_affected = num_shelters_affected * 7,
       pct_pop_affected = pop_affected / site_population,
+      # pct_pop_affected > 1 in many cases, just using 10-pct_pop in denom to
+      # ensure ratio should get bigger with higher %
       ratio_shelters_to_pct_pop = num_shelters_affected / (10 - pct_pop_affected)
     )
 }
@@ -755,11 +758,17 @@ floodscore_pct_by <- function(df, by) {
     summarise(
       hhs = sum(number_of_households, na.rm = T),
       pop = sum(site_population, na.rm = T),
-      avg_hh_size = pop / hhs, .groups = "drop_last"
+      avg_hh_size = pop / hhs,
+      hhs_site_managed = sum(ifelse(site_managed == "Yes", number_of_households, NA), na.rm = T),
+      pop_site_managed = sum(ifelse(site_managed == "Yes", site_population, NA), na.rm = T),
+      avg_hh_size_site_managed = pop_site_managed / hhs_site_managed,
+      .groups = "drop_last"
     ) %>%
     mutate(
       pct_all_hhs = hhs / sum(hhs),
-      pct_all_pop = pop / sum(pop)
+      pct_all_pop = pop / sum(pop),
+      pct_all_hhs_site_managed = hhs_site_managed / sum(hhs_site_managed, na.rm = T),
+      pct_all_pop_site_managed = pop_site_managed / sum(pop_site_managed, na.rm = T)
     )
   if (length(df_grp$by) > 1) {
     stats %>%
@@ -787,22 +796,23 @@ floodscore_pct_by <- function(df, by) {
 #' @note
 #' this are the outputs for qgis maps contained: ... enter path
 
-floodscore_pop_stats_by_admin <- function(floodscores,
-                                          flood_category = "High risk",
+floodscore_pop_stats_by_admin <- function(floodscores = cccm_floodscore_df,
+                                          flood_category = "High Hazard",
                                           by = list(
-                                            governorate = c("governorate"),
-                                            governorate_district = c("governorate", "district_pcode"),
+                                            governorate = c("governorate_name"),
+                                            governorate_district = c("governorate_name", "district_pcode"),
                                             district_subdistrict = c("district_pcode", "sub_district_pcode")
                                           ),
                                           adm_cods = adm_sf) {
   ret <- list()
+
   admin_stats_df <- by %>%
     map(
       ~ {
         print(.x)
         floodscores %>%
           filter(
-            site_flood_hazard_score == "High risk"
+            site_flood_hazard_score == flood_category
           ) %>%
           floodscore_pct_by(by = .x)
       }
@@ -822,6 +832,7 @@ floodscore_pop_stats_by_admin <- function(floodscores,
         TRUE ~ governorate_name
       )
     )
+
 
   ret$adm1 <- adm_cods$yem_admbnda_adm1_govyem_cso_20191002 %>%
     mutate(

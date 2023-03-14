@@ -39,6 +39,7 @@ The code in this repository is organized as follows:
 ├── exploration   # Experimental work not intended to be replicated
 ├── src           # Python code to run any relevant data acquisition/processing pipelines
 ├── R             # R code to run any relevant data acquisition/processing pipelines
+├── _targets      # Diretory containing data and metadata output from running of R `{targets}` pipeline
 |
 ├── .gitignore
 ├── README.md
@@ -48,6 +49,8 @@ The code in this repository is organized as follows:
 ```
 
 ## Reproducing this analysis
+
+### Python
 
 Create a directory where you would like the data to be stored,
 and point to it using an environment variable called
@@ -78,8 +81,9 @@ To see runtime options, execute:
 python src/main.py -h
 ```
 
+### R
 
-
+The analysis conducted in R is all performed via a `{targets}` workflow.
 To run R `targets` pipeline you must have the `{targets}` R package installed. More information can be found [here](https://github.com/ropensci/targets)
 
 The CRAN release can be installed with :
@@ -88,16 +92,17 @@ The CRAN release can be installed with :
 install.packages("targets")
 ```
 
-After targets is installed you can run the pipeline with:
+The `_targets.R` file contains the entire R portion of the analysis and can be run with:
 
 ```r
 targets::tar_make()
 ```
 
+Any functions sourced in targets are contained in the `R/` directory.
 
-**Additional Requirements:**
 
 Currently the targets pipeline uses Google Earth Engine (GEE) via the [rgee package](https://github.com/r-spatial/rgee). You must have an earth engine account and the rgee package set up for this portion of the pipeline to work.
+
 
 If you would like to instead receive the processed data from our team, please
 [contact us](mailto:centrehumdata@un.org).
