@@ -92,16 +92,17 @@ calc_TPFPFN <- function(df,
 
 
 calc_TPFPFN2 <- function(df,
-                         x=precip_roll10 ,
-                         event=fevent,
+                         x="precip_roll10" ,
+                         event="fevent",
                          thresh= 25,
                          look_back = 7,
-                         look_ahead=3){
+                         look_ahead=3
+                         ){
     
     # x <- df$precip_roll10
     # event <- df$fevent
-    x <- df %>% pull({{x}})
-    event <- df %>% pull({{event}})
+    x <- df %>% pull(x)
+    event <- df %>% pull(event)
     x_gte <- x >= thresh
     event_idx <-  which(event)
     
@@ -212,7 +213,7 @@ test_threshold_performance_all_sites <-  function(df,
                 filter(site_id ==site)
             
             max_x <- df_site %>%
-                pull({{x}}) %>%
+                pull(x) %>%
                 max(na.rm=T)
             max_x <- ceiling(max_x)
             if(is.null(thresholds)){
@@ -225,8 +226,8 @@ test_threshold_performance_all_sites <-  function(df,
                 map_dfr(\(thresh_temp){
                     cat(thresh_temp,"\n")
                     stats_temp<- calc_TPFPFN2(df = df_site,
-                                              x = {{x}},
-                                              event = {{event}},
+                                              x = x,
+                                              event = event,
                                               thresh = thresh_temp)
                     
                     num_FPs <- data.frame(class="FP",n=sum(stats_temp$FPs))
@@ -247,8 +248,9 @@ plot_site_events_classified <- function(df,
                                         x,
                                         event,
                                         thresh=thresh,
-                                        day_window,plot_title){
-    site_classification_list<- calc_TPFPFN2(df = df,x = {{x}},event = {{event}},thresh = thresh)
+                                        day_window,
+                                        plot_title){
+    site_classification_list<- calc_TPFPFN2(df = df,x = x,event = event,thresh = thresh)
     site_class_simp <- site_classification_list$event %>% 
         select(idx,TPFN)
     df_p <- df %>% 
@@ -259,8 +261,8 @@ plot_site_events_classified <- function(df,
         left_join(site_class_simp)
     
     p1 <- plot_site_events(df=df_p,
-                           x={{x}},
-                           event = {{event}},
+                           x=x,
+                           event = event,
                            thresh=thresh, day_window=day_window)+
         geom_point(data=. %>% filter(FPs))+
         geom_label(data=. %>% filter(!is.na(TPFN)),
@@ -276,10 +278,12 @@ plot_site_events_classified <- function(df,
 
 
 
-
 plot_site_events <- function(df, x,event,thresh,day_window){
+    event_str <- tidyselect::vars_pull(names(df), !!enquo(event))
+    x_str <- tidyselect::vars_pull(names(df), !!enquo(x))
+    
     event_dates <- df %>% 
-        filter({{event}}) %>% 
+        filter(!!sym(event_str)) %>% 
         pull(date)
     date_range <- range(event_dates)
     min_date <- date_range[1]-day_window
@@ -287,9 +291,9 @@ plot_site_events <- function(df, x,event,thresh,day_window){
     df_plot <- df %>% 
         filter(date>=min_date,date<=max_date)
     col_grid <- rgb(235, 235, 235, 70, maxColorValue = 255)
-    event_label_y_pos <- max(df_plot %>% pull({{x}}),na.rm=T)*.75
+    event_label_y_pos <- max(df_plot %>% pull(x),na.rm=T)*.75
     df_plot %>% 
-        ggplot(aes(x= date, y={{x}})) +
+        ggplot(aes(x= date, y=!!sym(x_str))) +
         scale_x_date(date_breaks =  "5 days",
                      date_labels = "%b %d",
                      date_minor_breaks = "1 day")+
@@ -298,10 +302,10 @@ plot_site_events <- function(df, x,event,thresh,day_window){
         # geom_point(data=. %>% filter(idx_test))+
         # geom_label(data=. %>% filter(idx_test),aes(label=idx))+
         geom_vline(data=. %>% 
-                       filter({{event}}),
+                       filter(!!sym(event_str)),
                    aes(xintercept=date), 
                    color="red")+
-        geom_hline(yintercept = thresh, linetype ="dashed", color="blue")+
+        geom_hline(aes(yintercept = thresh), linetype ="dashed", color="blue")+
         # geom_text(aes(x=ymd("2022-08-20"), y=17,label ="threshold a: 15 mm"))+
         # geom_text(aes(x=ymd("2022-08-20"), y=27,label ="threshold b: 25 mm"))+
         geom_text(data=. %>% 

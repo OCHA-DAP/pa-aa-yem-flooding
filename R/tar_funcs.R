@@ -227,11 +227,17 @@ calc_rolling_precip_sites <- function(df) {
       precip_roll3 = rollsum(x = precip_daily, fill = NA, k = 3, align = "right"),
       precip_roll5 = rollsum(x = precip_daily, fill = NA, k = 5, align = "right"),
       precip_roll10 = rollsum(x = precip_daily, fill = NA, k = 10, align = "right"),
+      precip_roll15 = rollsum(x = precip_daily, fill = NA, k = 15, align = "right"),
+      precip_roll20 = rollsum(x = precip_daily, fill = NA, k = 20, align = "right"),
+      precip_roll25 = rollsum(x = precip_daily, fill = NA, k = 25, align = "right"),
       precip_roll30 = rollsum(x = precip_daily, fill = NA, k = 30, align = "right"),
       precip_roll3_c = rollsum(x = precip_daily, fill = NA, k = 3, align = "center"),
       precip_roll5_c = rollsum(x = precip_daily, fill = NA, k = 5, align = "center"),
       precip_roll10_c = rollsum(x = precip_daily, fill = NA, k = 11, align = "center"),
-      precip_roll30_c = rollsum(x = precip_daily, fill = NA, k = 31, align = "center"),
+      precip_roll15_c = rollsum(x = precip_daily, fill = NA, k = 15, align = "center"),
+      precip_roll20_c = rollsum(x = precip_daily, fill = NA, k = 21, align = "center"),
+      precip_roll25_c = rollsum(x = precip_daily, fill = NA, k = 25, align = "center"),
+      precip_roll30_c = rollsum(x = precip_daily, fill = NA, k = 31, align = "center")
     ) %>%
     ungroup()
 }
@@ -849,28 +855,30 @@ floodscore_pop_stats_by_admin <- function(floodscores = cccm_floodscore_df,
 }
 
 
-plot_performance_all_sites <- function(site_rainfall, 
-                                       site_flooding,
-                                       x=precip_roll10,
-                                       event = fevent,
+plot_performance_all_sites <- function(df, 
+                                       x,
+                                       event,
                                        thresh=25,
                                        day_window=60
 ){
-    rain_impact_merged <- merge_rainfall_cccm_impact(site_rainfall =site_rainfall,
-                                                   site_flooding = site_flooding)
-    p_sites_level_performance<- rain_impact_merged$site_id %>% 
+
+    p_sites_level_performance<- df$site_id %>% 
         unique() %>% 
-        map(
-            ~{
-                plot_site_events_classified(df=rain_impact_merged %>% 
-                                                filter(site_id==.x) %>% 
-                                                arrange(date),
-                                            plot_title = .x,
-                                            x=precip_roll10,
-                                            event = fevent,
-                                            thresh=25,day_window=60)
-            }
-        )
+        map(\(site_id_temp){
+            plot_site_events_classified(df=df %>% 
+                                            filter(site_id==site_id_temp) %>% 
+                                            arrange(date),
+                                        plot_title = site_id_temp,
+                                        x=x,
+                                        event = event,
+                                        thresh=thresh,day_window=60)
+        }
+        ) %>% set_names(df$site_id %>% unique())
     return(p_sites_level_performance)
     
 }
+
+
+
+
+    
