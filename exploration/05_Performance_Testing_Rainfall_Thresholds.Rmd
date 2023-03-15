@@ -1,11 +1,15 @@
 ---
-title: "Class Predictions"
-output: html_document
-date: "2023-03-09"
+title: "Performance Testing"
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        toc_depth: 4
+date: "2023-03-15"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
 ```
 
 
@@ -16,13 +20,26 @@ library(targets)
 library(gghdx)
 library(lubridate )
 library(sysfonts)
+tar_source()
 
 font_add_google("Source Sans Pro")
 showtext::showtext_auto()
 
+
 tar_load(p_all_sites_events_pred_classifications)
-tar_load()
+# tar_load(thresh_class_freq_b7f3)
+
+# overall site level classifications
+tar_load(tbl_performance_overall) # aggregated for all sites
+tar_load(tbl_performance_overall_gov) # aggregagated by gov (Marib & Hajjah)
+
+# area level classification (Marib, Hajjah)
+tar_load(tbl_performance_area_marib_hajjah)
+
 ```
+
+**CHECK IT OUT:** Is it just me or does the performance for Hajjah - Approach 2 look relatively decent with potentially reasonable thresholds?
+
 ## Intro/Description
 
 In this document will explore the performance of  historical rainfall thresholds against the CCCM flood impact data. CHIRPS daily historical rainfall data was extracted to each site location for the entire date range of the CCCM flood reporting. Daily rainfall was aggregated in 3, 5, 10, 15, 20, 25, and 30 day windows. These were calculated using both a "right" and "center" aligned rolling sum calculation.
@@ -48,32 +65,164 @@ A more area based (Governorate-level) approach was also explored. This was achie
 The same classification as described in Approach 1 was then applied to these area-based rainfall-impact tables.
 
 
-## Performance - Approach 1
+## Performance Results
 
-### Plots
+### Approach 1
 
-```{r}
+#### All Sites (all govs)
+
+first look at all sites
+
+```{r calc-overall-site-level, echo=F}
+
+p_approach1 <- tbl_performance_overall %>% 
+    imap(\(tbl_plot,regime_name){
+        plot_performance_metrics(df=tbl_plot,
+                         governorate=NULL,
+                         pseudo_log=F,
+                         x_axis_title=regime_name)
+    }
+    )
+
+
+p_approach1_pseudolog <- tbl_performance_overall %>% 
+    imap(\(tbl_plot,regime_name){
+        plot_performance_metrics(df=tbl_plot,
+                         governorate=NULL,
+                         pseudo_log=T,
+                         x_axis_title=regime_name)
+    }
+    )
+
+p_approach1_marib <- tbl_performance_overall_gov %>% 
+    imap(\(tbl_plot,regime_name){
+        plot_performance_metrics(df=tbl_plot,
+                         governorate="Marib",
+                         pseudo_log=F,
+                         x_axis_title=regime_name)
+    }
+    )
+
+
+p_approach1_marib_pseudolog <- tbl_performance_overall_gov %>% 
+    imap(\(tbl_plot,regime_name){
+        plot_performance_metrics(df=tbl_plot,
+                         governorate="Marib",
+                         pseudo_log=T,
+                         x_axis_title=regime_name)
+    }
+    )
+
+p_approach1_hajjah <- tbl_performance_overall_gov %>% 
+    imap(\(tbl_plot,regime_name){
+        plot_performance_metrics(df=tbl_plot,
+                         governorate="Hajjah",
+                         pseudo_log=F,
+                         x_axis_title=regime_name)
+    }
+    )
+
+
+p_approach1_hajjah_pseudolog <- tbl_performance_overall_gov %>% 
+    imap(\(tbl_plot,regime_name){
+        plot_performance_metrics(df=tbl_plot,
+                         governorate="Hajjah",
+                         pseudo_log=T,
+                         x_axis_title=regime_name)
+    }
+    )
+
+# p_approach1$precip_roll10
+# p_approach1_pseudolog$precip_roll10
 
 ```
 
 
-### Limitations
 
-- problem of FPs
+**Perfomance Plots - No scaling**
 
-```{r}
+The number of `FPs` are so high in the early threshold values that I just cut the y axis at 500 so that the curves in the lower values could be visualized. The `pseudolog` transform shown below is another way to deal with this. Both are shown below.
 
+```{r plot-overall-site-level,out.width="100%"}
+walk(p_approach1,~print(.x))
+```
+
+**Perfomance Plots - No scaling**
+```{r plot-overall-site-level-pseudo,out.width="100%"}
+walk(p_approach1_pseudolog,~print(.x))
+```
+
+#### All Sites (Marib & Hajjah)
+
+```{r plot-overall-site-level-marib,out.width="100%"}
+walk(p_approach1_marib,~print(.x))
+```
+
+```{r plot-overall-site-level-hajjah,out.width="100%"}
+walk(p_approach1_hajjah,~print(.x))
 ```
 
 
+### Approach 2 (Area Based)
 
-## Performane - Approach 2
+Under approach 2 daily rainfall values and events are aggregated prior to performance classification. The performane for for Marib & Hajjah under the different rainfall regimes are shown below
 
-### Plots
+```{r make-area-level}
+p_marib_approach2 <- tbl_performance_area_marib_hajjah %>% 
+    imap(\(tbl_plot,regime_name){
+        plot_performance_metrics(df=tbl_plot,
+                         governorate="Marib",
+                         pseudo_log=F,
+                         x_axis_title=regime_name)
+    }
+    )
+p_hajjah_approach2 <- tbl_performance_area_marib_hajjah %>% 
+    imap(\(tbl_plot,regime_name){
+        plot_performance_metrics(df=tbl_plot,
+                         governorate="Hajjah",
+                         pseudo_log=F,
+                         x_axis_title=regime_name)
+    }
+    )
+```
 
-```{r}
+
+```{r make-area-level-pseudo}
+
+p_marib_approach2_pseudolog <- tbl_performance_area_marib_hajjah %>% 
+    imap(\(tbl_plot,regime_name){
+        plot_performance_metrics(df=tbl_plot,
+                         governorate="Marib",
+                         pseudo_log=T,
+                         x_axis_title=regime_name)
+    }
+    )
+
+p_hajjah_approach2_pseudolog <- tbl_performance_area_marib_hajjah %>% 
+    imap(\(tbl_plot,regime_name){
+        plot_performance_metrics(df=tbl_plot,
+                         governorate="Hajjah",
+                         pseudo_log=T,
+                         x_axis_title=regime_name)
+    }
+    )
+
+
 
 ```
+
+**Approach 2 Perfomance Plots - No scaling - Marib**
+
+```{r plot-marib-areal-level, out.width="100%"}
+walk(p_marib_approach2,~print(.x))
+```
+
+**Approach 2 Perfomance Plots - No scaling - Hajjah**
+
+```{r plot-hajjah-area-level, out.width="100%"}
+walk(p_hajjah_approach2,~print(.x))
+```
+
 
 ### Limitations
 
@@ -82,11 +231,52 @@ The same classification as described in Approach 1 was then applied to these are
 
 In the below plots we look at all rainfall events and map the distribution of rainfall values 10 & 20 days after and before events are reported
 
-```{r}
+```{r,eval=F}
 
+rainfall_impact_marib <- rainfall_impact_tbl %>%
+                      filter(governorate_name %in% c("Marib"))
+rainfall_impact_hajjah <- rainfall_impact_tbl %>%
+                      filter(governorate_name %in% c("Hajjah"))
+
+marib_event_dates<- rainfall_impact_marib %>% 
+    filter(fevent) %>% 
+    pull(date) %>% 
+    unique()
+hajjah_event_dates<- rainfall_impact_hajjah %>% 
+    filter(fevent) %>% 
+    pull(date) %>% 
+    unique()
+
+for(i in which(rainfall_impact_marib$fevent)){
+    d <- rainfall_impact_marib %>% 
+        slice(i)
+}
+
+rainfall_impact_temp_filtered<- marib_event_dates %>% 
+    map_dfr(\(dt){
+        start_dt <- dt-10
+        end_dt <- dt+10
+
+        rainfall_impact_marib %>% 
+            group_by(governorate_name,site_id) %>% 
+            filter(date>=start_dt,date<=end_dt) 
+    }
+    )
+rainfall_impact_temp_filtered %>% 
+    ggplot(aes(x= precip_roll10))+
+    geom_histogram()+
+    facet_wrap(~governorate_name)
+
+rainfall_impact_filt %>% 
+    filter(fevent) %>% 
+    mutate(f_roll= floor(precip_roll10)) %>% 
+    count(f_roll) %>% 
+    arrange(desc(n))
+
+    ggplot(aes(x= precip_roll10))+
+    geom_histogram()+
+    facet_wrap(~governorate_name)
 ```
-
-
 
 
 ## Appendix - Site Level Plots
@@ -96,8 +286,7 @@ Site level plots showing rainfall and reported flood events at each site. The da
 In these examples a threshold of `25 mm` on a `10 day` precipitation accumulation window was set. These are both arbitrary values, but were chosen for illustrative purposes to make sure the dates & events were being properly classified/labelled
 
 
-```{r site-plots , echo=FALSE,out.width="100%"}
-
+```{r site-plots ,eval = F, echo=FALSE,out.width="100%"}
 walk(p_all_sites_events_pred_classifications,~print(.x))
 
 ```

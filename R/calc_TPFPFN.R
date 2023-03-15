@@ -1,97 +1,17 @@
+#' Title
+#'
+#' @param df 
+#' @param x 
+#' @param event 
+#' @param thresh 
+#' @param look_back 
+#' @param look_ahead 
+#'
+#' @return
+#' @export
+#'
+#' @examples
 calc_TPFPFN <- function(df,
-                        x=precip_roll10 ,
-                        event=fevent,
-                        thresh= 25,
-                        look_back = 7,
-                        look_ahead=3){
-    
-    
-    x <- df %>% pull({{x}})
-    event <- df %>% pull({{event}})
-    x_gte <- x >= thresh
-    event_idx <-  which(event)
-    
-    # classify event as TP or FP....
-    event_classification <- event_idx %>% 
-        map_dfr(
-            \(idx){
-                if(idx<look_back){
-                    look_back <- (idx-1)
-                }
-                if((idx+look_ahead)>=length(x)){
-                    look_ahead <- length(x)-idx
-                }
-                search_window<- (idx-look_back):(idx+look_ahead)
-                thresh_in_window<- any(x[search_window]>=thresh)
-                tibble(idx= idx,
-                       start_idx=idx-look_back,
-                       end_idx= idx+look_ahead,
-                       positive=thresh_in_window,
-                       TPFN = ifelse(thresh_in_window,"TP","FN")
-                )
-            }
-        )
-    event_classification <- event_classification %>% 
-        mutate(
-            post_search_end_fp = replace_na(lead(start_idx),length(x)),
-            pre_search_start_fp = replace_na(lag(end_idx)+1,0)
-        )
-    
-    # now FNs hmmm
-    # well we can remove the search window!
-    
-    # then to get rid of middle we do 
-    # deriv =deltay/delta_x to get % increase
-    # we smooth it to remove minor blips
-    # then apply conditional
-    # if smoothed_deriv>0 |  # smoothed deriv will cancel values up to peak
-    #    x_gte | # this will take care of rest until back at thres.
-    
-    # make lgl FP search vector to include dates idxs to look for FPs 
-    # will add F based on below
-    FP_search_vector <- rep(T, length(x))
-    allowed_search_gte <- FP_search_vector& x_gte 
-    
-    FP_list<- event_classification %>% 
-        pmap(function(...){
-            temp_df <- tibble(...)
-            TP_search_window<- temp_df$start_idx :temp_df$end_idx 
-            post_search_window <- (temp_df$end_idx+1) :(temp_df$post_search_end_fp-1) 
-            pre_search_window <- (temp_df$pre_search_start_fp+1) :(temp_df$start_idx-1) 
-            allowed_FP_search_window <- c(pre_search_window,post_search_window)
-            # if it is in the TP window - make it F
-            FP_search_vector[TP_search_window] <- F
-            # if in allowed make it true
-            FP_search_vector[allowed_FP_search_window] <- T
-            # however they must be >= threshold
-            FP_search_window <- FP_search_vector& x_gte 
-            
-            # if post or pre search windows -- should have a look
-            if(!(temp_df$end_idx>=temp_df$post_search_end_fp)|temp_df$positive){
-                # consecutive values over threshold after event should not be FPs
-                post_consecutive_gte <- diff(cumsum(c(0,x_gte[post_search_window])))>0
-                FP_search_window[post_search_window] <- !post_consecutive_gte & x_gte
-            }
-            if(!temp_df$positive){
-                FP_search_window <- x_gte
-            }
-            return(FP_search_window)
-        }
-        
-        )
-    
-    
-    FP_ret_combined<- Reduce('&',FP_list)
-    ret <- list()
-    ret$FPs <- FP_ret_combined
-    ret$event <- event_classification
-    
-    return(ret)
-    
-}
-
-
-calc_TPFPFN2 <- function(df,
                          x="precip_roll10" ,
                          event="fevent",
                          thresh= 25,
@@ -225,7 +145,7 @@ test_threshold_performance_all_sites <-  function(df,
             thresholds_iter %>%
                 map_dfr(\(thresh_temp){
                     cat(thresh_temp,"\n")
-                    stats_temp<- calc_TPFPFN2(df = df_site,
+                    stats_temp<- calc_TPFPFN(df = df_site,
                                               x = x,
                                               event = event,
                                               thresh = thresh_temp)
@@ -241,6 +161,40 @@ test_threshold_performance_all_sites <-  function(df,
         })
 }
 
+performance_frequencies_by_threshold <-  function(df,
+                                             x ,
+                                             by="governorate_name",
+                                             event,
+                                             look_back = 7,
+                                             look_ahead=3,
+                                             thresholds=NULL){
+    performance<- df[[by]] %>%
+        unique() %>%
+        map_dfr(
+            \(loc){
+                cat(loc,"\n")
+            df_loc <- df %>%
+                filter(!!sym(by) ==loc)
+            
+            thresholds %>%
+                map_dfr(\(thresh_temp){
+                    cat(thresh_temp,"\n")
+                    stats_temp<- calc_TPFPFN(df = df_loc,
+                                              x = x,
+                                              event = event,
+                                              thresh = thresh_temp)
+                    
+                    num_FPs <- data.frame(class="FP",n=sum(stats_temp$FPs))
+                    num_TPFN <- stats_temp$event %>%
+                        count(TPFN) %>%
+                        rename(class = "TPFN")
+                    bind_rows(num_TPFN,num_FPs) %>%
+                        mutate(!!sym(by) := loc,
+                               thresh=thresh_temp)
+                })
+        })
+}
+
 
 
 
@@ -250,7 +204,7 @@ plot_site_events_classified <- function(df,
                                         thresh=thresh,
                                         day_window,
                                         plot_title){
-    site_classification_list<- calc_TPFPFN2(df = df,x = x,event = event,thresh = thresh)
+    site_classification_list<- calc_TPFPFN(df = df,x = x,event = event,thresh = thresh)
     site_class_simp <- site_classification_list$event %>% 
         select(idx,TPFN)
     df_p <- df %>% 
@@ -409,7 +363,7 @@ merge_rainfall_cccm_impact <-  function(site_rainfall, site_flooding){
 #                     
 #                     seq(0,max_x,by=1) %>% 
 #                         map(
-#                             stats_temp<- calc_TPFPFN2(df = df_temp,
+#                             stats_temp<- calc_TPFPFN(df = df_temp,
 #                                                       x = {{x}},
 #                                                       event = {{event}},
 #                                                       thresh = thresh)
@@ -417,7 +371,7 @@ merge_rainfall_cccm_impact <-  function(site_rainfall, site_flooding){
 #                 }
 #                 
 #                 
-#                 stats_temp<- calc_TPFPFN2(df = df_temp,
+#                 stats_temp<- calc_TPFPFN(df = df_temp,
 #                                           x = {{x}},
 #                                           event = {{event}},
 #                                           thresh = thresh)
@@ -443,7 +397,7 @@ merge_rainfall_cccm_impact <-  function(site_rainfall, site_flooding){
 #                 gov_name <- unique(df_temp$governorate_name)
 #                 
 #                 
-#                 stats_temp<- calc_TPFPFN2(df = df_temp,
+#                 stats_temp<- calc_TPFPFN(df = df_temp,
 #                                           x = {{x}},
 #                                           event = {{event}},
 #                                           thresh = thresh)

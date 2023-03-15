@@ -202,7 +202,7 @@ list(
     tar_target(
         name = high_risk_flood_stats_by_cod ,
         command = floodscore_pop_stats_by_admin(floodscores=cccm_floodscore_df,
-                                                flood_category="High risk",
+                                                flood_category="High Hazard",
                                                 by = list(governorate=c("governorate_name"),
                                                           governorate_district= c("governorate_name","district_pcode"),
                                                           district_subdistrict= c("district_pcode","sub_district_pcode")
@@ -277,16 +277,16 @@ list(
     #     name = gefs_chirps_pts,
     #     command = extract_chirps_gefs_to_pts(raster_dir =chirps_gefs_dir,forecast = 10,sites =cccm_flood_report_sites  )
     # ),
-    
+
     ## Compare CHIRPS to CHIRPS-GEFS ----
     # Now align CHIRPS-GEFS with CHIRPS and plot together for all sites as well as random
     # site as example. `TODO` map 1000 random points to chirps
-  
+
     # tar_target(
     #     name = p_chirps_vs_gefs,
     #     command = plot_chirps_gefs_comparison(gef_values= gefs_chirps_pts,chirps_values=cccm_site_chirp_stats,gef_forecast_window = 10)
     # ),
-    
+
     # Performance Testing -----------------------------------------------------
     tar_target(
         name = rainfall_impact_tbl,
@@ -325,15 +325,16 @@ list(
           map(\(rainfall_regime){
               cat(crayon::green(rainfall_regime),"\n")
               max_rainfall <- ceiling(max(rainfall_impact_tbl[[rainfall_regime]],na.rm=T))
-              test_threshold_performance_all_sites(df = rainfall_impact_tbl,
+              performance_frequencies_by_threshold(df = rainfall_impact_tbl,
                                                    x=rainfall_regime,
-                                                               event="fevent",
-                                                       look_back = 7,
-                                                       look_ahead = 3,
-                                                       thresholds = seq(0,max_rainfall,1))
-            }
-            ) %>% set_names( c(
-                "precip_roll3",
+                                                   by="site_id",
+                                                   event="fevent",
+                                                   look_back = 7,
+                                                   look_ahead = 3,
+                                                   thresholds = seq(0,max_rainfall,1))
+          }
+          ) %>% set_names( c(
+              "precip_roll3",
                 "precip_roll5",
                 "precip_roll10",
                 "precip_roll15",
@@ -348,31 +349,128 @@ list(
                 "precip_roll25_c",
                 "precip_roll30_c"
             ) )
+  ),
+
+    tar_target(
+        name = tbl_performance_overall,
+        command =  thresh_class_freq_b7f3 %>% 
+            map(\(freq_tbl){
+                calculate_performance_metrics(df =freq_tbl ,
+                                           cccm_wb = cccm_wb,
+                                           level="site",
+                                          by = c("thresh","class"))
+            }
+            ) %>% set_names(names(thresh_class_freq_b7f3))
+    ),
+
+    tar_target(
+        name = tbl_performance_overall_gov,
+        command =  thresh_class_freq_b7f3 %>% 
+            map(\(freq_tbl){
+                calculate_performance_metrics(df =freq_tbl ,
+                                           cccm_wb = cccm_wb,
+                                           level="site",
+                                          by = c("governorate_name","thresh","class"))
+            }
+            ) %>% set_names(names(thresh_class_freq_b7f3))
+    ),
+  tar_target(
+      name = gov_area_rainfall_impact_tbl,
+      command =   rainfall_impact_tbl %>% 
+          group_by(governorate_name, date) %>% 
+          summarise(
+              across(matches("^precip_.+"), list(max=max,mean=mean)),
+              fevent = any(fevent),.groups="drop"
+          ) 
+  ),
+  tar_target(
+      name= tbl_performance_gov_area_level,
+      command= c(
+          "precip_roll3_max",
+          "precip_roll5_max",
+          "precip_roll10_max",
+          "precip_roll15_max",
+          "precip_roll20_max",
+          "precip_roll25_max",
+          "precip_roll30_max",
+          "precip_roll3_mean",
+          "precip_roll5_mean",
+          "precip_roll10_mean",
+          "precip_roll15_mean",
+          "precip_roll20_mean",
+          "precip_roll25_mean",
+          "precip_roll30_mean",
+          "precip_roll3_c_max",
+          "precip_roll5_c_max",
+          "precip_roll10_c_max",
+          "precip_roll15_c_max",
+          "precip_roll20_c_max",
+          "precip_roll25_c_max",
+          "precip_roll30_c_max",
+          "precip_roll3_c_mean",
+          "precip_roll5_c_mean",
+          "precip_roll10_c_mean",
+          "precip_roll15_c_mean",
+          "precip_roll20_c_mean",
+          "precip_roll25_c_mean",
+          "precip_roll30_c_mean"
+          ) %>% 
+          map(\(rainfall_regime){
+              
+              cat(crayon::green(rainfall_regime),"\n")
+              max_rainfall <- ceiling(max(gov_area_rainfall_impact_tbl[[rainfall_regime]],na.rm=T))
+              
+              performance_frequencies_by_threshold(df = gov_area_rainfall_impact_tbl %>% 
+                                                  filter(governorate_name %in% c("Hajjah","Marib")),
+                                               x = rainfall_regime,
+                                               by = "governorate_name",
+                                               event = "fevent",
+                                               look_back = 7,
+                                               look_ahead = 3,
+                                               thresholds = seq(0,max_rainfall,by=1))
+          }
+  ) %>% set_names( c(
+      "precip_roll3_max",
+      "precip_roll5_max",
+      "precip_roll10_max",
+      "precip_roll15_max",
+      "precip_roll20_max",
+      "precip_roll25_max",
+      "precip_roll30_max",
+      "precip_roll3_mean",
+      "precip_roll5_mean",
+      "precip_roll10_mean",
+      "precip_roll15_mean",
+      "precip_roll20_mean",
+      "precip_roll25_mean",
+      "precip_roll30_mean",
+      "precip_roll3_c_max",
+      "precip_roll5_c_max",
+      "precip_roll10_c_max",
+      "precip_roll15_c_max",
+      "precip_roll20_c_max",
+      "precip_roll25_c_max",
+      "precip_roll30_c_max",
+      "precip_roll3_c_mean",
+      "precip_roll5_c_mean",
+      "precip_roll10_c_mean",
+      "precip_roll15_c_mean",
+      "precip_roll20_c_mean",
+      "precip_roll25_c_mean",
+      "precip_roll30_c_mean"
+  ) )
+  ),
+  tar_target(
+      name = tbl_performance_area_marib_hajjah,
+      command =  tbl_performance_gov_area_level %>% 
+          map(\(freq_tbl){
+              calculate_performance_metrics(df =freq_tbl,
+                                            cccm_wb = cccm_wb,
+                                            level="governorate_name",
+                                            by = c("governorate_name","class","thresh"))
+          }
+          ) %>% set_names(names(tbl_performance_gov_area_level))
   )
-    # tar_target(
-    #     name = thresh_class_freq_5d,
-    #     command = test_threshold_performance_all_sites(df = rainfall_impact_tbl ,
-    #                                                            x=precip_roll5,
-    #                                                            event=fevent,
-    #                                                    look_back = 7,
-    #                                                    look_ahead = 3,
-    #                                                    thresholds = seq(0,176,1))
-    # ),
-    # tar_target(
-    #     name = thresh_class_freq_30d,
-    #     command = test_threshold_performance_all_sites(df = rainfall_impact_tbl ,
-    #                                                            x=precip_roll30,
-    #                                                            event=fevent,
-    #                                                    look_back = 7,
-    #                                                    look_ahead = 3,
-    #                                                    thresholds = seq(0,496,1))
-    # ),
-    # tar_target(
-    #     name = tbl_performance_10d_overall,
-    #     command =  calculate_performance_metrics(df = thresh_class_freq_10d,
-    #                                        cccm_wb = cccm_wb,
-    #                                       by = c("thresh","class"))
-    # ),
     # tar_target(
     #     name = tbl_performance_10d_gov,
     #     command =  calculate_performance_metrics(df = thresh_class_freq_10d,

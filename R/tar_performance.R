@@ -15,11 +15,16 @@
 
 calculate_performance_metrics <-function(df,
                                          cccm_wb,
+                                         level="site",
                                          by=c("governorate_name","thresh","class")){
+    if(level=="site"){
+        df <- df %>% 
+            # should remove dependency on this 
+            left_join(cccm_wb$`ML- Flooding Available data` %>% 
+                          select(site_id,contains('governorate')))     
+        
+    }
     df_summarised <- df %>% 
-        # should remove dependency on this 
-        left_join(cccm_wb$`ML- Flooding Available data` %>% 
-                      select(site_id,contains('governorate'))) %>% 
         mutate(
             across(all_of(by),~factor(.x))
         ) %>% 
@@ -108,6 +113,10 @@ plot_performance_metrics <- function(df,
     if(is.null(governorate)){
         plot_title <-  "Yemen"
     }
+    thresh_of_first_0_TP <- df[which(df[["TP"]]==0)[1],][["thresh"]]
+    df <- df %>% 
+        filter(thresh %in% c(0:thresh_of_first_0_TP))
+    
     fnfptp_long <- df %>% 
         select(any_of(c("governorate_name","thresh", "FN","FP","TP"))) %>% 
         pivot_longer(cols = c("FN","FP","TP"),
@@ -118,19 +127,24 @@ plot_performance_metrics <- function(df,
         select(any_of(c("governorate_name","thresh", "precision", "recall","f1_score"))) %>% 
         pivot_longer(cols=c("precision","recall","f1_score"),names_to = "metric",values_to="metric_value") 
     
-    if(pseudo_log){
-        y_breaks = c(seq(0,40,by=10), seq(50,500,by=50))
-                     }
-    if(!pseudo_log){
-        y_breaks= seq(0,300,10)
-    }
+    # we want to scale plots according to max count values except in the case where FPs are so large
+    # in early thresholds ... in those cases let's set the max to 500
+    max_count <- ceiling(max(fnfptp_long[["class_value"]],na.rm=T))
+    y_scalar = ifelse(max_count>=500,500,max_count)
+    
+    # if(pseudo_log){
+        # y_breaks = c(seq(0,40,by=10), seq(50,y_scalar,by=50))
+                     # }
+    # if(!pseudo_log){
+        # y_breaks= seq(0,y_scalar,10)
+    # }
     
     p1 <- fnfptp_long %>%
         ggplot(aes(x= as.numeric(thresh), y= class_value, color=class,group=class))+
         geom_line()+
         geom_line(data= metrics_long,
                   aes(x= as.numeric(thresh),
-                      y=metric_value*200,
+                      y=metric_value*y_scalar,
                       group=metric,
                       color=metric
                   ))+
@@ -142,16 +156,17 @@ plot_performance_metrics <- function(df,
                                       "TP"="green"))
         if(pseudo_log){
             p2 <- p1+scale_y_continuous(labels = scales::comma,
-                                        breaks = y_breaks,
+                                        # breaks = y_breaks,
                                         trans = scales::pseudo_log_trans(),
-                                        sec.axis = sec_axis( trans=~.*(1/200),
+                                        sec.axis = sec_axis( trans=~.*(1/y_scalar),
                                                              breaks = seq(0,1,.1))
             )
         }
         if(!pseudo_log){
             p2 <- p1+scale_y_continuous(labels = scales::comma,
-                                        breaks = y_breaks,
-                                        sec.axis = sec_axis( trans=~.*(1/200),
+                                        # breaks = y_breaks,
+                                        limits = c(0,y_scalar),
+                                        sec.axis = sec_axis( trans=~.*(1/y_scalar),
                                                              breaks = seq(0,1,.1))
             )
         }
@@ -165,4 +180,14 @@ plot_performance_metrics <- function(df,
         )
        
 }
+
+
+summarise_rainfall_impact_to_gov <- function(df){
     
+    df %>% 
+        group_by(governorate_name, date) %>% 
+        summarise(
+            across(matches("^precip_.+"), list(max=max,mean=mean)),
+            fevent = any(fevent),.groups="drop"
+        ) 
+}    
