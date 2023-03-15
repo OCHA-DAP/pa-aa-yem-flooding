@@ -50,6 +50,17 @@ The same classification as described in Approach 1 was then applied to these are
 
 ## Performance - Approach 1
 
+### Plots
+
+```{r}
+
+```
+
+
+### Limitations
+
+- problem of FPs
+
 ```{r}
 
 ```
@@ -58,10 +69,23 @@ The same classification as described in Approach 1 was then applied to these are
 
 ## Performane - Approach 2
 
+### Plots
 
 ```{r}
 
 ```
+
+### Limitations
+
+
+## Rainfall Distributions around events
+
+In the below plots we look at all rainfall events and map the distribution of rainfall values 10 & 20 days after and before events are reported
+
+```{r}
+
+```
+
 
 
 
