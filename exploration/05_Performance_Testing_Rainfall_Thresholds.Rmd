@@ -1,0 +1,81 @@
+---
+title: "Class Predictions"
+output: html_document
+date: "2023-03-09"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r echo=F, include=F}
+library(tidyverse)
+library(targets)
+library(gghdx)
+library(lubridate )
+library(sysfonts)
+
+font_add_google("Source Sans Pro")
+showtext::showtext_auto()
+
+tar_load(p_all_sites_events_pred_classifications)
+tar_load()
+```
+## Intro/Description
+
+In this document will explore the performance of  historical rainfall thresholds against the CCCM flood impact data. CHIRPS daily historical rainfall data was extracted to each site location for the entire date range of the CCCM flood reporting. Daily rainfall was aggregated in 3, 5, 10, 15, 20, 25, and 30 day windows. These were calculated using both a "right" and "center" aligned rolling sum calculation.
+
+### Classification - Approach 1
+
+True Positives (TP), False Positives (FP), and False Negatives (FN) were classified based on the CCCM flood report date and precipitation quantity according to the following criteria:
+
+- For all recorded events we applied both a pre and post-date buffer. Initially the pre-buffer was set to 7 days and post-buffer set to 3 days. Therefore, the event is labelled as a `TP` if rainfall crosses the specified anytime between `7` days before and `3` days after the event was reported. Later we adjusted the post-buffer to 7 days as well.
+- If the rainfall does not cross the threshold within the above time period it is a `FN`
+- No consecutive dates greater than the threshold after a TP are labelled/classified
+- For the rest of the dates greater than the threshold the first date of when the threshold is crossed is labelled as a `FP`. After the labelled FP, consecutive days above the threshold are not labelled.
+
+The TPs, FPs, FNs were calculated according to the above criteria and then aggregated to the overall (all site) and Governorate (admin 1) level by summing the counts.
+
+### Classification - Approach 2
+
+A more area based (Governorate-level) approach was also explored. This was achieved this both the rainfall and events needed to be consolidated/aggregated at the governorate/area level. this was done by:
+
+- rainfall: calculating the `max()` and `mean()` daily rainfall value (at each window) for all sites within the Governorate. 
+- events: if any event was recorded on a given dates within the governorate that day was marked `TRUE` for an eent.
+
+The same classification as described in Approach 1 was then applied to these area-based rainfall-impact tables.
+
+
+## Performance - Approach 1
+
+```{r}
+
+```
+
+
+
+## Performane - Approach 2
+
+
+```{r}
+
+```
+
+
+
+## Appendix - Site Level Plots
+
+Site level plots showing rainfall and reported flood events at each site. The dates extend 60 days in each direction (where possible) around the reported flood events.**Note:** while the date range window for plotting was set to 60 days around the reported flood events for illustrative purposes, `FP`s outside of the 60-day window are included in performance calculations
+
+In these examples a threshold of `25 mm` on a `10 day` precipitation accumulation window was set. These are both arbitrary values, but were chosen for illustrative purposes to make sure the dates & events were being properly classified/labelled
+
+
+```{r site-plots , echo=FALSE,out.width="100%"}
+
+walk(p_all_sites_events_pred_classifications,~print(.x))
+
+```
+
+
