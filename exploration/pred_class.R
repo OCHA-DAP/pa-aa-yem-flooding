@@ -218,7 +218,7 @@ rain_impact_harm_simp %>%
 
 plot_site_events_classified(df=rain_single_site, x=precip_roll10,event = fevent,thresh=25)
 
-# debugonce(calc_TPFPFN2)
+# debugonce(calc_TPFPFN)
 # debugonce(plot_site_events_classified)
 plot_site_events_classified(df=rain_impact_harm_simp %>% 
                                 filter(site_id =="YE1521_0338") %>% 

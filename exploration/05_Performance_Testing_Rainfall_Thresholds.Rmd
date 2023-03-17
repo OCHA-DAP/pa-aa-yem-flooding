@@ -9,7 +9,7 @@ date: "2023-03-15"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE,message = FALSE)
 ```
 
 
@@ -229,55 +229,242 @@ walk(p_hajjah_approach2,~print(.x))
 
 ## Rainfall Distributions around events
 
-In the below plots we look at all rainfall events and map the distribution of rainfall values 10 & 20 days after and before events are reported
+In the below plots we look at all rainfall events and map the distribution of rainfall values 3,5,10, and 15 days around the date the event was reported.
 
-```{r,eval=F}
+First we have the distributions of the rainfall regimes aligned right
 
-rainfall_impact_marib <- rainfall_impact_tbl %>%
-                      filter(governorate_name %in% c("Marib"))
-rainfall_impact_hajjah <- rainfall_impact_tbl %>%
-                      filter(governorate_name %in% c("Hajjah"))
+```{r,eval=T}
+library(ggridges)
+tar_load(rainfall_impact_tbl)
+rainfall_impact_marib_hajjah <- rainfall_impact_tbl %>% 
+    filter(governorate_name %in% c("Marib","Hajjah"))
 
-marib_event_dates<- rainfall_impact_marib %>% 
-    filter(fevent) %>% 
-    pull(date) %>% 
-    unique()
-hajjah_event_dates<- rainfall_impact_hajjah %>% 
-    filter(fevent) %>% 
-    pull(date) %>% 
-    unique()
-
-for(i in which(rainfall_impact_marib$fevent)){
-    d <- rainfall_impact_marib %>% 
-        slice(i)
+event_rainfall_distributions <-  function(df,day_window){
+    df_w_event_uid <- df %>%
+    mutate(event_uid= paste0(site_id,"_", date)) 
+    
+    event_uid<- df_w_event_uid %>% 
+        filter(fevent) %>% 
+        pull(event_uid)
+    
+    event_uid %>% 
+        map_dfr( \(uid){
+            df_event <- df_w_event_uid %>% 
+                filter(event_uid == uid)
+            event_date<- df_event$date
+            
+            start_date <-  event_date - day_window
+            end_date <-  event_date + day_window
+            
+            dates_incl<- seq(ymd(start_date),ymd(end_date),1)
+            
+            start_minus_3mo <-  start_date - 90
+            end_plus_3mo <-  end_date +90
+            
+            all_dates <- seq(ymd(start_minus_3mo),ymd(end_plus_3mo),1)
+            
+            dates_excl <-  all_dates[!all_dates %in% dates_incl]
+            
+            
+            site_dates_centered <- df_w_event_uid %>% 
+                filter(site_id ==df_event$site_id,
+                       date %in% dates_incl) %>% 
+                select(date,fevent,governorate_name, site_id, starts_with("precip_")) %>% 
+                arrange(site_id, date) %>% 
+                mutate(when= "dates around event")
+            
+            site_dates_non_dates <- df_w_event_uid %>% 
+                filter(site_id ==df_event$site_id,
+                      date %in% dates_excl,
+                       ) %>% 
+                select(date,fevent,governorate_name, site_id, starts_with("precip_")) %>% 
+                arrange(site_id, date) %>% 
+                mutate(when= "dates not aroud event")
+            bind_rows(site_dates_centered, site_dates_non_dates)
+            
+        }
+        
+        )
 }
 
-rainfall_impact_temp_filtered<- marib_event_dates %>% 
-    map_dfr(\(dt){
-        start_dt <- dt-10
-        end_dt <- dt+10
 
-        rainfall_impact_marib %>% 
-            group_by(governorate_name,site_id) %>% 
-            filter(date>=start_dt,date<=end_dt) 
+distributions_centered<- c(3,5,10,15) %>% 
+    map(\(day){
+        event_rainfall_distributions(df =rainfall_impact_marib_hajjah,
+                             day_window = day )
     }
+    ) %>% set_names(c(3,5,10,15) )
+
+
+
+plot_regime_distribution_ridges <-  function(df,regime_rgx="^precip_.+\\d$"){
+    df_regime_long <- df %>% 
+    pivot_longer(cols = matches(regime_rgx),
+                 names_to = "precip_regime",values_to = "mm") 
+    
+    regime_level_order <- df_regime_long %>% 
+    mutate(
+        regime_num = parse_number(precip_regime),
+    ) %>% 
+    distinct(precip_regime,regime_num) %>% 
+    arrange(regime_num) %>% 
+    pull(precip_regime)
+    
+    p_event_rainfall_distributions <- df_regime_long %>% 
+        mutate(precip_regime= fct_relevel(precip_regime,regime_level_order)) %>% 
+        ggplot(aes(x= mm,
+                   y = precip_regime,
+                   fill = when
+                   # fill =stat(x))
+        ),alpha= 0.3)+
+        geom_density_ridges(alpha=0.3)+
+        
+        # geom_density_ridges_gradient()+
+        # scale_fill_gradient_hdx_sapphire()+
+        # scale_fill_viridis_c(option = "C") +
+        facet_wrap(~governorate_name)+
+        theme_hdx()+
+    theme(
+        # legend.position ="none",
+          axis.title.y = element_blank())
+    return(p_event_rainfall_distributions)
+
+    
+}
+
+
+ridge_plot_subtitle_1 <- glue::glue("+/- {names(distributions_centered)} days around event (regime aligned right)")
+p_rainfall_distributions_right <- distributions_centered %>% 
+    map2(ridge_plot_subtitle_1, \(rainfall_df,plot_subtitle){
+        plot_regime_distribution_ridges(df= rainfall_df,regime_rgx="^precip_.+\\d$")+
+            labs(title = "Rainfall regime distributions" ,subtitle =plot_subtitle )
+    }
+        
     )
-rainfall_impact_temp_filtered %>% 
-    ggplot(aes(x= precip_roll10))+
-    geom_histogram()+
-    facet_wrap(~governorate_name)
+ridge_plot_subtitle_2 <- glue::glue("+/- {names(distributions_centered)} days around event (regime aligned center)")
 
-rainfall_impact_filt %>% 
-    filter(fevent) %>% 
-    mutate(f_roll= floor(precip_roll10)) %>% 
-    count(f_roll) %>% 
-    arrange(desc(n))
-
-    ggplot(aes(x= precip_roll10))+
-    geom_histogram()+
-    facet_wrap(~governorate_name)
+p_rainfall_distributions_centered <- distributions_centered %>% 
+    map2(ridge_plot_subtitle_2, \(rainfall_df,plot_subtitle){
+        plot_regime_distribution_ridges(df= rainfall_df,regime_rgx="^precip_.+_c$")+
+            labs(title = "Rainfall regime distributions" ,subtitle =plot_subtitle )
+    }
+        
+    )
 ```
 
+```{r, out.width="100%"}
+
+walk(p_rainfall_distributions_right,~print(.x))
+```
+
+and next center aligned:
+
+```{r, out.width="100%"}
+walk(p_rainfall_distributions_centered,~print(.x))
+```
+
+
+# return peridos
+```{r}
+
+tar_load(cccm_site_chirp_stats)
+site_rainfall_historical <- cccm_site_chirp_stats %>% 
+    left_join(cccm_wb$`ML- Flooding Available data`%>% distinct(site_id, governorate_name))
+
+yearly_max_by_gov <- site_rainfall_historical %>% 
+    group_by(governorate_name,year=year(date)) %>% 
+    summarise(
+        across(starts_with("precip_"),~max(.x,na.rm = T)),.groups="drop"
+    )
+
+
+return_yearly_max <-  function(df,agg_by="mean"){
+    if(agg_by=="mean") {
+        df_agg_across_sites <- df %>% 
+            group_by(governorate_name,date) %>% 
+            summarise(
+                across(starts_with("precip_"),~mean(.x,na.rm=T)),
+                .groups="drop"
+            )
+        yr_max <- df_agg_across_sites %>% 
+            group_by(governorate_name, year= year(date)) %>% 
+            summarise(
+                across(.cols=starts_with("precip_"),~max(.x,na.rm=T) ),
+                .groups="drop"
+            )
+        
+    }
+    if(agg_by =="max"){
+        
+        df_agg_across_sites <- df %>% 
+            group_by(governorate_name,date) %>% 
+            summarise(
+                across(.cols=starts_with("precip_"),~max(.x) ),
+                .groups="drop"
+            )
+        yr_max <- df_agg_across_sites %>% 
+            group_by(governorate_name, year= year(date)) %>% 
+            summarise(
+                across(.cols=starts_with("precip_"),~max(.x) ),
+                .groups="drop"
+            )
+        
+    }
+    return(yr_max)
+    
+    
+}
+
+return_yearly_max(df = site_rainfall_historical,agg_by = "mean" )
+calc_rps <-  function(df, agg_by,rps = c(2,3,4,5,10)){
+    yearly_max <- return_yearly_max(df = site_rainfall_historical,agg_by = agg_by )
+    marib_ARI_gev_roll10 <- fevd(yearly_max_marib$precip_roll10, type = "GEV")
+    
+}
+
+
+    yearly_max_marib <- yearly_max_by_gov %>% 
+    filter(governorate_name=="Marib")
+marib_ARI_gev_roll10 <- fevd(yearly_max_marib$precip_roll10, type = "GEV")
+marib_ARI_gev_roll5 <- fevd(yearly_max_marib$precip_roll5, type = "GEV")
+marib_ARI_gev_roll3 <- fevd(yearly_max_marib$precip_roll3, type = "GEV")
+marib_ARI_gev_daily <- fevd(yearly_max_marib$precip_daily, type = "GEV")
+
+
+rps_roll10 <- return.level(x = marib_ARI_gev_roll10, 
+                       return.period = c(2,3,4,5,10),
+                       do.ci = TRUE, alpha = 0.05)
+rps_roll5 <- return.level(x = marib_ARI_gev_roll5, 
+                       return.period = c(2,3,4,5,10),
+                       do.ci = TRUE, alpha = 0.05)
+rps_roll3 <- return.level(x = marib_ARI_gev_roll3, 
+                       return.period = c(2,3,4,5,10),
+                       do.ci = TRUE, alpha = 0.05)
+rps_daily<- return.level(x = marib_ARI_gev_daily, 
+                       return.period = c(2,3,4,5,10),
+                       do.ci = TRUE, alpha = 0.05)
+
+
+ck <- site_rainfall_historical %>% 
+    group_by(governorate_name,date) %>% 
+    summarise(
+        across(starts_with("precip_"),~mean(.x,na.rm=T)),
+        .groups="drop"
+    )
+ck2 <- ck %>% 
+    group_by(governorate_name,year= year(date)) %>% 
+    summarise(
+        across(starts_with("precip_"),~max(.x,na.rm=T)),.groups = "drop"
+    )
+
+yearly_max_marib_calc2 <- ck2 %>% 
+    filter(governorate_name =="Marib")
+marib_ARI_gev_roll10_2 <- fevd(yearly_max_marib_calc2$precip_roll10, type = "GEV")
+rps_roll10 <- return.level(x = marib_ARI_gev_roll10_2, 
+                       return.period = c(2,3,4,5,10),
+                       do.ci = TRUE, alpha = 0.05)
+
+```
 
 ## Appendix - Site Level Plots
 

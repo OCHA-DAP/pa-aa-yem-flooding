@@ -179,13 +179,15 @@ fnfptp_long %>%
  
  rain_single_site <- rainfall_impact_tbl %>% 
      filter(site_id=="YE3003_1604")
- ck1 <- calc_TPFPFN2(df = rain_single_site,
+ 
+ 
+ ck1 <- calc_TPFPFN(df = rain_single_site,
               x = precip_roll10,
               event = fevent,
               thresh = 1,
               look_back = 7,
               look_ahead = 3)
- ck0 <- calc_TPFPFN2(df = rain_single_site,
+ ck0 <- calc_TPFPFN(df = rain_single_site,
               x = precip_roll10,
               event = fevent,
               thresh = 0,
@@ -195,5 +197,51 @@ fnfptp_long %>%
  sum(ck1$FPs)
  sum(ck0$FPs)
 
+sites_with_alot_of_FPs_marib <-  thresh_class_freq_10d %>% 
+     left_join(
+         cccm_wb$`ML- Flooding Available data` %>% select(site_id,site_name,governorate_name)
+     ) %>% 
+     filter(governorate_name=="Marib") %>% 
+     filter(class=="FP") %>% 
+     filter(thresh>20) %>% 
+     arrange(desc(n)) %>% 
+     filter(n %in% c(5, 6)) %>% 
+     distinct(site_id) %>% 
+    pull(site_id)
  
-  
+ 
+thresh_class_freq_10d %>% 
+    left_join(
+        cccm_wb$`ML- Flooding Available data` %>% select(site_id,site_name,governorate_name)
+    ) %>% 
+    filter(site_id %in% sites_with_alot_of_FPs_marib) %>% 
+    ggplot(aes(x= thresh, y= n, group=class))+
+    geom_line()+
+    geom_vline(aes(xintercept= 60))+
+    facet_wrap(~site_id)
+
+
+rainfall_impact_tbl %>% 
+    filter(site_id %in%sites_with_alot_of_FPs_marib) %>% 
+    ggplot(aes(x=date, y= precip_roll10))+
+    geom_line()+
+    geom_hline(aes(yintercept=60))+
+    facet_wrap(~site_id)
+
+
+
+plot_site_events_classified(df = rainfall_impact_tbl %>% 
+                                filter(site_id=="YE2613_1399"),
+                            x = precip_roll10,
+                            event = fevent,
+                            thresh = 62,
+                            day_window = 100,plot_title = "YE2613_1399")+
+    geom_line(data= rainfall_impact_tbl %>% 
+                  filter(site_id=="YE2613_1399") %>% 
+                  filter(date >="2022-04-01",date<="2022-09-30"),
+              aes(x= date, y= precip_roll30),color="red"
+    )
+
+rainfall_impact_tbl %>% select(precip_roll10)
+
+

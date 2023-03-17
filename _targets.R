@@ -273,37 +273,42 @@ list(
     # Once loaded extract values to sites as well as 1000 random points (for later testing)
     
   # somehow these got invalidated -- need to skip for now and let run when less busy
-    # tar_target(
-    #     name = gefs_chirps_pts,
-    #     command = extract_chirps_gefs_to_pts(raster_dir =chirps_gefs_dir,forecast = 10,sites =cccm_flood_report_sites  )
-    # ),
+    tar_target(
+        name = gefs_chirps_pts,
+        command = extract_chirps_gefs_to_pts(raster_dir =chirps_gefs_dir,forecast = 10,sites =cccm_flood_report_sites  )
+    ),
 
     ## Compare CHIRPS to CHIRPS-GEFS ----
     # Now align CHIRPS-GEFS with CHIRPS and plot together for all sites as well as random
     # site as example. `TODO` map 1000 random points to chirps
 
-    # tar_target(
-    #     name = p_chirps_vs_gefs,
-    #     command = plot_chirps_gefs_comparison(gef_values= gefs_chirps_pts,chirps_values=cccm_site_chirp_stats,gef_forecast_window = 10)
-    # ),
+    tar_target(
+        name = p_chirps_vs_gefs,
+        command = plot_chirps_gefs_comparison(gef_values= gefs_chirps_pts,chirps_values=cccm_site_chirp_stats,gef_forecast_window = 10)
+    ),
 
-    # Performance Testing -----------------------------------------------------
-    tar_target(
-        name = rainfall_impact_tbl,
-        command = merge_rainfall_cccm_impact(site_rainfall = cccm_site_chirp_stats,
-                                             site_flooding = cccm_flood_impact_data)
-    ),
-    
-    ## Plot all sites with a dummy threshold to make sure it behaving as desired
-    tar_target(
-        name= p_all_sites_events_pred_classifications,
-        command= plot_performance_all_sites(df=rainfall_impact_tbl, 
-                                                        x="precip_roll10",
-                                                        event = "fevent",
-                                                        thresh=25,
-                                                        day_window=60
-        )
-    ),
+  # Performance Testing -----------------------------------------------------
+  
+  # merge flood and rainfall data 
+  tar_target(
+      name = rainfall_impact_tbl,
+      command = merge_rainfall_cccm_impact(site_rainfall = cccm_site_chirp_stats,
+                                           site_flooding = cccm_flood_impact_data)
+  ),
+  
+  ## Plot all sites with a dummy threshold to make sure it behaving as desired
+  tar_target(
+      name= p_all_sites_events_pred_classifications,
+      command= plot_performance_all_sites(df=rainfall_impact_tbl, 
+                                          x="precip_roll10",
+                                          event = "fevent",
+                                          thresh=25,
+                                          day_window=60
+      )
+  ),
+  
+  ## Site level Performance ----
+  # do performance classification frequencies (i.e count TP,FN,FPs) for every site
   tar_target(
       name = thresh_class_freq_b7f3,
       command = c(
@@ -350,7 +355,7 @@ list(
                 "precip_roll30_c"
             ) )
   ),
-
+    # aggregate site level performance to overall
     tar_target(
         name = tbl_performance_overall,
         command =  thresh_class_freq_b7f3 %>% 
@@ -362,7 +367,7 @@ list(
             }
             ) %>% set_names(names(thresh_class_freq_b7f3))
     ),
-
+  # aggregate site level performance to governorate
     tar_target(
         name = tbl_performance_overall_gov,
         command =  thresh_class_freq_b7f3 %>% 
@@ -374,6 +379,9 @@ list(
             }
             ) %>% set_names(names(thresh_class_freq_b7f3))
     ),
+  ## Area level performance ----
+  # get max and mean rainfall everyday per governorate. Then if any flood event occured, date as T for 
+  # fevent
   tar_target(
       name = gov_area_rainfall_impact_tbl,
       command =   rainfall_impact_tbl %>% 
@@ -383,6 +391,7 @@ list(
               fevent = any(fevent),.groups="drop"
           ) 
   ),
+  # use above table to calculate performance classifications
   tar_target(
       name= tbl_performance_gov_area_level,
       command= c(
@@ -416,11 +425,12 @@ list(
           "precip_roll30_c_mean"
           ) %>% 
           map(\(rainfall_regime){
-              
               cat(crayon::green(rainfall_regime),"\n")
+              # by getting max rainfall we can adjust threshold sequence to shorten the computatation
               max_rainfall <- ceiling(max(gov_area_rainfall_impact_tbl[[rainfall_regime]],na.rm=T))
               
               performance_frequencies_by_threshold(df = gov_area_rainfall_impact_tbl %>% 
+                                                       # filter to just govs of interest
                                                   filter(governorate_name %in% c("Hajjah","Marib")),
                                                x = rainfall_regime,
                                                by = "governorate_name",
