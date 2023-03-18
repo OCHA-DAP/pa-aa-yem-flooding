@@ -17,20 +17,22 @@
 
 
 
-calc_TPFPFN(df = gov_area_rainfall_impact_tbl %>% 
-                # filter to just govs of interest
-                filter(governorate_name %in% c("Hajjah")),
-            x = "precip_roll10_mean",
-            event = "fevent",
-            look_back = 7,
-            look_ahead = 3,
-            thresh = 50)
+# calc_TPFPFN(df = gov_area_rainfall_impact_tbl %>% 
+#                 # filter to just govs of interest
+#                 filter(governorate_name %in% c("Hajjah")),
+#             x = "precip_roll10_mean",
+#             event = "fevent",
+#             look_back = 7,
+#             look_ahead = 3,
+#             thresh = 50)
 calc_TPFPFN <- function(df,
                          x="precip_roll10" ,
                          event="fevent",
                          thresh= 25,
                          look_back = 7,
-                         look_ahead=3
+                         look_ahead=3,
+                        consec_adj
+                        
                          ){
     
     # x <- df$precip_roll10
@@ -60,25 +62,49 @@ calc_TPFPFN <- function(df,
                 )
             }
         )
+    
+    # these need adjustments for consecutive events -- will work on improvement using a conditinoal arg until
+    # im sure I have it correct - then will remove
+    
+    if(!consec_adj)
     event_classification <- event_classification %>% 
         mutate(
             post_search_end_fp = replace_na(lead(start_idx),length(x)),
             pre_search_start_fp = replace_na(lag(end_idx)+1,0)
         )
+    if(consec_adj){
+        event_classification <- event_classification %>% 
+            mutate(
+                # if subsequent start_idx is less than current end_idx -- should just stop at idx
+                # well maybe if > idx but < end idx we find the difference?
+                end_idx_alt = ifelse(lead(start_idx)<=end_idx,idx,end_idx),
+                # post_search_end_fp -- after event idx where to stop searching for FPs
+                post_search_end_fp = replace_na(lead(start_idx),length(x)),
+                
+                # pre_search_start_fp -- before event, idx where to start searching for FPs
+                pre_search_start_fp = replace_na(lag(end_idx)+1,0)
+            )
+    }
 
     # example for debugging ---------------------------------------------------
     FP_list<- event_classification %>% 
         pmap(function(...){
-            
+            # iterate through each row of the event classification table
+            # here we define the windows to be excluded from FP consideration
             ec <- tibble(...)
+            # make all T --- will make them F based on conditions
             FP_search_vector <- rep(T, length(x))
+            # based on user defined look_ahead/look_back
             TP_search_window <- ec$start_idx:ec$end_idx
+            
+            # after event we define the window to look for FPs 
+            # it starts from the end_idx + 1 (if end_idx is at end of vector, theres no window)
             if(ec$end_idx==length(x)){
                 post_search_window <- ec$end_idx
             }else{
                 post_search_window <- (ec$end_idx+1) :(ec$post_search_end_fp)     
             }
-            
+            # pre search window -- where to look for FPs before event
             pre_search_window <- (ec$pre_search_start_fp+1) :(ec$start_idx-1) 
             allowed_FP_search_window <- c(pre_search_window,post_search_window)
             FP_search_vector[TP_search_window] <- F
