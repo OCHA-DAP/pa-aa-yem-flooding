@@ -1,16 +1,30 @@
-#' Title
+#' calc_TPFPFN
+#' @description provided a data.frame with sequential values and associated events, classify records as either True Positive (TP)
+#'     True Negative (TN), or False Negative (FN) based on user-specified value threshold
+#' @param df data.frame containing sequential numeric values and logical value indicating occurence of event of interest
+#' @param x \code{character} Column name for precipitation data.
+#' @param event \code{character} Column name for event data
+#' @param thresh \code{integer} threshold value to use for classification
+#' @param look_back \code{integer} number of days to look back from date of event
+#' @param look_ahead \code{integer} number of days to look ahead from date of event
 #'
-#' @param df 
-#' @param x 
-#' @param event 
-#' @param thresh 
-#' @param look_back 
-#' @param look_ahead 
-#'
-#' @return
-#' @export
-#'
+#' @return list containing a vector of FPs, and a data.frame containing the TP and FN classifications
 #' @examples
+#' df <- tibble(date = seq(as.Date("2020-01-01"), as.Date("2020-01-10"), by = "day"),
+#' precip_roll10 = c(10, 20, 30, 15, 5, 25, 35, 40, 10, 20),
+#' fevent = c(0, 0, 1, 0, 0, 1, 0, 1, 0, 0))
+#' calc_TPFPFN(df, "precip_roll10", "fevent", thresh = 25, look_back = 3, look_ahead = 2)
+
+
+
+calc_TPFPFN(df = gov_area_rainfall_impact_tbl %>% 
+                # filter to just govs of interest
+                filter(governorate_name %in% c("Hajjah")),
+            x = "precip_roll10_mean",
+            event = "fevent",
+            look_back = 7,
+            look_ahead = 3,
+            thresh = 50)
 calc_TPFPFN <- function(df,
                          x="precip_roll10" ,
                          event="fevent",
@@ -30,7 +44,7 @@ calc_TPFPFN <- function(df,
     event_classification <- event_idx %>% 
         map_dfr(
             \(idx){
-                if(idx<look_back){
+                if(idx<=look_back){
                     look_back <- (idx-1)
                 }
                 if((idx+look_ahead)>=length(x)){
@@ -51,6 +65,7 @@ calc_TPFPFN <- function(df,
             post_search_end_fp = replace_na(lead(start_idx),length(x)),
             pre_search_start_fp = replace_na(lag(end_idx)+1,0)
         )
+
     # example for debugging ---------------------------------------------------
     FP_list<- event_classification %>% 
         pmap(function(...){
@@ -114,52 +129,42 @@ calc_TPFPFN <- function(df,
     
 }
 
+#' Calculate performance frequencies by threshold
+#'
+#' This function calculates the performance frequencies of a given event by threshold for each group in a specified column of a dataframe.
+#'   It uses the calc_TPFPFN function to calculate the true positives, false positives, and false negatives for a given event and threshold.
+#'   The output is a dataframe with columns for the specified group, threshold, and class (TP, FN, or FP) and the number of occurrences for each class.
+#'
+#' @param df A dataframe containing the data to be analyzed
+#' @param x The column containing the data to be analyzed
+#' @param by The name of the column containing the groups to be analyzed (default = "governorate_name")
+#' @param event The name of the event to be analyzed
+#' @param look_back The number of days to look back for the event (default = 7)
+#' @param look_ahead The number of days to look ahead for the event (default = 3)
+#' @param thresholds A vector of threshold values to be used in the analysis
+#'
+#' @return A dataframe with columns for the specified group, threshold, and class (TP, FN, or FP) and the number of occurrences for each class.
+#'
+#' @examples
+# df <- data.frame(precipitation = rnorm(100),
+#                  fevent = as.logical(rbinom(100, 1, 0.5)),
+#                  admin1 = rep(c("A", "B", "C", "D"), each = 25))
+# df %>% 
+#     filter(admin1=="C")
+# calc_TPFPFN(df = df %>% 
+#                 filter(admin1=="C"),
+#             x = "precipitation",
+#             event = "fevent",thresh = 25)
 
+#'
+#' # Calculate performance frequencies by threshold, grouped by admin1
+# performance_frequencies_by_threshold(df, x = "precipitation",
+#                                      by = "admin1",
+#                                      event = "fevent",
+#                                      thresholds = seq(0,100, by =1))
+#'
+#'
 
-
-
-test_threshold_performance_all_sites <-  function(df,
-                                                  x ,
-                                                  event,
-                                                  look_back = 7,
-                                                  look_ahead=3,
-                                                  thresholds=NULL){
-    sites_level_performance<- df$site_id %>%
-        unique() %>%
-        map_dfr(
-            \(site){
-                cat(site,"\n")
-            df_site <- df %>%
-                filter(site_id ==site)
-            
-            max_x <- df_site %>%
-                pull(x) %>%
-                max(na.rm=T)
-            max_x <- ceiling(max_x)
-            if(is.null(thresholds)){
-               thresholds_iter <- seq(0,max_x,by=1) 
-            }
-            if(!is.null(thresholds)){
-                thresholds_iter <- thresholds
-            }
-            thresholds_iter %>%
-                map_dfr(\(thresh_temp){
-                    cat(thresh_temp,"\n")
-                    stats_temp<- calc_TPFPFN(df = df_site,
-                                              x = x,
-                                              event = event,
-                                              thresh = thresh_temp)
-                    
-                    num_FPs <- data.frame(class="FP",n=sum(stats_temp$FPs))
-                    num_TPFN <- stats_temp$event %>%
-                        count(TPFN) %>%
-                        rename(class = "TPFN")
-                    bind_rows(num_TPFN,num_FPs) %>%
-                        mutate(site_id = site,
-                               thresh=thresh_temp)
-                })
-        })
-}
 
 performance_frequencies_by_threshold <-  function(df,
                                              x ,
