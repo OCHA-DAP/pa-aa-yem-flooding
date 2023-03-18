@@ -138,7 +138,6 @@ p_approach1_hajjah_pseudolog <- tbl_performance_overall_gov %>%
 ```
 
 
-
 **Perfomance Plots - No scaling**
 
 The number of `FPs` are so high in the early threshold values that I just cut the y axis at 500 so that the curves in the lower values could be visualized. The `pseudolog` transform shown below is another way to deal with this. Both are shown below.
@@ -166,6 +165,96 @@ walk(p_approach1_hajjah,~print(.x))
 ### Approach 2 (Area Based)
 
 Under approach 2 daily rainfall values and events are aggregated prior to performance classification. The performane for for Marib & Hajjah under the different rainfall regimes are shown below
+
+Limitations - the problem is that when aggregating dates are consecutive -- let's cluster dates for hajjah an dmarib
+```{r}
+
+tar_load(rainfall_impact_tbl)
+# lets look at just marib nd hajja
+area_lvl_roi <- gov_area_rainfall_impact_tbl %>% 
+    filter(governorate_name %in% c("Hajjah","Marib"))
+
+# pull dates of each on there own
+area_lvl_event_dates <- split(area_lvl_roi,area_lvl_roi$governorate_name) %>% 
+    map(\(df)
+        {
+           dates <-  df %>% 
+            filter(fevent) %>% 
+            pull(date)
+            # need to multipl year(date) by 100 or 1000 so that 2021 & 2022 are separated
+           (year(dates)*100)+yday(dates)
+        }
+    )
+yday("2021-07-24")
+2021+205
+2022+205
+#calculate distance between event dates and then create hclust objects
+date_hclust <- area_lvl_event_dates %>% 
+    map(
+        ~dist(.x) %>% 
+            hclust(method="average")
+        )
+
+# let's manually understand the grouping and then we can just tell cuttree the number of clusters
+area_lvl_roi_events <- area_lvl_roi %>% 
+    filter(fevent) %>% 
+    print(n=nrow(.))
+
+# ok we want 4 for hajjah looks like probably 4 OR 5
+grouping_vectors<- date_hclust %>% 
+    map2(.y = c(4,4),
+         \(hclust,num_groups){
+             cutree(hclust, k=num_groups)
+         }
+         )
+area_lvl_roi_events_dt_grpd <- area_lvl_roi_events %>% 
+    mutate(
+        date_events_num = unlist(area_lvl_event_dates),
+       date_groups= paste0(governorate_name,"_",unlist(grouping_vectors)),.after=date
+    ) 
+
+# just viz grouping
+area_lvl_roi_events_dt_grpd%>% 
+    select(1:4) %>% 
+    print(n=nrow(.)) 
+
+area_lvl_roi_events_dt_grpd %>% 
+        select(date, date_groups, precip_roll5=precip_roll5_mean) %>% 
+    print(n=15)
+    
+
+# summarise - for now we go with max precip values, and max date per group
+area_lvl_roi_events_summarised <- area_lvl_roi_events_dt_grpd %>% 
+    group_by(governorate_name, date_groups) %>% 
+    summarise(
+        # median_date = median(date),
+        date= max(date),
+        across(starts_with("precip_"),~max(.x,na.rm=T),.names = "{.col}"),.groups="drop"
+        )
+area_lvl_roi_events_summarised %>% 
+    select(date, date_groups, precip_roll5=precip_roll5_mean)
+    glimpse()
+# ok so we join back to original impact table by date? 
+area_lvl_roi %>%
+    select(-fevent) %>% 
+    left_join(area_lvl_roi_events_summarised) %>% glimpse() 
+    mutate(fevent = ifelse(!is.na(date_groups)))
+
+
+```
+
+going to try clustering based on spatial coordinates and datestamp together. For this we need coordinates
+```{r}
+tar_load(cccm_flood_impact_data_w_coords)
+coord_lookup <- cccm_flood_impact_data_w_coords %>% 
+    distinct(site_id, lon, lat)
+
+rainfall_impact_tbl %>% 
+    left_join(coord_lookup, by ="site_id") %>% 
+    
+```
+
+
 
 ```{r make-area-level}
 p_marib_approach2 <- tbl_performance_area_marib_hajjah %>% 

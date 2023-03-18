@@ -1,0 +1,181 @@
+---
+title: "06_clustering events"
+output: html_document
+date: "2023-03-17"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, include =T,warning=F,message = F)
+```
+## Clustering Events
+
+```{r, echo=F,include=T}
+library(here)
+library(targets)
+library(sf)
+library(tidyverse)
+library(leaflet)
+
+library(gghdx)
+library(lubridate )
+library(sysfonts)
+tar_source()
+
+font_add_google("Source Sans Pro")
+showtext::showtext_auto()
+
+tar_load(cccm_flood_impact_data)
+
+tar_load(cccm_flood_impact_data_w_coords)
+tar_load(rainfall_impact_tbl)
+
+coord_lookup <- cccm_flood_impact_data_w_coords %>% 
+    distinct(site_id, lon, lat)
+
+roi<- rainfall_impact_tbl %>% 
+    left_join(coord_lookup, by ="site_id") %>% 
+    filter(governorate_name %in% c("Marib","Hajjah"),fevent) 
+
+unique_event_dates<- roi %>% 
+    distinct(governorate_name,date) %>% 
+    split(.$governorate_name)
+```
+
+Looking at just **Marib** and **Hajjah**. We see the following see that Marib and Hajjaah have **`r nrow(unique_event_dates$Marib)`** , and **`r nrow(unique_event_dates$Hajjah)`**, respectively.
+
+Let's see if we can cluster based on coordinates and date of event. As the governorates are separated geographically let's do the clustering separately.
+
+```{r,echo=F, include=T}
+k <-  7
+pts_clustered_k7 <- split(roi,roi$governorate_name) %>% 
+    imap(\(df,nm){
+        roi_matrix <- df %>% 
+            mutate(
+                date= as.numeric(date)
+            ) %>% 
+            select(date, lon, lat) %>% 
+            as.matrix()
+        km <-  kmeans(roi_matrix,centers= k,nstart = 20)
+        df$cluster <- paste0(nm,"_",as.character(km$cluster))
+        df_sf <-  st_as_sf(df,
+                           coords = c("lon","lat"),
+                           crs= 4326
+        ) %>% 
+            st_jitter(amount = 0.05)
+        df_sf$labels <-  paste0(
+            "Site_ID:", df_sf$site_id,
+            "<br> date:",df_sf$date,
+            "<br> cluter:", df_sf$cluster
+        ) %>% lapply(htmltools::HTML)
+
+        return(df_sf)
+    }
+    )
+
+pal_1 <- colorFactor(palette = "Dark2", domain = pts_clustered_k7$Hajjah$cluster)
+pal_2 <- colorFactor(palette = "Accent", domain = pts_clustered_k7$Marib$cluster)
+
+
+k <-  5
+pts_clustered_k5 <- split(roi,roi$governorate_name) %>% 
+    imap(\(df,nm){
+        roi_matrix <- df %>% 
+            mutate(
+                date= as.numeric(date)
+            ) %>% 
+            select(date, lon, lat) %>% 
+            as.matrix()
+        km <-  kmeans(roi_matrix,centers= k,nstart = 20)
+        df$cluster <- paste0(nm,"_",as.character(km$cluster))
+        df_sf <-  st_as_sf(df,
+                           coords = c("lon","lat"),
+                           crs= 4326
+        ) %>% 
+            st_jitter(amount = 0.05)
+        df_sf$labels <-  paste0(
+            "Site_ID:", df_sf$site_id,
+            "<br> date:",df_sf$date,
+            "<br> cluter:", df_sf$cluster
+        ) %>% lapply(htmltools::HTML)
+        
+        grid <- st_make_grid(st_bbox(st_transform(df_sf,crs=2090)) %>% 
+                         st_as_sfc(),
+            cellsize = 5500) %>% 
+            st_transform(crs= 4326)
+        ret <- list()
+        ret$grid <- grid
+        ret$df_sf<-df_sf
+
+        return(ret)
+        
+    }
+    )
+
+pal_1_k5 <- colorFactor(palette = "Dark2", domain = pts_clustered_k5$Hajjah$cluster)
+pal_2_k5 <- colorFactor(palette = "Accent", domain = pts_clustered_k5$Marib$cluster)
+```
+
+I've jittered the points by 0.05 so that you it's easier to see the sites that are very close to one another
+
+Here is a map with 7 clusters per governorate
+```{r,echo=F,include=T,out.width="100%"}
+leaflet() %>% 
+    addTiles() %>% 
+     addCircleMarkers(data= pts_clustered_k7$Hajjah,
+                popup = ~cluster, 
+                label = ~labels,
+                # clusterOptions = markerClusterOptions(),
+                color = ~pal_1(cluster)
+             ) %>% 
+     addCircleMarkers(data= pts_clustered_k7$Marib,
+                popup = ~cluster, 
+                label = ~labels,
+                # clusterOptions = markerClusterOptions(),
+                color = ~pal_2(cluster)
+             )
+```
+
+and here is one with 5 clusters per governorate
+```{r,echo=F, include =T,out.width="100%"}
+?st_make_grid()
+leaflet() %>% 
+    addTiles() %>% 
+    addProviderTiles(provider = leaflet::providers$Stamen.Toner) %>% 
+    addPolygons(data=pts_clustered_k5$Hajjah$grid,fill=NA) %>%
+    addPolygons(data=pts_clustered_k5$Marib$grid,fill=NA) %>%
+     addCircleMarkers(data= pts_clustered_k5$Hajjah$df_sf,
+                popup = ~cluster, 
+                label = ~labels,
+                # clusterOptions = markerClusterOptions(),
+                color = ~pal_1_k5(cluster)
+             ) %>% 
+     addCircleMarkers(data= pts_clustered_k5$Marib$df_sf,
+                popup = ~cluster, 
+                label = ~labels,
+                # clusterOptions = markerClusterOptions(),
+                color = ~pal_2_k5(cluster)
+             ) %>% 
+    addScaleBar()
+```
+
+```{r}
+
+pts_clustered_k5$Hajjah$df_sf %>% 
+    st_drop_geometry( ) %>% 
+    select(date, site_id,cluster) %>% 
+    arrange(date) %>% 
+    distinct(date,site_id,cluster) %>% 
+    filter(site_id !="YE1712_0643") %>% 
+    left_join(y = cccm_flood_impact_data %>%
+                  group_by(site_id, date=date_of_episode) %>% 
+                  summarise(
+                      across(starts_with("num_"),~mean(.x,na.rm=T))
+                  ) ,
+              by = c("site_id"="site_id","date"="date")) %>% 
+    print(n=nrow(.)) %>% 
+    ggplot(aes(x=date,y=num_shelters_affected,color=cluster))+
+    geom_point()+
+    labs(y="Number affected Shelters",title = "Clustering of events based on timing and coordinates")+
+    theme_hdx()
+
+```
