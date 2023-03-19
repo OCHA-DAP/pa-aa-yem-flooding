@@ -19,8 +19,9 @@ library(sysfonts)
 
 font_add_google("Source Sans Pro")
 showtext::showtext_auto()
-
+targets_updated <- c(T,F)[2]
 tar_load(p_all_sites_events_pred_classifications)
+tar_load(gov_area_rainfall_impact_tbl)
 ```
 
 ## Description
@@ -39,8 +40,29 @@ In this example we set thresholds of `25 mm` on a `10 day` precipitation accumul
 
 ```{r site-plots , echo=FALSE,out.width="100%"}
 
-walk(p_all_sites_events_pred_classifications,~print(.x))
+if(targets_updated){
+walk(p_all_sites_events_pred_classifications,~print(.x))    
+}
+if(!targets_updated){
+    plots_test <- read_rds("site_level_plots_testing.rds")
+    walk(plots_test,~print(.x))   
+}
+
+
 
 ```
 
 
+```{r}
+
+
+df_roi <- gov_area_rainfall_impact_tbl %>%
+    filter(governorate_name %in% c("Hajjah"))
+
+plot_site_events_classified(df = df_roi %>%
+                                arrange(date),
+                            x = "precip_roll10_mean",
+                            event = "fevent",
+                            thresh = 10,
+                            day_window = 60,plot_title = "test",consec_adj = F)
+```

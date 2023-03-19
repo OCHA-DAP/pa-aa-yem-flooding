@@ -15,23 +15,42 @@
 #' fevent = c(0, 0, 1, 0, 0, 1, 0, 1, 0, 0))
 #' calc_TPFPFN(df, "precip_roll10", "fevent", thresh = 25, look_back = 3, look_ahead = 2)
 
-
-
-# calc_TPFPFN(df = gov_area_rainfall_impact_tbl %>% 
-#                 # filter to just govs of interest
-#                 filter(governorate_name %in% c("Hajjah")),
+# library(targets)
+# library(tidyverse)
+# library(lubridate)
+# tar_load(gov_area_rainfall_impact_tbl)
+# df_roi <- gov_area_rainfall_impact_tbl %>%
+#     filter(governorate_name %in% c("Hajjah"))
+# ck <- calc_TPFPFN(df = df_roi %>% arrange(date),
 #             x = "precip_roll10_mean",
 #             event = "fevent",
 #             look_back = 7,
 #             look_ahead = 3,
-#             thresh = 50)
+#             thresh = 70
+#             )
+# df_roi2 <- df_roi
+# df_roi$fp <- ck$FPs
+# df_roi %>% filter(fp) %>% glimpse()
+# # plot_site_events(df = df_roi,
+# #                  x = "precip_roll10_mean",
+# #                  event = 'fevent',
+# #                  thresh = 50,
+# #                  day_window = 60)
+# 
+# # # 
+# plot_site_events_classified(df = df_roi %>%
+#                                 arrange(date),
+#                             x = "precip_roll10_mean",
+#                             event = "fevent",
+#                             thresh = 30,
+#                             day_window = 30,plot_title = "test")
+
 calc_TPFPFN <- function(df,
                          x="precip_roll10" ,
                          event="fevent",
-                         thresh= 25,
+                         thresh= 10,
                          look_back = 7,
-                         look_ahead=3,
-                        consec_adj
+                         look_ahead=3
                         
                          ){
     
@@ -59,35 +78,62 @@ calc_TPFPFN <- function(df,
                        end_idx= idx+look_ahead,
                        positive=thresh_in_window,
                        TPFN = ifelse(thresh_in_window,"TP","FN")
-                )
+                )  
             }
         )
     
-    # these need adjustments for consecutive events -- will work on improvement using a conditinoal arg until
-    # im sure I have it correct - then will remove
+    # event_classificaion <- event_classification %>% 
+    #     mutate(
+    #         overlap_lead_tmp =lead(start_idx)<=end_idx & positive==T,
+    #         overlap_lag_tmp = lag(end_idx)>= start_idx & positive==T,
+    #         overlap = ifelse(!is.na(overlap_lead_tmp),overlap_lead_tmp, overlap_lag_tmp),
+    #         # overlap_consec = diff(cumsum(c(0,idx)))>0,
+    #         # overlap_consec = which(diff(c(0, as.integer(idx))) == 1)
+    #     ) %>% 
+    #     select(-ends_with("_tmp") )
+     tp_idx<- event_classification$idx[which(event_classification$positive)]
+     # I want to split the list 
+     
+     # Split the list based on the specified difference
+
+     tp_split_indices <- c(1, which(diff(tp_idx) > look_back) + 1, length(tp_idx) + 1)
+     # tp_split_indices <- c(1, which(diff(tp_idx) > look_back) , length(tp_idx)+1)
+     tp_idx_lists <- split(tp_idx, cumsum(seq_along(tp_idx) %in% tp_split_indices))
+     
+     tp_idx_starts <- tp_idx_lists %>% 
+         map_int(\(tp_run){
+             tp_range<- min(tp_run):max(tp_run)
+             tp_range_gte <- x_gte[tp_range]
+             
+             tp_gte_consec <- diff(cumsum(c(0,tp_range_gte)))>0
+             
+             # which(tp_gte_consec &)
+             tp_gte_consec_starts <- which(diff(c(0, as.integer(tp_gte_consec))) == 1)
+             
+             # if there is a value gte that is not on event_idx -- need to go with the next closest one
+             tp_diff <- tp_run-tp_range[tp_gte_consec_starts]
+             tp_diff_gte0<- which(tp_diff>=0 )
+             min_tp<- min(tp_diff_gte0)
+             
+             # tp_consec_starts <- which(tp_range[tp_gte_consec] %in% min(tp_run))
+             tp_start_idx <- tp_run[min_tp]
+             return(tp_start_idx)
+         })
+
+     event_classification <- event_classification %>% 
+         filter(!positive|
+                (positive & idx %in% tp_idx_starts)
+                )
     
-    if(!consec_adj)
+    
     event_classification <- event_classification %>% 
         mutate(
             post_search_end_fp = replace_na(lead(start_idx),length(x)),
             pre_search_start_fp = replace_na(lag(end_idx)+1,0)
         )
-    if(consec_adj){
-        event_classification <- event_classification %>% 
-            mutate(
-                # if subsequent start_idx is less than current end_idx -- should just stop at idx
-                # well maybe if > idx but < end idx we find the difference?
-                end_idx_alt = ifelse(lead(start_idx)<=end_idx,idx,end_idx),
-                # post_search_end_fp -- after event idx where to stop searching for FPs
-                post_search_end_fp = replace_na(lead(start_idx),length(x)),
-                
-                # pre_search_start_fp -- before event, idx where to start searching for FPs
-                pre_search_start_fp = replace_na(lag(end_idx)+1,0)
-            )
-    }
-
-    # example for debugging ---------------------------------------------------
+    
     FP_list<- event_classification %>% 
+        # filter(positive) %>% 
         pmap(function(...){
             # iterate through each row of the event classification table
             # here we define the windows to be excluded from FP consideration
@@ -97,17 +143,22 @@ calc_TPFPFN <- function(df,
             # based on user defined look_ahead/look_back
             TP_search_window <- ec$start_idx:ec$end_idx
             
+            # allowed_FP_search_window <- c(pre_search_window,post_search_window)
+            # can't look in TP window
+            FP_search_vector[TP_search_window] <- F
+            
             # after event we define the window to look for FPs 
             # it starts from the end_idx + 1 (if end_idx is at end of vector, theres no window)
             if(ec$end_idx==length(x)){
                 post_search_window <- ec$end_idx
-            }else{
+            }
+            else{
+                # if this is backwards it should also be null!?
                 post_search_window <- (ec$end_idx+1) :(ec$post_search_end_fp)     
+                
             }
             # pre search window -- where to look for FPs before event
-            pre_search_window <- (ec$pre_search_start_fp+1) :(ec$start_idx-1) 
-            allowed_FP_search_window <- c(pre_search_window,post_search_window)
-            FP_search_vector[TP_search_window] <- F
+            pre_search_window <- (ec$pre_search_start_fp+1) :(ec$start_idx-1)     
             
             gte_pre_event <- x_gte[pre_search_window]
             gte_consec_pre_event <- diff(cumsum(c(0,gte_pre_event)))>0
@@ -121,10 +172,17 @@ calc_TPFPFN <- function(df,
             # ALMOST except for line marked with ***
             if(ec$positive){
                 
-                # have to combine the TP search window with post search window in the case of TP
-                # we want to drop conse
+                # define window where we can look for TP after a TP
+                # get end of current TP window
                 last_TP_idx<- max(which(x_gte[TP_search_window]))
-                TP_search_post <- c(TP_search_window[last_TP_idx]:(min(post_search_window)-1),post_search_window)
+                
+                # if post search window is NULL it means that there are overlapping pre- searches from consecutive events
+                if(!is.null(post_search_window)){
+                    TP_search_post <- c(TP_search_window[last_TP_idx]:(min(post_search_window)-1),post_search_window)    
+                }
+                if(is.null(post_search_window)){
+                    TP_search_post <- NULL    
+                }
                 gte_post_TP <- x_gte[TP_search_post]
                 gte_consec_post_TP <- diff(cumsum(c(0,gte_post_TP)))>0
                 gte_consec_post_event_start <- which(diff(c(0, as.integer(gte_consec_post_TP))) == 1)
@@ -235,9 +293,15 @@ plot_site_events_classified <- function(df,
                                         thresh=thresh,
                                         day_window,
                                         plot_title){
-    site_classification_list<- calc_TPFPFN(df = df,x = x,event = event,thresh = thresh)
+    site_classification_list<- calc_TPFPFN(df = df,
+                                           x = x,
+                                           event = event,
+                                           thresh = thresh)
     site_class_simp <- site_classification_list$event %>% 
         select(idx,TPFN)
+    
+    tp_idx <- site_class_simp$idx[site_class_simp$TPFN=="TP"]
+    tp_grp_date <- df$date[tp_idx]
     df_p <- df %>% 
         mutate(
             FPs=site_classification_list$FPs,
@@ -253,6 +317,7 @@ plot_site_events_classified <- function(df,
         geom_label(data=. %>% filter(!is.na(TPFN)),
                    aes(label=TPFN,y=15)
         )+
+        geom_vline(xintercept= tp_grp_date,color="black",lwd=2)
         ggtitle(plot_title)
     
     return(p1)
@@ -263,7 +328,11 @@ plot_site_events_classified <- function(df,
 
 
 
-plot_site_events <- function(df, x,event,thresh,day_window){
+plot_site_events <- function(df,
+                             x,
+                             event,
+                             thresh,
+                             day_window){
     event_str <- tidyselect::vars_pull(names(df), !!enquo(event))
     x_str <- tidyselect::vars_pull(names(df), !!enquo(x))
     
@@ -294,7 +363,7 @@ plot_site_events <- function(df, x,event,thresh,day_window){
         # geom_text(aes(x=ymd("2022-08-20"), y=17,label ="threshold a: 15 mm"))+
         # geom_text(aes(x=ymd("2022-08-20"), y=27,label ="threshold b: 25 mm"))+
         geom_text(data=. %>% 
-                      filter({{event}}),
+                      filter(!!sym(event)),
                   aes(x=ymd(date)-2, 
                       y=event_label_y_pos,
                       label ="Reported event"),angle = 90)+

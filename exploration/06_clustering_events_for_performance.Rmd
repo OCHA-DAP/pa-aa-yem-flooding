@@ -178,4 +178,158 @@ pts_clustered_k5$Hajjah$df_sf %>%
     labs(y="Number affected Shelters",title = "Clustering of events based on timing and coordinates")+
     theme_hdx()
 
+
+# are any of them the same sites in july/aug? -- no
+pts_clustered_k5$Hajjah$df_sf %>% 
+    st_drop_geometry( ) %>% 
+    filter(month(date) %in% c(7,8)) %>% 
+    group_by(site_id) %>% 
+    filter(n()>1)
+```
+
+
+```{r}
+coord_lookup <- cccm_flood_impact_data_w_coords %>% 
+    distinct(site_id, lon, lat)
+
+hajjah_site_level <- rainfall_impact_tbl %>%
+    left_join(coord_lookup) %>% 
+    filter(governorate_name=="Hajjah")
+    
+
+
+
+
+
+
+kmeans_cluster_events <-  function(df,date,lon,lat,event,k=5){
+    df_event <- df %>% 
+        filter(!!sym(event)) 
+    matrix_input <- df_event %>% 
+            mutate(
+                date= as.numeric(date)
+            ) %>% 
+            select(date, lon, lat) %>% 
+            as.matrix()
+        km <-  kmeans(matrix_input,centers= k,nstart = 20)
+        df_event$cluster <-as.character(km$cluster)
+        return(df_event)
+}
+
+kmeans_cluster_events(df = hajjah_site_level,
+                      date = "date",
+                      lon="lon",
+                      lat="lat",
+                      event="fevent",
+                      k=5)
+
+
+# i want a FP date search that gets all the dates from summmarised df and makes list of lists for date
+# before, betwen, after, all the tp dates
+get_tp_dates <- function(df,date,lon,lat,event,k,look_back,look_ahead){
+    
+     df_events_clustered <- kmeans_cluster_events(df = df,
+                      date = date,
+                      lon=lon,
+                      lat=lat,
+                      event=event,
+                      k=k)
+    
+    search_dates_for_thresh <- df_events_clustered %>% 
+        group_split(cluster) %>% 
+         map(\(df_clust){
+        event_date_range <- df_clust %>% 
+            pull(date) %>% 
+            range()
+        start_search <- min(event_date_range)-look_back
+        end_search <- max(event_date_range)+look_ahead
+        seq(start_search,end_search,by="day")
+    }
+    )
+    
+}
+classify_events <- function(df,
+         look_ahead=7,
+         look_back=7, 
+         date = "date",
+         lon="lon",
+         lat="lat",
+         event="fevent",
+         k=5,
+         # thresh,
+         precip_regime="precip_roll10_mean"
+         ){
+         
+    
+    df_summarised <- df %>% 
+        group_by(date) %>% 
+        summarise(across(starts_with("precip_"),list(mean=mean,max=max)))
+    
+    event_search_dates <- get_tp_dates(df=df,
+                                       date=date,
+                                       lon=lon,
+                                       lat=lat,
+                                       look_back=look_back,
+                                       look_ahead= look_ahead,
+                                       event=event,
+                                       k=k)
+
+    max_rainfall <- ceiling(max(df_summarised[[precip_regime]],na.rm=T))
+    thresholds_iter <- seq(0,max_rainfall,by=1)
+     
+    events_classified <- 
+        thresholds_iter %>% 
+        map_dfr(\(thresholds){
+            event_search_dates %>% 
+        map_dfr(\(search_dts){
+            df_time_filt <- df_summarised %>% 
+                filter(date %in% search_dts) 
+            if(any(df_time_filt[[precip_regime]]>=thresholds)){
+                ret <- data.frame(start_date = min(search_dts),end_date= max(search_dts),class_event = "TP")
+            }else{
+                ret <- data.frame(start_date = min(search_dts),end_date= max(search_dts),class_event="FN")
+            }
+        ret %>% 
+            mutate(threshold=thresholds)
+            }
+        
+        )
+            
+        })
+        
+    
+    return(events_classified)
+    
+}
+
+ck <- classify_events(df =hajjah_site_level,
+                # thresh = 6 ,
+                look_ahead = 7,
+                look_back = 7,
+                date = "date",
+                lon = "lon",
+                lat = "lat",
+                event = "fevent",
+                k = 5,
+                precip_regime = "precip_roll10_mean")
+
+ck %>% 
+    group_by(threshold=as_factor(threshold),
+             class_event,
+             .drop=F) %>% 
+    count() %>%
+    ungroup() %>% 
+    complete(class_event,threshold,fill=list(n=0)) %>%
+    arrange(threshold) %>%
+    # filter(threshold %in% c(4:7)) %>%
+    # filter(class_event=="TP")
+
+    ggplot(aes(x=threshold, y=n, color= class_event, group=class_event))+
+    geom_line()+
+    theme_bw()+
+    theme(
+        axis.text.x = element_text(angle=90)
+    )
+    
+
 ```

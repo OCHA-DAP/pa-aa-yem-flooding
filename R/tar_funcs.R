@@ -859,7 +859,7 @@ plot_performance_all_sites <- function(df,
                                        x,
                                        event,
                                        thresh=25,
-                                       day_window=60
+                                       day_window=60,consec_adj
 ){
 
     p_sites_level_performance<- df$site_id %>% 
@@ -871,7 +871,7 @@ plot_performance_all_sites <- function(df,
                                         plot_title = site_id_temp,
                                         x=x,
                                         event = event,
-                                        thresh=thresh,day_window=60)
+                                        thresh=thresh,day_window=60,consec_adj=consec_adj)
         }
         ) %>% set_names(df$site_id %>% unique())
     return(p_sites_level_performance)
