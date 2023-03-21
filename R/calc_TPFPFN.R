@@ -26,7 +26,7 @@
 #             event = "fevent",
 #             look_back = 7,
 #             look_ahead = 3,
-#             thresh = 70
+#             thresh = 30
 #             )
 # df_roi2 <- df_roi
 # df_roi$fp <- ck$FPs
@@ -81,50 +81,59 @@ calc_TPFPFN <- function(df,
                 )  
             }
         )
-    
-    # event_classificaion <- event_classification %>% 
+    # 
+    # event_classificaion <- event_classification %>%
     #     mutate(
     #         overlap_lead_tmp =lead(start_idx)<=end_idx & positive==T,
     #         overlap_lag_tmp = lag(end_idx)>= start_idx & positive==T,
     #         overlap = ifelse(!is.na(overlap_lead_tmp),overlap_lead_tmp, overlap_lag_tmp),
-    #         # overlap_consec = diff(cumsum(c(0,idx)))>0,
-    #         # overlap_consec = which(diff(c(0, as.integer(idx))) == 1)
-    #     ) %>% 
+    #     ) %>%
     #     select(-ends_with("_tmp") )
      tp_idx<- event_classification$idx[which(event_classification$positive)]
-     # I want to split the list 
      
-     # Split the list based on the specified difference
-
-     tp_split_indices <- c(1, which(diff(tp_idx) > look_back) + 1, length(tp_idx) + 1)
-     # tp_split_indices <- c(1, which(diff(tp_idx) > look_back) , length(tp_idx)+1)
-     tp_idx_lists <- split(tp_idx, cumsum(seq_along(tp_idx) %in% tp_split_indices))
+     # if more -- than 1 TP we can check for overlapping dates-- if previ
+     if(length(tp_idx)>1){
+         # Split the list based on the specified difference
+         
+         tp_split_indices <- c(1, which(diff(tp_idx) > (look_back+look_ahead)) + 1, length(tp_idx) + 1)
+         # tp_split_indices <- c(1, which(diff(tp_idx) > look_back) , length(tp_idx)+1)
+         tp_idx_lists <- split(tp_idx, cumsum(seq_along(tp_idx) %in% tp_split_indices))
+         
+         # it would be simpler if we could just take the min of each of the runs.... can we? 
+         # I guess the value could fluctuate below the thresh inbetween, but i think that's fine
+         tp_idx_keep <- tp_idx_lists %>% 
+             map_int(~min(.x))
+         
+         # tp_idx_keep <- tp_idx_lists %>% 
+         #     map_int(\(tp_run){
+         #         tp_range<- min(tp_run):max(tp_run)
+         #         if(length(tp_range)>1){
+         #             tp_range_gte <- x_gte[tp_range]
+         #             tp_gte_consec <- diff(cumsum(c(0,tp_range_gte)))>0
+         #             tp_gte_consec_starts <- which(diff(c(0, as.integer(tp_gte_consec))) == 1)
+         #             # the problem is that the above might land on idx between events since we expanded range 
+         #             # to include additional values
+         #             tp_diff <- tp_run-tp_range[tp_gte_consec_starts]
+         #             tp_diff_gte0<- tp_diff[tp_diff>=0 ]
+         #             min_tp<- min(tp_diff_gte0)
+         #             tp_start_idx <- tp_run[min_tp]    
+         #         }
+         #         if(length(tp_range)==1){
+         #             tp_start_idx <- tp_run
+         #         }
+         #         
+         #         return(tp_start_idx)
+         #     })
+         event_classification <- event_classification %>% 
+             filter(!positive|
+                        (positive & idx %in% tp_idx_keep)
+             )
+         
+     }
      
-     tp_idx_starts <- tp_idx_lists %>% 
-         map_int(\(tp_run){
-             tp_range<- min(tp_run):max(tp_run)
-             tp_range_gte <- x_gte[tp_range]
-             
-             tp_gte_consec <- diff(cumsum(c(0,tp_range_gte)))>0
-             
-             # which(tp_gte_consec &)
-             tp_gte_consec_starts <- which(diff(c(0, as.integer(tp_gte_consec))) == 1)
-             
-             # if there is a value gte that is not on event_idx -- need to go with the next closest one
-             tp_diff <- tp_run-tp_range[tp_gte_consec_starts]
-             tp_diff_gte0<- which(tp_diff>=0 )
-             min_tp<- min(tp_diff_gte0)
-             
-             # tp_consec_starts <- which(tp_range[tp_gte_consec] %in% min(tp_run))
-             tp_start_idx <- tp_run[min_tp]
-             return(tp_start_idx)
-         })
-
-     event_classification <- event_classification %>% 
-         filter(!positive|
-                (positive & idx %in% tp_idx_starts)
-                )
     
+
+  
     
     event_classification <- event_classification %>% 
         mutate(
@@ -297,6 +306,8 @@ plot_site_events_classified <- function(df,
                                            x = x,
                                            event = event,
                                            thresh = thresh)
+    assertthat::assert_that("FPs" %in% names(site_classification_list),msg = "stop wheres FPs")
+    
     site_class_simp <- site_classification_list$event %>% 
         select(idx,TPFN)
     
@@ -307,20 +318,28 @@ plot_site_events_classified <- function(df,
             FPs=site_classification_list$FPs,
             idx = row_number()
         ) %>% 
-        left_join(site_class_simp)
+        left_join(site_class_simp, by="idx")
     
-    p1 <- plot_site_events(df=df_p,
+    all_events_plot<- df_p[[event]]
+    
+    p_ts <- plot_site_events(df=df_p,
                            x=x,
                            event = event,
                            thresh=thresh, day_window=day_window)+
+    
         geom_point(data=. %>% filter(FPs))+
         geom_label(data=. %>% filter(!is.na(TPFN)),
                    aes(label=TPFN,y=15)
         )+
-        geom_vline(xintercept= tp_grp_date,color="black",lwd=2)
         ggtitle(plot_title)
+    if(length(all_events_plot)>1){
+       p_ts <-  p_ts+
+            geom_vline(xintercept= tp_grp_date,color="black",lwd=2)
+    }
+        
+        
     
-    return(p1)
+    return(p_ts)
     
     
 }
