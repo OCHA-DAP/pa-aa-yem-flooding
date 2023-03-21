@@ -15,7 +15,7 @@ library(targets)
 library(sf)
 library(tidyverse)
 library(leaflet)
-
+library(glue)
 library(gghdx)
 library(lubridate )
 library(sysfonts)
@@ -25,9 +25,9 @@ font_add_google("Source Sans Pro")
 showtext::showtext_auto()
 
 tar_load(cccm_flood_impact_data)
-
 tar_load(cccm_flood_impact_data_w_coords)
 tar_load(rainfall_impact_tbl)
+tar_load(gov_area_rainfall_impact_tbl)
 
 coord_lookup <- cccm_flood_impact_data_w_coords %>% 
     distinct(site_id, lon, lat)
@@ -39,23 +39,107 @@ roi<- rainfall_impact_tbl %>%
 unique_event_dates<- roi %>% 
     distinct(governorate_name,date) %>% 
     split(.$governorate_name)
+
 ```
+
+For an **Area-Based Approach** we are thinking at the Governorate level. We have decided to focus on **Marib** and **Hajjah**. To do this we aggregated rainfall and impact/event data to the governorate level. We did this by taking the daily `mean()` and `max()` precipitation (for all precip regimes) across all sites. Then if an event was reported in any site we said that an event occurred in the governorate. By doing this we basically created governorate level summary table to use for performance analysis.
+
+I can see an argument that this approach is flawed as a great deal of the event dates were basically consecutive and it's likely that they should be grouped as 1 event.The plots below highlight this. 
+
+- red lines are reported events
+- I overlaid black lines to mark the start of the run of "consecutive" runs (classified as TPs)
+- threshold of 25 mm just used for illustrative purposes.
+
+```{r}
+p_rainfall_events_gov <- c("Hajjah","Marib") %>% 
+    map(
+        \(gov){
+            plot_site_events_classified(df=gov_area_rainfall_impact_tbl %>% 
+                                            filter(governorate_name ==gov),
+                                        x = "precip_roll10_mean",
+                                        event = "fevent",
+                                        thresh = 25,
+                                        day_window = 60,
+                                        plot_title = gov
+                                        )
+        }
+    )
+```
+
+```{r, out.width="100%"}
+walk(p_rainfall_events_gov,~print(.x))
+```
+
+I think this argument does make some sense and it likely does skew some of the performance graphs. We could theoretically just include the start of the runs in our performance analysis. However, I feel like we are just throwing out good data if we do that and there is a justification to try to keep more of that data in. Perhaps the best approach would be to group events based on space and time.
+
+
+```{r}
+coord_lookup <- cccm_flood_impact_data_w_coords %>% 
+    distinct(site_id, lon, lat)
+
+hajjah_site_level <- rainfall_impact_tbl %>%
+    left_join(coord_lookup) %>% 
+    filter(governorate_name=="Hajjah")
+    
+
+
+kmeans_cluster_events <-  function(df,
+                                   date,
+                                   lon,
+                                   lat,
+                                   event,
+                                   k=5,
+                                   scale=T){
+    df_event <- df %>% 
+        filter(!!sym(event)) 
+    df_sel <- df_event %>% 
+            mutate(
+                date= as.numeric(date)
+            ) %>% 
+            select(date, lon, lat) 
+    
+    if(scale){
+       df_sel  %>% 
+        mutate(
+            across(
+                everything(),~scale(.x,center=T, scale=T)
+                )
+        )
+    }
+        matrix_input <- df_sel %>% 
+            as.matrix()
+        km <-  kmeans(matrix_input,centers= k,nstart = 20)
+        df_event$cluster <-as.character(km$cluster)
+        return(df_event)
+}
+
+
+```
+
+
+To do this we have to go back to thinking at site level and cluster events based on the the individual event dates and locations.
 
 Looking at just **Marib** and **Hajjah**. We see the following see that Marib and Hajjaah have **`r nrow(unique_event_dates$Marib)`** , and **`r nrow(unique_event_dates$Hajjah)`**, respectively.
 
 Let's see if we can cluster based on coordinates and date of event. As the governorates are separated geographically let's do the clustering separately.
 
 ```{r,echo=F, include=T}
-k <-  7
-pts_clustered_k7 <- split(roi,roi$governorate_name) %>% 
+
+spatial_pt_clusters <- function(df = df,
+                                     date = "date",
+                                     lon = "lon",
+                                     lat = "lat",
+                                     event = "fevent",scale = T,
+                                     k= k){
+    split(df,df$governorate_name) %>% 
     imap(\(df,nm){
-        roi_matrix <- df %>% 
-            mutate(
-                date= as.numeric(date)
-            ) %>% 
-            select(date, lon, lat) %>% 
-            as.matrix()
-        km <-  kmeans(roi_matrix,centers= k,nstart = 20)
+        
+        km <-  kmeans_cluster_events(df = df,
+                                     date = "date",
+                                     lon = "lon",
+                                     lat = "lat",
+                                     event = "fevent",scale = T,
+                                     k= k)
         df$cluster <- paste0(nm,"_",as.character(km$cluster))
         df_sf <-  st_as_sf(df,
                            coords = c("lon","lat"),
@@ -71,169 +155,369 @@ pts_clustered_k7 <- split(roi,roi$governorate_name) %>%
         return(df_sf)
     }
     )
-
-pal_1 <- colorFactor(palette = "Dark2", domain = pts_clustered_k7$Hajjah$cluster)
-pal_2 <- colorFactor(palette = "Accent", domain = pts_clustered_k7$Marib$cluster)
-
-
-k <-  5
-pts_clustered_k5 <- split(roi,roi$governorate_name) %>% 
-    imap(\(df,nm){
-        roi_matrix <- df %>% 
-            mutate(
-                date= as.numeric(date)
-            ) %>% 
-            select(date, lon, lat) %>% 
-            as.matrix()
-        km <-  kmeans(roi_matrix,centers= k,nstart = 20)
-        df$cluster <- paste0(nm,"_",as.character(km$cluster))
-        df_sf <-  st_as_sf(df,
-                           coords = c("lon","lat"),
-                           crs= 4326
-        ) %>% 
-            st_jitter(amount = 0.05)
-        df_sf$labels <-  paste0(
-            "Site_ID:", df_sf$site_id,
-            "<br> date:",df_sf$date,
-            "<br> cluter:", df_sf$cluster
-        ) %>% lapply(htmltools::HTML)
-        
-        grid <- st_make_grid(st_bbox(st_transform(df_sf,crs=2090)) %>% 
-                         st_as_sfc(),
-            cellsize = 5500) %>% 
-            st_transform(crs= 4326)
-        ret <- list()
-        ret$grid <- grid
-        ret$df_sf<-df_sf
-
-        return(ret)
-        
-    }
-    )
-
-pal_1_k5 <- colorFactor(palette = "Dark2", domain = pts_clustered_k5$Hajjah$cluster)
-pal_2_k5 <- colorFactor(palette = "Accent", domain = pts_clustered_k5$Marib$cluster)
-```
-
-I've jittered the points by 0.05 so that you it's easier to see the sites that are very close to one another
-
-Here is a map with 7 clusters per governorate
-```{r,echo=F,include=T,out.width="100%"}
-leaflet() %>% 
-    addTiles() %>% 
-     addCircleMarkers(data= pts_clustered_k7$Hajjah,
-                popup = ~cluster, 
-                label = ~labels,
-                # clusterOptions = markerClusterOptions(),
-                color = ~pal_1(cluster)
-             ) %>% 
-     addCircleMarkers(data= pts_clustered_k7$Marib,
-                popup = ~cluster, 
-                label = ~labels,
-                # clusterOptions = markerClusterOptions(),
-                color = ~pal_2(cluster)
-             )
-```
-
-and here is one with 5 clusters per governorate
-```{r,echo=F, include =T,out.width="100%"}
-?st_make_grid()
-leaflet() %>% 
-    addTiles() %>% 
+}
+map_pt_clusters <- function(df ,
+                            date = "date",
+                            lon = "lon",
+                            lat = "lat",
+                            event = "fevent",scale = T,
+                            k= k){
+    
+    pts_clustered <- spatial_pt_clusters(df= df,
+                                         date=date,
+                                         lon=lon, 
+                                         lat=lat,
+                                         event=event, 
+                                         scale=scale,
+                                         k=k)
+    pal_hajjah <- colorFactor(palette = "Dark2", domain = pts_clustered$Hajjah$cluster)
+    pal_marib<- colorFactor(palette = "Accent", domain = pts_clustered$Marib$cluster)
+    
+    leaflet() %>% 
     addProviderTiles(provider = leaflet::providers$Stamen.Toner) %>% 
-    addPolygons(data=pts_clustered_k5$Hajjah$grid,fill=NA) %>%
-    addPolygons(data=pts_clustered_k5$Marib$grid,fill=NA) %>%
-     addCircleMarkers(data= pts_clustered_k5$Hajjah$df_sf,
+    # addPolygons(data=grid,fill=NA) %>%
+     addCircleMarkers(data= pts_clustered$Hajjah,
                 popup = ~cluster, 
                 label = ~labels,
                 # clusterOptions = markerClusterOptions(),
-                color = ~pal_1_k5(cluster)
+                color = ~pal_hajjah(cluster)
              ) %>% 
-     addCircleMarkers(data= pts_clustered_k5$Marib$df_sf,
+     addCircleMarkers(data= pts_clustered$Marib,
                 popup = ~cluster, 
                 label = ~labels,
                 # clusterOptions = markerClusterOptions(),
-                color = ~pal_2_k5(cluster)
-             ) %>% 
+                color = ~pal_marib(cluster)
+             )
+}
+    
+
+
+# spatial_pt_clusters(df = df,
+#                                      date = "date",
+#                                      lon = "lon",
+#                                      lat = "lat",
+#                                      event = "fevent",scale = T,
+#                                      k= k
+# # going to quickly make a 2 grid networks roughly the size of chirps for visual
+# grid<- pts_clustered_k5 %>% 
+#     map(\(sfdf){
+#         sfdf %>% 
+#             st_bbox() %>% 
+#             st_as_sfc() %>% 
+#             st_transform(crs= 2089) %>% 
+#             st_make_grid(cellsize = 5500) %>% 
+#             st_transform(crs= 4326) %>% 
+#             st_as_sf()
+#     }
+#     ) %>% 
+#     bind_rows()
+
+
+```
+
+Below are maps of the sites clustered - I've jittered the points by 0.05 so that you it's easier to see the sites that are very close to one another. You can **zoom and hover** the sites for more details.
+
+First we have the sites in **7 clusters**
+```{r,echo=F,include=T,out.width="100%"}
+map_pt_clusters(df = roi,date = "date",lon = "lon","lat",event = "fevent",scale = T,k = 7) %>% 
     addScaleBar()
 ```
 
+Below we have the sites grouped into **5 clusters**
+```{r,echo=F, include =T,out.width="100%"}
+map_pt_clusters(df = roi,date = "date",lon = "lon","lat",event = "fevent",scale = T,k = 5) %>% 
+    addScaleBar()
+```
+
+
+we do see that weird outlier down south -- in the DB it's recorded as Hajjah. Let's remove it and see if that affects the clustering. Here are the 7 clusters again:
+```{r}
+map_pt_clusters(df = roi %>% 
+                     filter(site_id !="YE1712_0643") ,
+                date = "date",
+                lon = "lon",
+                "lat",
+                event = "fevent",
+                scale = T,
+                k = 7) %>% 
+    addScaleBar()
+
+```
+
+and the 5 clusters again:
+```{r}
+map_pt_clusters(df = roi %>% 
+                     filter(site_id !="YE1712_0643") ,
+                date = "date",
+                lon = "lon",
+                "lat",
+                event = "fevent",
+                scale = T,
+                k = 5) %>% 
+    addScaleBar()
+
+```
+
+There are some spatial patterns evident, for example in the previous map you see `Hajjah_1` does seem to cluster up in the north. However, when you zoom in and inspect in greater detail you do see `Hajjah_1` also well distributed down south. To me, these maps indicate that the spatial aspect may be less important than the timing. This might actually be good for us as we are trying to design 1 threshold per governorate.
+
+
+Let's plot the clusters along a time series to get a better understanding of the events timing
 ```{r}
 
-pts_clustered_k5$Hajjah$df_sf %>% 
-    st_drop_geometry( ) %>% 
-    select(date, site_id,cluster) %>% 
-    arrange(date) %>% 
-    distinct(date,site_id,cluster) %>% 
-    filter(site_id !="YE1712_0643") %>% 
-    left_join(y = cccm_flood_impact_data %>%
-                  group_by(site_id, date=date_of_episode) %>% 
-                  summarise(
-                      across(starts_with("num_"),~mean(.x,na.rm=T))
-                  ) ,
-              by = c("site_id"="site_id","date"="date")) %>% 
-    print(n=nrow(.)) %>% 
-    ggplot(aes(x=date,y=num_shelters_affected,color=cluster))+
-    geom_point()+
-    labs(y="Number affected Shelters",title = "Clustering of events based on timing and coordinates")+
-    theme_hdx()
 
+df_clusters5 <- spatial_pt_clusters(df = roi %>% 
+                     filter(site_id !="YE1712_0643") ,
+                date = "date",
+                lon = "lon",
+                "lat",
+                event = "fevent",
+                scale = T,
+                k = 5)
+df_clusters7 <- spatial_pt_clusters(df = roi %>% 
+                     filter(site_id !="YE1712_0643") ,
+                date = "date",
+                lon = "lon",
+                "lat",
+                event = "fevent",
+                scale = T,
+                k = 7)
+
+p_clusters5 <- df_clusters5 %>% 
+    imap(\(dfsf,nm){
+        dfsf %>% 
+            st_drop_geometry() %>% 
+            distinct(date,site_id,cluster) %>% 
+            left_join(y = cccm_flood_impact_data %>%
+                          group_by(site_id, date=date_of_episode) %>% 
+                          summarise(
+                              across(starts_with("num_"),~mean(.x,na.rm=T))
+                          ) ,
+                      by = c("site_id"="site_id","date"="date")) %>% 
+            ggplot(aes(x=date,y=num_shelters_affected,color=cluster))+
+            geom_point()+
+            labs(y="Number affected Shelters",
+                 title = "Clustering of events based on timing and coordinates",
+                 subtitle = glue("Yemen - {nm} -5 clusters"))+
+            theme_hdx()
+        
+    })
+p_clusters7 <- df_clusters7 %>% 
+    imap(\(dfsf,nm){
+        dfsf %>% 
+            st_drop_geometry() %>% 
+            distinct(date,site_id,cluster) %>% 
+            left_join(y = cccm_flood_impact_data %>%
+                          group_by(site_id, date=date_of_episode) %>% 
+                          summarise(
+                              across(starts_with("num_"),~mean(.x,na.rm=T))
+                          ) ,
+                      by = c("site_id"="site_id","date"="date")) %>% 
+            ggplot(aes(x=date,y=num_shelters_affected,color=cluster))+
+            geom_point()+
+            labs(y="Number affected Shelters",
+                 title = "Clustering of events based on timing and coordinates",
+                 subtitle = glue("Yemen - {nm} -7 clusters"))+
+            theme_hdx()
+        
+    })
+```
+
+Below are the **7 clusters** plotted against **Number affected Shelters**
+```{r,out.width="100%"}
+walk(p_clusters7,~print(.x))
+```
+
+and  **5 clusters** plotted against **Number affected Shelters**
+```{r,out.width="100%"}
+walk(p_clusters5,~print(.x))
+```
+
+```{r, out.width="100%"}
+library(extRemes)
+
+tar_load(cccm_site_chirp_stats)
+tar_load(cccm_wb)
+site_rainfall_historical <- cccm_site_chirp_stats %>% 
+    left_join(cccm_wb$`ML- Flooding Available data`%>% distinct(site_id, governorate_name))
+
+yearly_max_by_gov <- site_rainfall_historical %>% 
+    group_by(governorate_name,date) %>% 
+    summarise(
+    across(starts_with("precip_"),~mean(.x,na.rm = T)),.groups="drop"       
+    ) %>% 
+    group_by(governorate_name,year=year(date)) %>% 
+    summarise(
+        across(starts_with("precip_"),~max(.x,na.rm = T)),.groups="drop"
+    )
+
+
+p_precip_and_events_by_clust1 <- df_clusters5 %>% 
+    imap(\(dfsf,nm){
+        df_w_damage <- dfsf %>% 
+            st_drop_geometry() %>% 
+            distinct(date,site_id,cluster) %>% 
+            left_join(y = cccm_flood_impact_data %>%
+                          group_by(site_id, date=date_of_episode) %>% 
+                          summarise(
+                              across(starts_with("num_"),~mean(.x,na.rm=T))
+                          ) ,
+                      by = c("site_id"="site_id","date"="date")) 
+        
+        date_range <- range(df_w_damage$date)
+        dates_incl <- as_date(seq(date_range[1],date_range[2], by ="days"))
+        
+        rainfall_max_vec <- yearly_max_by_gov %>% 
+            filter(governorate_name==nm) %>% 
+            pull(precip_roll10)
+        
+        gev_roll10 <- fevd(rainfall_max_vec, type = "GEV")
+        
+        ari_rps <- c(2,3,4,5,10)
+        rps_roll10 <- return.level(x = gev_roll10, 
+                       return.period =ari_rps,
+                       do.ci = TRUE, alpha = 0.05)
+        rps<- data.frame(estimate=xy.coords(rps_roll10)$y) %>% 
+            mutate(
+                rp= ari_rps,
+                cluster=NA,
+                label = glue("{rp} year RP: {round(estimate,1)}")
+            )
+
+
+
+
+        
+        rainfall_tbl_filtered <- gov_area_rainfall_impact_tbl %>% 
+            filter(governorate_name==nm,
+                   date %in% dates_incl
+                   ) 
+        df_w_damage %>% 
+            ggplot(aes(x=as_date(date),y=num_shelters_affected,color=cluster))+
+            geom_point()+
+            geom_line(data=rainfall_tbl_filtered %>% mutate(cluster=NA),
+                      aes(x=as_date(date),y=precip_roll10_mean*25))+
+            geom_hline(data= rps,aes(yintercept = estimate*25))+
+            geom_text(data=rps, aes(x=ymd("2022-06-01"), y =(estimate*25)+(3*25),label = label))+
+            scale_y_continuous(sec.axis= sec_axis(trans=~.*(1/25),name="precip (10 day)"))+
+            scale_x_date(breaks = "1 month",date_labels = "%b-%y" )+
+        
+            labs(y="Number affected Shelters",
+                 title = "Clustering of events based on timing and coordinates",
+                 subtitle = glue("Yemen - {nm} -5 clusters"))+
+            theme_hdx()+
+            theme(
+                axis.title.x = element_blank(),
+                axis.text.x = element_text(angle=90)
+            )
+            
+        
+    })
+
+```
+
+```{r}
+walk(p_precip_and_events_by_clust1, ~print(.x))
+# p_precip_and_events_by_clust1$Hajjah
+# p_precip_and_events_by_clust1$Marib
+```
+
+
+```{r,eval=F}
 
 # are any of them the same sites in july/aug? -- no
-pts_clustered_k5$Hajjah$df_sf %>% 
+df_clusters5$Hajjah %>% 
     st_drop_geometry( ) %>% 
     filter(month(date) %in% c(7,8)) %>% 
     group_by(site_id) %>% 
     filter(n()>1)
+
+
+# 
+```
+
+```{r,eval =F }
+classify_events <-  function(df_cluster=df_clusters5$Hajjah %>% 
+                                 st_drop_geometry(),
+                             impact_table=rainfall_impact_tbl,
+                             x= "precip_roll10_mean"{
+    rainfall_impact_summarised_by_date <- rainfall_impact_tbl %>% 
+        group_by(date) %>% 
+        summarise(across(starts_with("precip_"),list(mean=mean,max=max)))
+    df_cluster_split <-  split(df_cluster,df_cluster$cluster) %>% 
+        map(\(cluster_subset){
+            cluster_subset %>% 
+                select(site_id, date, fevent_cluster=fevent) %>% 
+                right_join(rainfall_impact_summarised_by_date) %>% 
+                mutate(
+                    fevent_cluster= replace_na(fevent_cluster,F)
+                )
+            })
+    max_rainfall <- ceiling(max(rainfall_impact_summarised_by_date[[x]],na.rm=T))
+    thresholds_iter <-  seq(0,max_rainfall,by=1)
+    clusters_classified <- df_cluster_split %>% 
+        map(\(cluster_subset){
+            thresholds_iter %>% 
+            map(\(thresh_temp){
+                  calc_TPFPFN(df=cluster_subset ,
+                            x=x,
+                            event ="fevent_cluster" ,
+                            thresh = thresh_temp,
+                            look_ahead = 7,
+                            look_back = 7)
+                
+            })
+              
+            
+        }
+        )
+    
+    clusters_classified$Hajjah_1 %>% 
+        map("FPs")
+    fp_1 <- Reduce('|',clusters_classified$Hajjah_1 %>% map("FPs"))
+    
+    
+    clusters_classified %>% 
+        
+    clusters_classified %>% 
+        keep_at(at = ~str_detect(.x, "FPs"))
+    # need to flatten FPs
+    FP_ret_combined<- Reduce('|',clusters_classified %>% map("FPs"))
+    reduce(clusters_classified$)
+}
+
+
 ```
 
 
-```{r}
-coord_lookup <- cccm_flood_impact_data_w_coords %>% 
-    distinct(site_id, lon, lat)
-
-hajjah_site_level <- rainfall_impact_tbl %>%
-    left_join(coord_lookup) %>% 
-    filter(governorate_name=="Hajjah")
-    
-
-
-
-
-
-
-kmeans_cluster_events <-  function(df,date,lon,lat,event,k=5){
-    df_event <- df %>% 
-        filter(!!sym(event)) 
-    matrix_input <- df_event %>% 
-            mutate(
-                date= as.numeric(date)
-            ) %>% 
-            select(date, lon, lat) %>% 
-            as.matrix()
-        km <-  kmeans(matrix_input,centers= k,nstart = 20)
-        df_event$cluster <-as.character(km$cluster)
-        return(df_event)
-}
-
-kmeans_cluster_events(df = hajjah_site_level,
-                      date = "date",
-                      lon="lon",
-                      lat="lat",
-                      event="fevent",
-                      k=5)
-
+```{r,eval = F }
 
 # i want a FP date search that gets all the dates from summmarised df and makes list of lists for date
 # before, betwen, after, all the tp dates
-get_tp_dates <- function(df,date,lon,lat,event,k,look_back,look_ahead){
+get_tp_dates <- function(df,
+                         date,
+                         lon,
+                         lat,
+                         event,
+                         k,
+                         look_back,
+                         look_ahead,
+                         scale=T
+                         ){
     
-     df_events_clustered <- kmeans_cluster_events(df = df,
-                      date = date,
-                      lon=lon,
-                      lat=lat,
-                      event=event,
-                      k=k)
+     # df_events_clustered <- kmeans_cluster_events(df = df,
+     #                  date = date,
+     #                  lon=lon,
+     #                  lat=lat,
+     #                  event=event,
+     #                  k=k)
+    df_events_clustered <- spatial_pt_clusters(df = df,
+                date =date,
+                lon = lon,
+                lat=lat,
+                event = event,
+                scale = scale,
+                k = k) %>% 
+        st_drop_geometry()
     
     search_dates_for_thresh <- df_events_clustered %>% 
         group_split(cluster) %>% 
@@ -248,6 +532,7 @@ get_tp_dates <- function(df,date,lon,lat,event,k,look_back,look_ahead){
     )
     
 }
+
 classify_events <- function(df,
          look_ahead=7,
          look_back=7, 
@@ -256,7 +541,7 @@ classify_events <- function(df,
          lat="lat",
          event="fevent",
          k=5,
-         # thresh,
+         scale,
          precip_regime="precip_roll10_mean"
          ){
          
@@ -272,6 +557,7 @@ classify_events <- function(df,
                                        look_back=look_back,
                                        look_ahead= look_ahead,
                                        event=event,
+                                       scale=scale,
                                        k=k)
 
     max_rainfall <- ceiling(max(df_summarised[[precip_regime]],na.rm=T))
@@ -302,8 +588,8 @@ classify_events <- function(df,
     
 }
 
-ck <- classify_events(df =hajjah_site_level,
-                # thresh = 6 ,
+ck <- classify_events(df =rainfall_impact_tbl %>% 
+                          filter(governorate_name =="Hajjah"),
                 look_ahead = 7,
                 look_back = 7,
                 date = "date",
