@@ -32,32 +32,47 @@ if (!have_gghdx) {
 
 
 library(targets)
-library(tidyverse)
-library(sf)
-library(terra)
-library(exactextractr)
-library(lubridate)
-library(readxl)
-library(janitor)
-library(zoo)
-library(rgee)
-library(ggrepel)
-library(tidyrgee)
-library(gghdx)
+# library(tidyverse)
+# library(sf)
+# library(terra)
+# library(exactextractr)
+# library(lubridate)
+# library(readxl)
+# library(janitor)
+# library(zoo)
+library(rgee) # `ee_Initialize()` is outside of pipeline.
+ee_Initialize(drive= T)
+# library(ggrepel)
+# library(tidyrgee)
+# library(gghdx)
+# 
 
-# ee_Initialize(drive= T)
 
 # library(tarchetypes) # Load other packages as needed. # nolint
 
 # Set target options:
 tar_option_set(
-  packages = c("tibble"), # packages that your targets need to run
+    # i think loading the packages w/ library() call above is fine
+    # until you want to try parallel compute
+  packages = c("tibble",
+               "tidyverse",
+               "sf",
+               "terra",
+               "exactextractr",
+               "lubridate",
+               "readxl",
+               "janitor",
+               "zoo",
+               "rgee",
+               "ggrepel",
+               "tidyrgee",
+               "gghdx"), # packages that your targets need to run
   format = "rds" # default storage format
   # Set other options as needed.
 )
 
 # tar_make_clustermq() configuration (okay to leave alone):
-options(clustermq.scheduler = "multicore")
+options(clustermq.scheduler = "multiprocess")
 
 # tar_make_future() configuration (okay to leave alone):
 # Install packages {{future}}, {{future.callr}}, and {{future.batchtools}} to allow use_targets() to configure tar_make_future() options.
@@ -66,13 +81,6 @@ options(clustermq.scheduler = "multicore")
 tar_source()
 # source("other_functions.R") # Source other scripts as needed. # nolint
 
-
-chirps_dir <- file.path(
-  Sys.getenv("AA_DATA_DIR"),
-  "public",
-  "processed",
-  "yem", "chirps"
-)
 
 chirps_gefs_dir <- file.path(
   Sys.getenv("AA_DATA_DIR"),
@@ -210,14 +218,47 @@ list(
                                                 adm_cods=adm_sf)
     ),
     
-    # Rainfall - CHIRPS -------------------------------------------------------
-    
-    # extract daily chirps data to site locations
-    # this takes about 10 minutes
+  # Rainfall - CHIRPS -------------------------------------------------------
+  # suggested by bruno -- but then we have to use `{targets}` dynamic branching
+  # https://stackoverflow.com/questions/69652540/how-should-i-use-targets-when-i-have-multiple-data-files
+  # tar_files(
+  #     chirps_file_paths,
+  #     file.path(
+  #         Sys.getenv("AA_DATA_DIR"),
+  #         "public",
+  #         "processed",
+  #         "yem", "chirps"
+  #     ) %>%
+  #         list.files(full.names = TRUE)
+  # ),
+  # tar_target(
+  #     processed_files,
+  #     file_paths%>%
+  #         readxl::read_excel() %>% # can be anything read csv, parquet etc.
+  #         janitor::clean_names() %>% # start processing
+  #         mutate_at(vars(a,b,c), as.Date, format = "%Y-%m-%d"), # can be really complex operations
+  #     pattern = map(file_paths)
+  # ),
+  
+  
+  # i dont see why i wouldnt just use this the directory - like this - not clear how
+  # it's tracking, but i know the directory is complete now
+
+  tar_target(
+      chirps_dir,
+      file.path(
+          Sys.getenv("AA_DATA_DIR"),
+          "public",
+          "processed",
+          "yem", "chirps"
+      )),
+  # extract daily chirps data to site locations
+  # this takes about 10 minutes
+  
     tar_target(
         name= cccm_site_chirps,
         command= chirps_daily_to_sites(raster_dir = chirps_dir,
-                                       pt= cccm_flood_report_sites)
+                                       pt= cccm_flood_report_sites,batch_by_year=T)
     ),
     
     # calculate various rolling stats at site locations
@@ -275,7 +316,9 @@ list(
   # somehow these got invalidated -- need to skip for now and let run when less busy
     tar_target(
         name = gefs_chirps_pts,
-        command = extract_chirps_gefs_to_pts(raster_dir =chirps_gefs_dir,forecast = 10,sites =cccm_flood_report_sites  )
+        command = extract_chirps_gefs_to_pts(raster_dir =chirps_gefs_dir,
+                                             forecast = 10,
+                                             sites =cccm_flood_report_sites  )
     ),
 
     ## Compare CHIRPS to CHIRPS-GEFS ----
@@ -284,7 +327,9 @@ list(
 
     tar_target(
         name = p_chirps_vs_gefs,
-        command = plot_chirps_gefs_comparison(gef_values= gefs_chirps_pts,chirps_values=cccm_site_chirp_stats,gef_forecast_window = 10)
+        command = plot_chirps_gefs_comparison(gef_values= gefs_chirps_pts,
+                                              chirps_values=cccm_site_chirp_stats,
+                                              gef_forecast_window = 10)
     ),
 
   # Performance Testing -----------------------------------------------------
@@ -299,6 +344,7 @@ list(
   ## Plot all sites with a dummy threshold to make sure it behaving as desired
   tar_target(
       name= p_all_sites_events_pred_classifications,
+      # 5th element in map causing issues-- have a lok 
       command= plot_performance_all_sites(df=rainfall_impact_tbl, 
                                           x="precip_roll10",
                                           event = "fevent",
@@ -336,6 +382,53 @@ list(
                                                    event="fevent",
                                                    look_back = 7,
                                                    look_ahead = 3,
+                                                   thresholds = seq(0,max_rainfall,1))
+          }
+          ) %>% set_names( c(
+              "precip_roll3",
+                "precip_roll5",
+                "precip_roll10",
+                "precip_roll15",
+                "precip_roll20",
+                "precip_roll25",
+                "precip_roll30",
+                "precip_roll3_c",
+                "precip_roll5_c",
+                "precip_roll10_c",
+                "precip_roll15_c",
+                "precip_roll20_c",
+                "precip_roll25_c",
+                "precip_roll30_c"
+            ) )
+  ),
+  # interested in running with 7 day lookback and forward
+  tar_target(
+      name = thresh_class_freq_b7f7,
+      command = c(
+          "precip_roll3",
+          "precip_roll5",
+          "precip_roll10",
+          "precip_roll15",
+          "precip_roll20",
+          "precip_roll25",
+          "precip_roll30",
+          "precip_roll3_c",
+          "precip_roll5_c",
+          "precip_roll10_c",
+          "precip_roll15_c",
+          "precip_roll20_c",
+          "precip_roll25_c",
+          "precip_roll30_c"
+      ) %>%
+          map(\(rainfall_regime){
+              cat(crayon::green(rainfall_regime),"\n")
+              max_rainfall <- ceiling(max(rainfall_impact_tbl[[rainfall_regime]],na.rm=T))
+              performance_frequencies_by_threshold(df = rainfall_impact_tbl,
+                                                   x=rainfall_regime,
+                                                   by="site_id",
+                                                   event="fevent",
+                                                   look_back = 7,
+                                                   look_ahead = 7,
                                                    thresholds = seq(0,max_rainfall,1))
           }
           ) %>% set_names( c(

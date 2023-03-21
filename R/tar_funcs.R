@@ -16,31 +16,70 @@
 #'
 #' @return site locations with daily chirps values
 
-chirps_daily_to_sites <- function(raster_dir, pt) {
+chirps_daily_to_sites <- function(raster_dir, pt,batch_by_year) {
   full_fps <- list.files(raster_dir, full.names = T)
   rast_names <- list.files(raster_dir)
-
   rast_dates <- str_extract(
     string = rast_names,
     pattern = "(?<=yem_chirps_daily_).*?(?=_r0)"
   ) %>%
     str_replace_all("_", "-")
-
-  cat("loading chirps local data sets")
-  chirps_daily_full <- terra:::rast(raster::stack(full_fps))
-  terra::set.names(x = chirps_daily_full, rast_dates)
-
-  cat("replacing -9999 with NA")
-  chirps_daily_full[chirps_daily_full == -9999] <- NA
-  chirps_pt <- terra::extract(x = chirps_daily_full, y = pt)
-
-  cbind(site_id = pt$site_id, chirps_pt) %>%
-    select(-ID) %>%
-    pivot_longer(
-      -site_id,
-      names_to = "date",
-      values_to = "precip_daily"
-    )
+  
+  if(batch_by_year){
+      # I'm going to batch read in the rasters by year to get an understanding
+      # of time
+      file_tbl <- tibble(
+          full_path=full_fps,
+          file_name= rast_names,
+          rast_dates= rast_dates,
+          rast_year = year(ymd(rast_dates))
+      )
+      file_tbl_split <- split(file_tbl, file_tbl$rast_year)
+      
+      rstack_list <- file_tbl_split %>%
+          map(\(file_group){
+              yr_temp <- unique(file_group$rast_year)
+              cat("loading  ",yr_temp, "\n")
+              rstack <- terra:::rast(raster::stack(file_group$full_path))
+              terra::set.names(rstack, file_group$rast_dates)
+              
+              return(rstack)
+              
+          })
+      sites_extracted_long <- rstack_list %>%
+          imap_dfr(\(rstack,nm)
+               {
+                   cat("treating null and extracting for year: ",nm,"\n")
+                  rstack[rstack == -9999] <- NA
+                  pt_extracted<- terra::extract(x = rstack, y = pt)
+                  cbind(site_id = pt$site_id, pt_extracted) %>%
+                      select(-ID) %>%
+                      pivot_longer(
+                          -site_id,
+                          names_to = "date",
+                          values_to = "precip_daily"
+                      )
+              }
+          )
+  }
+      if(!batch_by_year){
+          cat("loading chirps local data sets")
+          chirps_daily_full <- terra:::rast(raster::stack(full_fps))
+          terra::set.names(x = chirps_daily_full, rast_dates)
+          
+          cat("replacing -9999 with NA")
+          chirps_daily_full[chirps_daily_full == -9999] <- NA
+          chirps_pt <- terra::extract(x = chirps_daily_full, y = pt)
+          
+          sites_extracted_long <- cbind(site_id = pt$site_id, chirps_pt) %>%
+              select(-ID) %>%
+              pivot_longer(
+                  -site_id,
+                  names_to = "date",
+                  values_to = "precip_daily"
+              )
+      }
+  return(sites_extracted_long)
 }
 
 
@@ -859,19 +898,20 @@ plot_performance_all_sites <- function(df,
                                        x,
                                        event,
                                        thresh=25,
-                                       day_window=60,consec_adj
+                                       day_window=60
 ){
 
     p_sites_level_performance<- df$site_id %>% 
         unique() %>% 
         map(\(site_id_temp){
+            print(site_id_temp)
             plot_site_events_classified(df=df %>% 
                                             filter(site_id==site_id_temp) %>% 
                                             arrange(date),
                                         plot_title = site_id_temp,
                                         x=x,
                                         event = event,
-                                        thresh=thresh,day_window=60,consec_adj=consec_adj)
+                                        thresh=thresh,day_window=60)
         }
         ) %>% set_names(df$site_id %>% unique())
     return(p_sites_level_performance)

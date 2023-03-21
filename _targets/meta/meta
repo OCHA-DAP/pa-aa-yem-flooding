@@ -1,9 +1,9 @@
 name|type|data|command|depend|seed|path|time|size|bytes|format|repository|iteration|parent|children|seconds|warnings|error
-.Random.seed|object|201473e96718b029|||||||||||||||
+.Random.seed|object|90b47045720b4ccb|||||||||||||||
 adm_sf|stem|d814208e77634ebe|c0460a3bc14ebd57|5b6883bff12d4128|421735004||t19419.4297679868s|6e36be5798e8a713|6111599|rds|local|vector|||0.124||
 alos_landform_lookup|object|b415a69efa003277|||||||||||||||
 calc_rolling_precip_sites|function|6dc98d60d6e9b310|||||||||||||||
-calc_TPFPFN|function|6f274626474716c2|||||||||||||||
+calc_TPFPFN|function|8d107d91de7fdec2|||||||||||||||
 calculate_performance_metrics|function|49e7192b91f7c68a|||||||||||||||
 ccccm_floodscore_fp|stem|193f4cafb5b3e304|5859ae236cc0e5af|a532b606f052f163|171835563|/Users/zackarno/Library/CloudStorage/GoogleDrive-Zachary.arno@humdata.org/Shared drives/Predictive Analytics/CERF Anticipatory Action/General - All AA projects/Data/public/exploration/yem/REACH_YEM_Dataset_CCCM-National-IDP-Site-Flood-Hazard-Analysis_February2023.xlsx|t19430.539363206s|24e3976a4f0bf1df|798375|file|local|vector|||0.001||
 ccccm_fp|stem|0251214acb818534|b0336e6d51c0a3e8|a532b606f052f163|-486892478|/Users/zackarno/Library/CloudStorage/GoogleDrive-Zachary.arno@humdata.org/Shared drives/Predictive Analytics/CERF Anticipatory Action/General - All AA projects/Data/private/exploration/yem/Yemen -  CCCM Cluster -December ML - Flooding available data.xlsx|t19409.2264186921s|42ef65cd37579ad0|767660|file|local|vector|||0.001||
@@ -14,11 +14,11 @@ cccm_floodscore_df|stem|421c64a6b3e6c759|3f00ad1a6d2ca66a|d2ee822ecb1b70cc|18798
 cccm_new_fp|object|29449f7c35f25035|||||||||||||||
 cccm_report_sites_with_fl|stem|96c7964446f93fbc|2fd273fa06afccfc|04f3b14ec9ad59a1|-1594398441||t19415.3423114084s|340000b2a3ad905f|4239|rds|local|vector|||48.835||
 cccm_report_sites_with_geomorph|stem|908db72f4816ee2e|25383d744ce5e6b4|8ded00ec98f2e5b6|-1522455049||t19430.4178144449s|f15f70ed2969fafb|3212|rds|local|vector|||10.745||
-cccm_site_chirp_stats|stem|d0ebdbc2aa318bdf|18f742c5d938adb4|dbc509e59d9b3ddc|-402094016||t19431.2706852119s|b8d576a1474233d9|47353632|rds|local|vector|||5.22||
-cccm_site_chirps|stem|d9150174fd28993b|010c3f051a2b9071|a18329d8fb7183b2|-1861571490||t19415.3399862818s|506d4d8ccda1085a|6972899|rds|local|vector|||527.381||
+cccm_site_chirp_stats|stem|84cabf5c3024c35d|18f742c5d938adb4|ae41c32e1b2c021b|-402094016||t19437.3641919127s|cbe7d9b5faffe2fd|77570766|rds|local|vector|||10.133||
+cccm_site_chirps|stem|ddd264ea462403ce|c81117247d279d78|bfb7d85fc22bf10c|-1861571490||t19437.3633183831s|81eba152ed466f53|2955137|rds|local|vector|||120.463||
 cccm_wb|stem|a4fa98280cb3a963|34103ae931742acc|7f20f3496bf99902|-1651472338||t19415.3338575261s|1ded4d29ad6af2f7|197561|rds|local|vector|||0.25||
-chirps_daily_to_sites|function|9fca51fa77bdef8d|||||||||||||||
-chirps_dir|object|7f8aceac9d00f60e|||||||||||||||
+chirps_daily_to_sites|function|7f73caed582154ad|||||||||||||||
+chirps_dir|stem|167d2c9a1883e9aa|b9cfd4119f730835|a532b606f052f163|-1726825298||t19437.2930684554s|ed0b2f97180e0b86|205|rds|local|vector|||0.002||
 chirps_gefs_dir|object|3e3d1d3c35f8283e|||||||||||||||
 chirps_rollsum_to_sites|function|e74830b2220daeff|||||||||||||||
 chirps_to_sites|function|8b7de522ad4b159e|||||||||||||||
@@ -47,19 +47,19 @@ load_cccm_wb|function|b6e4997cc76ab131|||||||||||||||
 load_local_chirps_stack|function|ee0164b33b558e5a|||||||||||||||
 merge_rainfall_cccm_impact|function|aea81a2af065dea6|||||||||||||||
 new_CRAN_pkgs|object|ef46db3751d8e999|||||||||||||||
-p_all_sites_events_pred_classifications|stem|808c8a958a449ba0|387e3ba4a0bc88a3|5bd9e04964c0a4d6|107147207||t19432.2918387863s|c67b51f77c24e410|15578934|rds|local|vector|||9.093||
-p_chirps_vs_gefs|stem|4fe71fcec16619f4|cbca66bc6e14f6e9|248c0b3192b476e6|1979427439||t19432.6316092665s|162923c6e246a9a4|108725414|rds|local|vector|||1.266||
-p_timeseries_rainfall|stem|adc36585c1a28462|7af4bd6188ea6799|28762df631a35bd4|-1202216321||t19431.2715167405s|f69667742c1f43d7|145142863|rds|local|vector|||29.011||
+p_all_sites_events_pred_classifications|stem|e6a56ebfa835d20e|387e3ba4a0bc88a3|0d869a570dc6dee4|107147207||t19437.36446149s|8b85ebfa32971309|15884398|rds|local|vector|||8.42|Using size aesthetic for lines was deprecated in ggplot2 3.4.0.ℹ Please use linewidth instead.|
+p_chirps_vs_gefs|stem|8be2e42c2a680f16|cbca66bc6e14f6e9|8a2bf9701fad908c|1979427439||t19437.392393734s|e29e9c77c4607094|138956875|rds|local|vector|||1.242||
+p_timeseries_rainfall|stem|49673e83782d72af|7af4bd6188ea6799|f3caee9b48a607c2|-1202216321||t19437.3936297921s|937cf6bd1db4b568|198691898|rds|local|vector|||45.892||
 p_top10_by_affected_shelters|stem|b5b63a65886a0ff9|56fb39d66ea9d3fd|2e0a84e6671b1b58|2005053012||t19415.4158512929s|d863b67d099ad1e3|29240319|rds|local|vector|||3.213||
-performance_frequencies_by_threshold|function|84d89fab14cddfea|||||||||||||||
+performance_frequencies_by_threshold|function|660794274d038b72|||||||||||||||
 plot_chirps_gefs_comparison|function|7024a6e9a2a722df|||||||||||||||
 plot_high_priority_impact_vs_rainfall|function|8741ed4ab23b5a07|||||||||||||||
-plot_performance_all_sites|function|1c0cbf530fd5502f|||||||||||||||
+plot_performance_all_sites|function|8af79c1a61efb1c7|||||||||||||||
 plot_performance_metrics|function|a099fbffa507a774|||||||||||||||
 plot_rainfall_impact_timeseries|function|f539e2f5c3f59c4b|||||||||||||||
-plot_site_events|function|f2f1e3cde8f9306c|||||||||||||||
-plot_site_events_classified|function|d47e685d22cfe70f|||||||||||||||
-rainfall_impact_tbl|stem|ec00eba36c3f1b1a|44e1f091973e77bb|9dbca7f0ef49ca5c|-2108465742||t19431.2706963629s|601a0e2be6153ecc|1985841|rds|local|vector|||0.576||
+plot_site_events|function|bc4c48acf724f3ee|||||||||||||||
+plot_site_events_classified|function|74bb5a7a1c2d3a68|||||||||||||||
+rainfall_impact_tbl|stem|ec00eba36c3f1b1a|44e1f091973e77bb|800c04892472fc47|-2108465742||t19437.3642524367s|601a0e2be6153ecc|1985841|rds|local|vector|||0.494||
 rast_dates|object|457561422b35ea2d|||||||||||||||
 rast_names|object|3bcccfbb18f3b89a|||||||||||||||
 recode_from_gee_lookup_table|function|27bddf2129f5c3ba|||||||||||||||
@@ -78,13 +78,14 @@ tbl_performance_30d_gov|stem|47352c95120758c7|7f2fc6fdb3a4f8f6|9ca2dbb7bdc5966f|
 tbl_performance_30d_overall|stem|40508babf31603e2|81e821f6d624fd01|9ca2dbb7bdc5966f|1959168961||t19430.5745734536s|5297c7031d8b752c|4149|rds|local|vector|||0.098||
 tbl_performance_5d_gov|stem|47352c95120758c7|7f2fc6fdb3a4f8f6|9ca2dbb7bdc5966f|1884672460||t19430.5291091727s|77f068c734313148|13028|rds|local|vector|||0.069||
 tbl_performance_5d_overall|stem|40508babf31603e2|81e821f6d624fd01|9ca2dbb7bdc5966f|1178185053||t19430.5291083201s|5297c7031d8b752c|4149|rds|local|vector|||0.293||
-tbl_performance_area_marib_hajjah|stem|69b71f2ad70064ef|650cb650d3895281|961c77c2d2793159|635551685||t19431.5152888845s|5fddc2e4d1a3de00|55877|rds|local|vector|||0.547||
-tbl_performance_gov_area_level|stem|4d379ae4473c639f|6efed91c6e8e6c87|d60f6727fe23e32d|-1652714346||t19432.2973689335s|9f914ab5da957107|35792|rds|local|vector|||477.746||
-tbl_performance_overall|stem|b13251fc7e17fa53|7198b9fbd6ceaf73|53db89473d7324b0|-875938684||t19431.4478503766s|e8bd555d03189f73|70830|rds|local|vector|||1.282||
-tbl_performance_overall_gov|stem|b81bab642046ca23|bd3c8b1c2d2d42cf|53db89473d7324b0|1126698660||t19431.5120563594s|1b6921cff9d3c8d5|253027|rds|local|vector|||1.638||
+tbl_performance_area_marib_hajjah|stem|687f6482f353baa8|650cb650d3895281|c3b5c49ee24ec0bd|635551685||t19436.5185928177s|c186f80916ee5d42|51183|rds|local|vector|||0.536||
+tbl_performance_gov_area_level|stem|4b517c1c98f7c24d|6efed91c6e8e6c87|aa97687c346ebdcb|-1652714346||t19436.5185864421s|60fe5cd92ccacf57|35272|rds|local|vector|||358.876||
+tbl_performance_overall|stem|988f543d26745b1c|7198b9fbd6ceaf73|2746c9a01c391750|-875938684||t19436.5144150351s|4977cb3cf970e9b0|74338|rds|local|vector|||1.19||
+tbl_performance_overall_gov|stem|b96170d9d7bad97e|bd3c8b1c2d2d42cf|2746c9a01c391750|1126698660||t19436.5144323968s|ef6dcc5a20b4ab5b|253229|rds|local|vector|||1.461||
 test_threshold_performance_all_sites|function|cb83b672acf0142e|||||||||||||||
 test_threshold_performance_area|function|a9663824f5944642|||||||||||||||
 thresh_class_freq_10d|stem|d3589436828231e3|bb354180f6ce1ce5|6561f94267736d48|-821655285||t19429.6007701255s|cf074985ef6c1dc8|53179|rds|local|vector|||546.566||
 thresh_class_freq_30d|stem|ee453ad7f2c36576|2c3f1971851e3e81|b36106a413329059|1497107620||t19430.5291046513s|86dd77400b49ee89|119565|rds|local|vector|||1228.336||
 thresh_class_freq_5d|stem|15638c522769cb8a|8a13c1c6000d1eaf|1db286118057a47a|45894301||t19430.5147201393s|05f8a79a207166df|39914|rds|local|vector|||404.866||
-thresh_class_freq_b7f3|stem|e876c70426622fd1|ed84a39038c87996|be23760a627053f4|1607664225||t19432.2916679436s|7f7cca309e2c676e|1080613|rds|local|vector|||42103.332||
+thresh_class_freq_b7f3|stem|34520202e8f0ec8c|ed84a39038c87996|5f36b00408d969cc|1607664225||t19436.4012609022s|a8c34bfb1b293b76|1079282|rds|local|vector|||9433.876||
+thresh_class_freq_b7f7|stem|34520202e8f0ec8c|fb7141ee2ed2f6ff|5f36b00408d969cc|1577680602||t19436.514400953s|a8c34bfb1b293b76|1079282|rds|local|vector|||9774.003||
