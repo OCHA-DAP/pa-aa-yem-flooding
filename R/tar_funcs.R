@@ -93,7 +93,7 @@ clean_cccm_impact_data <- function(wb, floodsites) {
       num_hhs_lost_documentation = "if_yes_how_many_h_hs_did_they_lose_their_personal_legal_documentations_due_to_the_flooding",
     ) %>%
     mutate(
-        
+
       # hh size 7 from: https://fscluster.org/sites/default/files/documents/operational_guidance_note_-_minimum_expenditure_basket_september_2022.pdf
       pop_affected = num_shelters_affected * 7,
       pct_pop_affected = pop_affected / site_population,
@@ -819,66 +819,59 @@ floodscore_pop_stats_by_admin <- function(floodscores = cccm_floodscore_df,
 }
 
 
-plot_performance_all_sites <- function(df, 
+plot_performance_all_sites <- function(df,
                                        x,
                                        event,
-                                       thresh=25,
-                                       day_window=60
-){
-
-    p_sites_level_performance<- df$site_id %>% 
-        unique() %>% 
-        map(\(site_id_temp){
-            print(site_id_temp)
-            plot_site_events_classified(df=df %>% 
-                                            filter(site_id==site_id_temp) %>% 
-                                            arrange(date),
-                                        plot_title = site_id_temp,
-                                        x=x,
-                                        event = event,
-                                        thresh=thresh,day_window=60)
-        }
-        ) %>% set_names(df$site_id %>% unique())
-    return(p_sites_level_performance)
-    
+                                       thresh = 25,
+                                       day_window = 60) {
+  p_sites_level_performance <- df$site_id %>%
+    unique() %>%
+    map(\(site_id_temp){
+      print(site_id_temp)
+      plot_site_events_classified(
+        df = df %>%
+          filter(site_id == site_id_temp) %>%
+          arrange(date),
+        plot_title = site_id_temp,
+        x = x,
+        event = event,
+        thresh = thresh, day_window = 60
+      )
+    }) %>%
+    set_names(df$site_id %>% unique())
+  return(p_sites_level_performance)
 }
 
 
-high_risk_convex_hulls <- function(master_site_list, floodscore_db){
-    all_site_coords <- master_site_list %>% 
-        select(longitude=available_coordinates_longitude,
-               latitude= available_coordinates_latitude, site_id) %>% 
-        filter(!is.na(longitude),!is.na(latitude))
-    
-    all_high_risk_site_coords <- floodscore_db %>% 
-        filter(site_flood_hazard_score=="High Hazard") %>% 
-        left_join(all_site_coords) %>% 
-        filter(!is.na(longitude),!is.na(latitude))
-    
-    high_risk_convex_hulls <- c("Hajjah","Marib") %>% 
-        map(
-            \(gov){
-                pts_sf <-  all_high_risk_site_coords %>% 
-                    filter(governorate_name ==gov,
-                           # i did a spatial check w/ adm1 COD -- this is the only one outisde
-                           site_id !="YE1712_0643"
-                    ) %>% 
-                    st_as_sf(coords=c("longitude","latitude"),crs=4326)
-                st_convex_hull(st_union(pts_sf)) %>% 
-                    st_as_sf() %>% 
-                    mutate(governorate_name = gov) %>% 
-                    rename(geometry=x)
-            }
-        ) %>% bind_rows()
-    return(high_risk_convex_hulls)
-    
+high_risk_convex_hulls <- function(master_site_list, floodscore_db) {
+  all_site_coords <- master_site_list %>%
+    select(
+      longitude = available_coordinates_longitude,
+      latitude = available_coordinates_latitude, site_id
+    ) %>%
+    filter(!is.na(longitude), !is.na(latitude))
+
+  all_high_risk_site_coords <- floodscore_db %>%
+    filter(site_flood_hazard_score == "High Hazard") %>%
+    left_join(all_site_coords) %>%
+    filter(!is.na(longitude), !is.na(latitude))
+
+  high_risk_convex_hulls <- c("Hajjah", "Marib") %>%
+    map(
+      \(gov){
+        pts_sf <- all_high_risk_site_coords %>%
+          filter(
+            governorate_name == gov,
+            # i did a spatial check w/ adm1 COD -- this is the only one outisde
+            site_id != "YE1712_0643"
+          ) %>%
+          st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
+        st_convex_hull(st_union(pts_sf)) %>%
+          st_as_sf() %>%
+          mutate(governorate_name = gov) %>%
+          rename(geometry = x)
+      }
+    ) %>%
+    bind_rows()
+  return(high_risk_convex_hulls)
 }
-
-
-
-
-
-
-
-
-    

@@ -1,10 +1,10 @@
-# 
+#
 # test_func <-  function(df, by = c("thresh","class")){
-#     df %>% 
+#     df %>%
 #         group_by(across(all_of(by)))
-#     
+#
 # }
-# 
+#
 # df <- thresh_class_freq_10d
 # calculate_performance_metrics(df = thresh_class_freq_10d,
 #                               cccm_wb = cccm_wb,
@@ -13,181 +13,182 @@
 
 
 
-calculate_performance_metrics <-function(df,
-                                         cccm_wb,
-                                         level="site",
-                                         by=c("governorate_name","thresh","class")){
-    if(level=="site"){
-        df <- df %>% 
-            # should remove dependency on this 
-            left_join(cccm_wb$`ML- Flooding Available data` %>% 
-                          select(site_id,contains('governorate')))     
-        
-    }
-    df_summarised <- df %>% 
-        mutate(
-            across(all_of(by),~factor(.x))
-        ) %>% 
-        group_by(across(all_of(by)),.drop=F) %>% 
-        summarise(
-            n=sum(n,na.rm=T),.groups = "drop"
-        ) 
-    
-    if("governorate_name" %in% by){
-        df_summarised_wide <- 
-            df_summarised %>% 
-            pivot_wider(id_cols = c("governorate_name","thresh"),
-                        names_from = class, values_from = n) 
-        
-    }
-    else{
-        df_summarised_wide <- 
-            df_summarised %>% 
-            pivot_wider(id_cols = thresh,names_from = class, values_from = n) 
-        }
-    
-    df_summarised_wide <- 
-        df_summarised_wide %>% 
-        mutate(
-            precision = TP/(TP+FP),
-            recall = TP/(TP+FN),
-            f1_score = 2* ((precision*recall)/(precision+recall))
-        )
-    
-    return(df_summarised_wide)
-    
-    
+calculate_performance_metrics <- function(df,
+                                          cccm_wb,
+                                          level = "site",
+                                          by = c("governorate_name", "thresh", "class")) {
+  if (level == "site") {
+    df <- df %>%
+      # should remove dependency on this
+      left_join(cccm_wb$`ML- Flooding Available data` %>%
+        select(site_id, contains("governorate")))
+  }
+  df_summarised <- df %>%
+    mutate(
+      across(all_of(by), ~ factor(.x))
+    ) %>%
+    group_by(across(all_of(by)), .drop = F) %>%
+    summarise(
+      n = sum(n, na.rm = T), .groups = "drop"
+    )
+
+  if ("governorate_name" %in% by) {
+    df_summarised_wide <-
+      df_summarised %>%
+      pivot_wider(
+        id_cols = c("governorate_name", "thresh"),
+        names_from = class, values_from = n
+      )
+  } else {
+    df_summarised_wide <-
+      df_summarised %>%
+      pivot_wider(id_cols = thresh, names_from = class, values_from = n)
+  }
+
+  df_summarised_wide <-
+    df_summarised_wide %>%
+    mutate(
+      precision = TP / (TP + FP),
+      recall = TP / (TP + FN),
+      f1_score = 2 * ((precision * recall) / (precision + recall))
+    )
+
+  return(df_summarised_wide)
 }
 
 
 #' Title
 #'
-#' @param df 
-#' @param governorate 
-#' @param pseudo_log 
+#' @param df
+#' @param governorate
+#' @param pseudo_log
 #'
 #' @return
 #' @export
 #'
 #' @examples
-#' 
-#' 
-#' 
+#'
+#'
+#'
 # tar_load(tbl_performance_5d_gov)
 # plot_performance_metrics(df = tbl_performance_10d_overall %>% filter(as.numeric(thresh)>10),
-#                          pseudo_log = F)
-# # # 
+#' #                         pseudo_log = F)
+#' ## #
 # plot_performance_metrics(df = tbl_performance_10d_gov,
-#                          governorate = "Marib",
-#                          pseudo_log = F)
-# 
+#' #                         governorate = "Marib",
+#' #                         pseudo_log = F)
 # plot_performance_metrics(df = tbl_performance_5d_gov,
-#                          governorate = "Hajjah",
-#                          pseudo_log = F,x_axis_title = "asdfa")+
-#     labs(x="5 day threshold (mm)")
-# 
+#' #                         governorate = "Hajjah",
+#' #                         pseudo_log = F,x_axis_title = "asdfa")+
+#' #    labs(x="5 day threshold (mm)")
 # plot_performance_metrics(df = tbl_performance_10d_gov,
-#                          governorate = "Marib",
-#                          pseudo_log = T)
+#' #                         governorate = "Marib",
+#' #                         pseudo_log = T)
 # plot_performance_metrics(df = tbl_performance_30d_gov,
-#                          governorate = "Marib",
-#                          pseudo_log = T,
-#                          x_axis_title = "30 day threshold (mm)")
-# 
+#' #                         governorate = "Marib",
+#' #                         pseudo_log = T,
+#' #                         x_axis_title = "30 day threshold (mm)")
 # plot_performance_metrics(df = tbl_performance_30d_overall,
-#                          
-#                          pseudo_log = T,
-#                          x_axis_title = "30 day threshold (mm)")
-
+#' #                         pseudo_log = T,
+#' #                         x_axis_title = "30 day threshold (mm)")
 plot_performance_metrics <- function(df,
-                                     governorate=NULL,
-                                     pseudo_log=F,
-                                     x_axis_title){
- 
+                                     governorate = NULL,
+                                     pseudo_log = F,
+                                     x_axis_title) {
+  if (!is.null(governorate)) {
+    df <- df %>%
+      filter(governorate_name == governorate)
+    plot_title <- paste0("Yemen: ", governorate)
+  }
+  if (is.null(governorate)) {
+    plot_title <- "Yemen"
+  }
+  thresh_of_first_0_TP <- df[which(df[["TP"]] == 0)[1], ][["thresh"]]
+  df <- df %>%
+    filter(thresh %in% c(0:thresh_of_first_0_TP))
 
-    if(!is.null(governorate)){
-        df <- df %>% 
-            filter(governorate_name == governorate)
-        plot_title <- paste0("Yemen: ", governorate)
-    }
-    if(is.null(governorate)){
-        plot_title <-  "Yemen"
-    }
-    thresh_of_first_0_TP <- df[which(df[["TP"]]==0)[1],][["thresh"]]
-    df <- df %>% 
-        filter(thresh %in% c(0:thresh_of_first_0_TP))
-    
-    fnfptp_long <- df %>% 
-        select(any_of(c("governorate_name","thresh", "FN","FP","TP"))) %>% 
-        pivot_longer(cols = c("FN","FP","TP"),
-                     names_to = "class",
-                     values_to="class_value") 
-    
-    metrics_long <- df %>% 
-        select(any_of(c("governorate_name","thresh", "precision", "recall","f1_score"))) %>% 
-        pivot_longer(cols=c("precision","recall","f1_score"),names_to = "metric",values_to="metric_value") 
-    
-    # we want to scale plots according to max count values except in the case where FPs are so large
-    # in early thresholds ... in those cases let's set the max to 500
-    max_count <- ceiling(max(fnfptp_long[["class_value"]],na.rm=T))
-    y_scalar = ifelse(max_count>=500,500,max_count)
-    
-    # if(pseudo_log){
-        # y_breaks = c(seq(0,40,by=10), seq(50,y_scalar,by=50))
-                     # }
-    # if(!pseudo_log){
-        # y_breaks= seq(0,y_scalar,10)
-    # }
-    
-    p1 <- fnfptp_long %>%
-        ggplot(aes(x= as.numeric(thresh), y= class_value, color=class,group=class))+
-        geom_line()+
-        geom_line(data= metrics_long,
-                  aes(x= as.numeric(thresh),
-                      y=metric_value*y_scalar,
-                      group=metric,
-                      color=metric
-                  ))+
-        scale_color_manual(values = c('FN'="red",
-                                      "f1_score"="purple",
-                                      "FP"="orange",
-                                      "recall"="cyan",
-                                      "precision"="black",
-                                      "TP"="green"))
-        if(pseudo_log){
-            p2 <- p1+scale_y_continuous(labels = scales::comma,
-                                        # breaks = y_breaks,
-                                        trans = scales::pseudo_log_trans(),
-                                        sec.axis = sec_axis( trans=~.*(1/y_scalar),
-                                                             breaks = seq(0,1,.1))
-            )
-        }
-        if(!pseudo_log){
-            p2 <- p1+scale_y_continuous(labels = scales::comma,
-                                        # breaks = y_breaks,
-                                        limits = c(0,y_scalar),
-                                        sec.axis = sec_axis( trans=~.*(1/y_scalar),
-                                                             breaks = seq(0,1,.1))
-            )
-        }
-    
-       p2+
-        scale_x_continuous(breaks = seq(0,300,10))+
-        labs(x= x_axis_title,y="Number", title=plot_title) +
-        theme_hdx()+    
-        theme(
-            axis.text.x = element_text(angle=90)
-        )
-       
+  fnfptp_long <- df %>%
+    select(any_of(c("governorate_name", "thresh", "FN", "FP", "TP"))) %>%
+    pivot_longer(
+      cols = c("FN", "FP", "TP"),
+      names_to = "class",
+      values_to = "class_value"
+    )
+
+  metrics_long <- df %>%
+    select(any_of(c("governorate_name", "thresh", "precision", "recall", "f1_score"))) %>%
+    pivot_longer(cols = c("precision", "recall", "f1_score"), names_to = "metric", values_to = "metric_value")
+
+  # we want to scale plots according to max count values except in the case where FPs are so large
+  # in early thresholds ... in those cases let's set the max to 500
+  max_count <- ceiling(max(fnfptp_long[["class_value"]], na.rm = T))
+  y_scalar <- ifelse(max_count >= 500, 500, max_count)
+
+  # if(pseudo_log){
+  # y_breaks = c(seq(0,40,by=10), seq(50,y_scalar,by=50))
+  # }
+  # if(!pseudo_log){
+  # y_breaks= seq(0,y_scalar,10)
+  # }
+
+  p1 <- fnfptp_long %>%
+    ggplot(aes(x = as.numeric(thresh), y = class_value, color = class, group = class)) +
+    geom_line() +
+    geom_line(
+      data = metrics_long,
+      aes(
+        x = as.numeric(thresh),
+        y = metric_value * y_scalar,
+        group = metric,
+        color = metric
+      )
+    ) +
+    scale_color_manual(values = c(
+      "FN" = "red",
+      "f1_score" = "purple",
+      "FP" = "orange",
+      "recall" = "cyan",
+      "precision" = "black",
+      "TP" = "green"
+    ))
+  if (pseudo_log) {
+    p2 <- p1 + scale_y_continuous(
+      labels = scales::comma,
+      # breaks = y_breaks,
+      trans = scales::pseudo_log_trans(),
+      sec.axis = sec_axis(
+        trans = ~ . * (1 / y_scalar),
+        breaks = seq(0, 1, .1)
+      )
+    )
+  }
+  if (!pseudo_log) {
+    p2 <- p1 + scale_y_continuous(
+      labels = scales::comma,
+      # breaks = y_breaks,
+      limits = c(0, y_scalar),
+      sec.axis = sec_axis(
+        trans = ~ . * (1 / y_scalar),
+        breaks = seq(0, 1, .1)
+      )
+    )
+  }
+
+  p2 +
+    scale_x_continuous(breaks = seq(0, 300, 10)) +
+    labs(x = x_axis_title, y = "Number", title = plot_title) +
+    theme_hdx() +
+    theme(
+      axis.text.x = element_text(angle = 90)
+    )
 }
 
 
-summarise_rainfall_impact_to_gov <- function(df){
-    
-    df %>% 
-        group_by(governorate_name, date) %>% 
-        summarise(
-            across(matches("^precip_.+"), list(max=max,mean=mean)),
-            fevent = any(fevent),.groups="drop"
-        ) 
-}    
+summarise_rainfall_impact_to_gov <- function(df) {
+  df %>%
+    group_by(governorate_name, date) %>%
+    summarise(
+      across(matches("^precip_.+"), list(max = max, mean = mean)),
+      fevent = any(fevent), .groups = "drop"
+    )
+}
