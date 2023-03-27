@@ -18,6 +18,7 @@ knitr::opts_chunk$set(echo = FALSE, warning=FALSE,message = FALSE)
 ```
 ## Intro
 ```{r, echo=F,include=T}
+# source libs & funcs
 library(here)
 library(targets)
 library(sf)
@@ -30,10 +31,10 @@ library(sysfonts)
 library(extRemes)
 library(ggiraph)
 tar_source()
-
 font_add_google("Source Sans Pro")
 showtext::showtext_auto()
 
+# source targets needed for notebook.
 tar_load(cccm_flood_impact_data)
 tar_load(cccm_flood_impact_data_w_coords)
 tar_load(rainfall_impact_tbl)
@@ -65,7 +66,9 @@ unique_event_dates<- roi %>%
 
 ```
 
-For an **Area-Based Approach** we are thinking at the Governorate level. We have decided to focus on **Marib** and **Hajjah**. To do this we aggregated rainfall and impact/event data to the governorate level. We did this by taking the daily `mean()` and `max()` precipitation (for all precip regimes) across all sites. Then if an event was reported in any site we said that an event occurred in the governorate. By doing this we basically created governorate level summary table to use for performance analysis.
+For an **Area-Based Approach** we are define the area at the Governorate level. We have decided to focus on **Marib** and **Hajjah**. 
+
+To do this we aggregated rainfall and impact/event data to the governorate level. We did this by taking the daily `mean()` and `max()` precipitation (for all precip regimes) across all sites. Then if an event was reported in any site we said that an event occurred in the governorate. By doing this we basically created governorate level summary table to use for performance analysis.
 
 I can see an argument that this approach is flawed as a great deal of the event dates were basically consecutive and it's likely that they should be grouped as 1 event.The plots below highlight this. 
 
