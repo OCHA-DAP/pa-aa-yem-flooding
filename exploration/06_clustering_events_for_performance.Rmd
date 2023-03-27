@@ -1,14 +1,22 @@
 ---
 title: "06_clustering events"
-output: html_document
-date: "2023-03-17"
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        toc_depth: 4
+date: "2023-03-22"
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, include =T,warning=F,message = F)
-```
-## Clustering Events
+# knitr::opts_chunk$set(echo = FALSE,
+#                       include =T,
+#                       warning=F,
+#                       message = F,comment = F)
 
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE,message = FALSE)
+```
+## Intro
 ```{r, echo=F,include=T}
 library(here)
 library(targets)
@@ -19,6 +27,8 @@ library(glue)
 library(gghdx)
 library(lubridate )
 library(sysfonts)
+library(extRemes)
+library(ggiraph)
 tar_source()
 
 font_add_google("Source Sans Pro")
@@ -28,13 +38,26 @@ tar_load(cccm_flood_impact_data)
 tar_load(cccm_flood_impact_data_w_coords)
 tar_load(rainfall_impact_tbl)
 tar_load(gov_area_rainfall_impact_tbl)
+tar_load(zonal_stats_high_risk_hull)
 
 coord_lookup <- cccm_flood_impact_data_w_coords %>% 
     distinct(site_id, lon, lat)
 
-roi<- rainfall_impact_tbl %>% 
-    left_join(coord_lookup, by ="site_id") %>% 
-    filter(governorate_name %in% c("Marib","Hajjah"),fevent) 
+roi<- rainfall_impact_tbl %>%
+    left_join(coord_lookup, by ="site_id") %>%
+    filter(governorate_name %in% c("Marib","Hajjah"),fevent)
+
+
+
+
+cccm_impact_c1 <- cccm_flood_impact_data_w_coords %>% 
+    group_by(governorate_name, site_name, site_id, lon, lat,date= date_of_episode) %>% 
+    summarise(
+        across(starts_with("num_"),~mean(.x,na.rm=T)),.groups="drop"
+    ) %>% 
+    filter(site_id !="YE1712_0643",
+           governorate_name %in% c("Marib","Hajjah")
+    )
 
 unique_event_dates<- roi %>% 
     distinct(governorate_name,date) %>% 
@@ -73,6 +96,59 @@ walk(p_rainfall_events_gov,~print(.x))
 I think this argument does make some sense and it likely does skew some of the performance graphs. We could theoretically just include the start of the runs in our performance analysis. However, I feel like we are just throwing out good data if we do that and there is a justification to try to keep more of that data in. Perhaps the best approach would be to group events based on space and time.
 
 
+## Rainfall overview
+
+Monthly rainfalls
+
+```{r, eval =T}
+# zonal_stats_high_risk_hull$roll30 %>% 
+#     ggplot(aes(x= as_date(date),y = mean, color=governorate_name))+
+#     geom_line()+
+#     labs(x= "date", y= "precip (30 day mm)")+
+#     theme_hdx()
+
+zonal_stats_high_risk_hull$precip_daily %>% 
+    mutate(date= as_date(date)) %>% 
+    group_by(year=year(date),month=month(date), governorate_name) %>% 
+    summarise(
+        monthly_rainfall =sum(mean),.groups = "drop"
+        
+    ) %>% 
+    mutate(
+     date=   paste0(year,"-",formatC(month, width=2, flag="0"),"-01")
+    ) %>% 
+    ggplot(aes(x= as_date(date),y = monthly_rainfall, color=governorate_name))+
+    geom_line(alpha=0.6)+
+    labs(x= "date", y= "Monthly total (mm)")+
+    scale_x_date(breaks="year",date_labels = "%b-%y" )+
+    theme_hdx()+
+    theme(axis.text.x = element_text(angle=90))
+```
+
+Yearly rainfall
+
+```{r}
+
+zonal_stats_high_risk_hull$precip_daily %>% 
+    mutate(date= as_date(date)) %>% 
+    group_by(year=year(date), governorate_name) %>% 
+    summarise(
+        yearly_rainfall =sum(mean),.groups = "drop"
+        
+    ) %>% 
+    ggplot(aes(x= year,
+               y = yearly_rainfall, color=governorate_name))+
+    geom_line(alpha=1)+
+    scale_x_continuous(breaks=seq(1981,2022, by =1))+
+    labs(x= "year", y= "yearly total ( mm)")+
+    theme_hdx()+
+    theme(axis.text.x = element_text(angle=90))
+```
+
+
+## Clustering
+
+
 ```{r}
 coord_lookup <- cccm_flood_impact_data_w_coords %>% 
     distinct(site_id, lon, lat)
@@ -87,11 +163,19 @@ kmeans_cluster_events <-  function(df,
                                    date,
                                    lon,
                                    lat,
-                                   event,
+                                   event=NULL,
                                    k=5,
-                                   scale=T){
-    df_event <- df %>% 
-        filter(!!sym(event)) 
+                                   scale=F){
+    if(!is.null(event)){
+       df_event <- df %>% 
+        filter(!!sym(event))  
+    }
+    # if no event column listed then they are all events -- good to have this flexibility for 
+    # different data sets int this analysis
+    if(is.null(event)){
+        df_event <- df
+    }
+    
     df_sel <- df_event %>% 
             mutate(
                 date= as.numeric(date)
@@ -99,7 +183,7 @@ kmeans_cluster_events <-  function(df,
             select(date, lon, lat) 
     
     if(scale){
-       df_sel  %>% 
+       df_sel <- df_sel  %>% 
         mutate(
             across(
                 everything(),~scale(.x,center=T, scale=T)
@@ -108,6 +192,7 @@ kmeans_cluster_events <-  function(df,
     }
         matrix_input <- df_sel %>% 
             as.matrix()
+        set.seed(100)
         km <-  kmeans(matrix_input,centers= k,nstart = 20)
         df_event$cluster <-as.character(km$cluster)
         return(df_event)
@@ -129,16 +214,17 @@ spatial_pt_clusters <- function(df = df,
                                      date = "date",
                                      lon = "lon",
                                      lat = "lat",
-                                     event = "fevent",scale = T,
+                                     event = "fevent",
+                                scale = F,
                                      k= k){
     split(df,df$governorate_name) %>% 
     imap(\(df,nm){
         
         km <-  kmeans_cluster_events(df = df,
-                                     date = "date",
-                                     lon = "lon",
-                                     lat = "lat",
-                                     event = "fevent",scale = T,
+                                     date = date,
+                                     lon = lon,
+                                     lat = lat,
+                                     event = event,scale = scale,
                                      k= k)
         df$cluster <- paste0(nm,"_",as.character(km$cluster))
         df_sf <-  st_as_sf(df,
@@ -160,7 +246,7 @@ map_pt_clusters <- function(df ,
                             date = "date",
                             lon = "lon",
                             lat = "lat",
-                            event = "fevent",scale = T,
+                            event = "fevent",scale = F,
                             k= k){
     
     pts_clustered <- spatial_pt_clusters(df= df,
@@ -215,17 +301,20 @@ map_pt_clusters <- function(df ,
 
 ```
 
+
+### Cluster Maps
+
 Below are maps of the sites clustered - I've jittered the points by 0.05 so that you it's easier to see the sites that are very close to one another. You can **zoom and hover** the sites for more details.
 
 First we have the sites in **7 clusters**
 ```{r,echo=F,include=T,out.width="100%"}
-map_pt_clusters(df = roi,date = "date",lon = "lon","lat",event = "fevent",scale = T,k = 7) %>% 
+map_pt_clusters(df = roi,date = "date",lon = "lon","lat",event = "fevent",scale = F,k = 7) %>% 
     addScaleBar()
 ```
 
 Below we have the sites grouped into **5 clusters**
 ```{r,echo=F, include =T,out.width="100%"}
-map_pt_clusters(df = roi,date = "date",lon = "lon","lat",event = "fevent",scale = T,k = 5) %>% 
+map_pt_clusters(df = roi,date = "date",lon = "lon","lat",event = "fevent",scale = F,k = 5) %>% 
     addScaleBar()
 ```
 
@@ -238,7 +327,7 @@ map_pt_clusters(df = roi %>%
                 lon = "lon",
                 "lat",
                 event = "fevent",
-                scale = T,
+                scale = F,
                 k = 7) %>% 
     addScaleBar()
 
@@ -252,7 +341,7 @@ map_pt_clusters(df = roi %>%
                 lon = "lon",
                 "lat",
                 event = "fevent",
-                scale = T,
+                scale = F,
                 k = 5) %>% 
     addScaleBar()
 
@@ -262,7 +351,7 @@ There are some spatial patterns evident, for example in the previous map you see
 
 
 Let's plot the clusters along a time series to get a better understanding of the events timing
-```{r}
+```{r,eval=F}
 
 
 df_clusters5 <- spatial_pt_clusters(df = roi %>% 
@@ -322,37 +411,38 @@ p_clusters7 <- df_clusters7 %>%
     })
 ```
 
-Below are the **7 clusters** plotted against **Number affected Shelters**
-```{r,out.width="100%"}
+
+```{r,eval=F,out.width="100%"}
+# Below are the **7 clusters** plotted against **Number affected Shelters**
 walk(p_clusters7,~print(.x))
 ```
 
-and  **5 clusters** plotted against **Number affected Shelters**
-```{r,out.width="100%"}
+
+```{r,eval=F,out.width="100%"}
+# and  **5 clusters** plotted against **Number affected Shelters**
 walk(p_clusters5,~print(.x))
 ```
 
-```{r, out.width="100%"}
-library(extRemes)
-
+```{r, eval =F , out.width="100%"}
+tar_load(return_period_levels)
 tar_load(cccm_site_chirp_stats)
 tar_load(cccm_wb)
 site_rainfall_historical <- cccm_site_chirp_stats %>% 
     left_join(cccm_wb$`ML- Flooding Available data`%>% distinct(site_id, governorate_name))
 
-yearly_max_by_gov <- site_rainfall_historical %>% 
-    group_by(governorate_name,date) %>% 
-    summarise(
-    across(starts_with("precip_"),~mean(.x,na.rm = T)),.groups="drop"       
-    ) %>% 
-    group_by(governorate_name,year=year(date)) %>% 
-    summarise(
-        across(starts_with("precip_"),~max(.x,na.rm = T)),.groups="drop"
-    )
-
-
-p_precip_and_events_by_clust1 <- df_clusters5 %>% 
-    imap(\(dfsf,nm){
+p_precip_and_events_by_clust1$Hajjah
+p_precip_and_events_by_clust1 <- 
+    pmap(.l=list(df_clusters5,
+                 return_period_levels$roll10,
+                 zonal_stats_high_risk_hull$roll10 %>% 
+                     split(.$governorate_name),
+                 names(df_clusters5)),\(dfsf,rps,zonal_rf,nm){
+                     
+                     rps <- rps %>% 
+                         mutate(
+                             label= glue("{RP} year return period level: {round(estimate,1)} mm")
+                         )
+        
         df_w_damage <- dfsf %>% 
             st_drop_geometry() %>% 
             distinct(date,site_id,cluster) %>% 
@@ -365,28 +455,11 @@ p_precip_and_events_by_clust1 <- df_clusters5 %>%
         
         date_range <- range(df_w_damage$date)
         dates_incl <- as_date(seq(date_range[1],date_range[2], by ="days"))
-        
-        rainfall_max_vec <- yearly_max_by_gov %>% 
-            filter(governorate_name==nm) %>% 
-            pull(precip_roll10)
-        
-        gev_roll10 <- fevd(rainfall_max_vec, type = "GEV")
-        
-        ari_rps <- c(2,3,4,5,10)
-        rps_roll10 <- return.level(x = gev_roll10, 
-                       return.period =ari_rps,
-                       do.ci = TRUE, alpha = 0.05)
-        rps<- data.frame(estimate=xy.coords(rps_roll10)$y) %>% 
-            mutate(
-                rp= ari_rps,
-                cluster=NA,
-                label = glue("{rp} year RP: {round(estimate,1)}")
-            )
+        date_center <-  median(dates_incl)
+        zonal_rf_filt <- zonal_rf %>% 
+            filter(as_date(ymd(date)) %in% dates_incl) %>% 
+            mutate(cluster =NA)
 
-
-
-
-        
         rainfall_tbl_filtered <- gov_area_rainfall_impact_tbl %>% 
             filter(governorate_name==nm,
                    date %in% dates_incl
@@ -394,10 +467,18 @@ p_precip_and_events_by_clust1 <- df_clusters5 %>%
         df_w_damage %>% 
             ggplot(aes(x=as_date(date),y=num_shelters_affected,color=cluster))+
             geom_point()+
-            geom_line(data=rainfall_tbl_filtered %>% mutate(cluster=NA),
-                      aes(x=as_date(date),y=precip_roll10_mean*25))+
+            # geom_line(data=rainfall_tbl_filtered %>% mutate(cluster=NA),
+            #           aes(x=as_date(date),y=precip_roll10_mean*25))+
+            geom_line(data=zonal_rf_filt %>% mutate(cluster=NA),
+                      aes(x=as_date(date),y=median*25))+
             geom_hline(data= rps,aes(yintercept = estimate*25))+
-            geom_text(data=rps, aes(x=ymd("2022-06-01"), y =(estimate*25)+(3*25),label = label))+
+            geom_text(data=rps %>% 
+                          mutate(cluster=NA), 
+                       
+                      aes(x=ymd(date_center),
+                          y =(estimate*25)+(3*25),
+                          label = label)
+                      )+
             scale_y_continuous(sec.axis= sec_axis(trans=~.*(1/25),name="precip (10 day)"))+
             scale_x_date(breaks = "1 month",date_labels = "%b-%y" )+
         
@@ -413,12 +494,371 @@ p_precip_and_events_by_clust1 <- df_clusters5 %>%
         
     })
 
+walk(p_precip_and_events_by_clust1, ~print(.x))
 ```
 
+
+
+
+### Cluster Plots
+
 ```{r}
-walk(p_precip_and_events_by_clust1, ~print(.x))
-# p_precip_and_events_by_clust1$Hajjah
-# p_precip_and_events_by_clust1$Marib
+
+return_period_level_tibble <- function(df,value="mean",date="date",rp_year=c(2,3,4,5,10)){
+    df_year_max <- df %>% 
+        group_by(governorate_name,year=year(!!sym(date))) %>% 
+        summarise(
+            across(c("mean","median"),~max(.x,na.rm = T)),.groups = "drop"
+        )
+    
+    gev_fit <- fevd(df_year_max[[value]], type = "GEV")
+    return_levels_ci<- return.level(x = gev_fit, 
+                                    return.period =rp_year,
+                                    do.ci = TRUE, 
+                                    alpha = 0.05)
+    tibble(
+        RP =rp_year,
+        estimate_low= xyz.coords(return_levels_ci)$x,
+        estimate_upp= xyz.coords(return_levels_ci)$z,
+        estimate= xyz.coords(return_levels_ci)$y
+    )
+}
+
+
+# historical rainfall = data set with historical rainfall
+# from historical data set with ARIs
+plot_rainfall_rps_impact <- function(impact_data=cccm_flood_impact_data_w_coords,
+         historical_rainfall=zonal_stats_high_risk_hull,
+         precip_regime= 'roll10',
+         impact_var, 
+         rp_year,
+         scale=F,
+         k=5,
+         aggregate_impact =NULL){
+    
+    
+    historical_rainfall_df <- historical_rainfall[[precip_regime]]
+    historical_rainfall_df$labels <- paste0(
+                "<br> date: ",historical_rainfall_df$date,
+                "<br> precip: ", round(historical_rainfall_df$mean,1)
+            ) %>% lapply(htmltools::HTML)
+    
+    historical_rainfall_list <-  historical_rainfall_df %>% 
+                     split(.$governorate_name)
+    
+    impact_data_filtered <- impact_data %>% 
+        rename(date= date_of_episode) %>% 
+        group_by(governorate_name,site_id, lon,lat,date= ymd(date)) %>%
+        # there are some cases where the same event was reported 2x by different 
+        # agencies -- therefore we should sum these figs
+        summarise(
+            across(starts_with("num_"),~mean(.x,na.rm=T)),.groups="drop"
+        ) %>%
+        filter(governorate_name %in% c("Marib","Hajjah")) 
+    
+ 
+    
+    pt_cluster_list<- spatial_pt_clusters(df = impact_data_filtered,
+                        date = "date",
+                        lon = "lon",
+                        lat = "lat",
+                        k=k,
+                        event = NULL, # all events in this dataset
+                        # impact_var = "num_shelters_affected",
+                        # rp_year = c(2,3,4,5,10),
+                        scale = scale) %>% 
+        map(\(pt_sf){
+            pt_df <- pt_sf %>% 
+                st_drop_geometry()
+            pt_df$pt_labels= paste0(
+            "Site_ID:", pt_df$site_id,
+            "<br> date:",pt_df$date,
+            "<br> cluter:", pt_df$cluster,
+            "<br> Shelters affected: ", pt_df$num_shelters_affected,
+            "<br> Number HHs verified: ", pt_df$num_verified_hhs
+        ) %>% lapply(htmltools::HTML)
+            return(pt_df)
+        }
+            
+            )
+    
+    
+    cluster_palette <-  RColorBrewer::brewer.pal(n = k,name = "Spectral")
+  
+    map2(pt_cluster_list, historical_rainfall_list,\(impact,rainfall){
+        pt_size <- 2
+        if(!is.null(aggregate_impact)){
+            impact <- impact %>% 
+                group_by(governorate_name,cluster) %>%
+                summarise(
+                    min_date= min(date),
+                    max_date= max(date),
+                    date= median(date),
+                    across(starts_with("num_"),~sum(.x,na.rm=T)),
+                    num_events = n(),
+                    .groups="drop"
+                )
+            impact$pt_labels <-  paste0(
+                "<br> cluter: ", impact$cluster,
+                "<br> date: ",impact$date,
+                "<br> First date: ",impact$min_date,
+                "<br> Last date: ",impact$max_date,
+                "<br> Shelters affected: ", impact$num_shelters_affected,
+                "<br> Number HHs verified: ", impact$num_verified_hhs,
+                "<br> Number events: ", impact$num_events
+            ) %>% lapply(htmltools::HTML)
+            
+            impact_var <- ifelse(aggregate_impact=="num_events","num_events",impact_var)
+            pt_size <- 5
+            
+        }
+        
+        # to keep cluster colors from changing?
+        named_cluster_palette <- cluster_palette %>% 
+            set_names(
+                impact %>% 
+                    mutate(cluster_num = parse_number(cluster)) %>% 
+                    distinct(cluster_num,cluster) %>% 
+                    arrange(cluster_num) %>% 
+            pull(cluster) %>% 
+            unique() )
+        
+        return_level_tbl <- return_period_level_tibble(df = rainfall,value = "mean",date = "date",rp_year = rp_year)
+        return_level_tbl <- return_level_tbl %>% 
+            mutate(
+                label= glue("{RP} year return period level: {round(estimate,1)} mm")
+            )
+        
+        date_range <- range(impact$date)
+        date_incl <-  seq((date_range[1]-30),(date_range[2]+30), by ="day")
+        date_center <-  median(date_incl)
+        rainfall_filt <- rainfall %>% 
+            mutate(date = ymd(date)) %>% 
+            filter(date %in% date_incl)
+        max_rainfall <- max(rainfall_filt$mean,na.rm=T)
+        max_impact <-  max(impact[[impact_var]],na.rm=T)
+        scale_y <-  max_impact/max_rainfall
+        nm <- unique(impact$governorate_name)
+        
+        if(is.null(aggregate_impact)){
+            p <- ggplot(
+                data= rainfall_filt,
+                aes(x=date, y=mean ))+
+                geom_line()+
+                geom_point_interactive(aes(tooltip = labels), size = 0.05)+
+                geom_hline(yintercept = return_level_tbl$estimate)+
+                geom_text(data=return_level_tbl,
+                          aes(x=ymd(date_center),
+                              y =estimate+1.5,
+                              label = label)
+                )+
+                geom_point_interactive(data= impact,
+                                       aes(
+                                           x=date,
+                                           y=!!sym(impact_var)*(1/scale_y),
+                                           color=cluster , 
+                                           tooltip=pt_labels),
+                                       size=pt_size)+
+                scale_color_manual(values= named_cluster_palette)+
+                scale_y_continuous(sec.axis= sec_axis(trans=~.*scale_y,name=impact_var))+
+                scale_x_date(breaks = "1 month",date_labels = "%b-%y" )+
+                labs(y=glue("Precip ({precip_regime} mm)"),
+                     title = "Yemen Rainfall and Impact",
+                     subtitle = glue("Yemen - {nm}"))+
+                theme_hdx()+
+                theme(
+                    axis.title.x = element_blank(),
+                    axis.text.x = element_text(angle=90)
+                )
+            
+        }
+        if(!is.null(aggregate_impact)){
+            p <- ggplot(
+                data= rainfall_filt,
+                aes(x=date, y=mean ))+
+                geom_line()+
+                geom_point_interactive(aes(tooltip = labels), size = 0.05)+
+                geom_hline(yintercept = return_level_tbl$estimate)+
+                geom_text(data=return_level_tbl,
+                          aes(x=ymd(date_center),
+                              y =estimate+1.5,
+                              label = label)
+                )+
+                 geom_point_interactive(data= impact,
+                                       aes(
+                                           x=date,
+                                           y=!!sym(impact_var)*(1/scale_y),
+                                           color=cluster ,
+                                           tooltip=pt_labels
+                                           ),
+                                       size=pt_size)+
+                scale_color_manual(values= named_cluster_palette)+
+                scale_y_continuous(sec.axis= sec_axis(trans=~.*scale_y,name=impact_var))+
+                scale_x_date(breaks = "1 month",date_labels = "%b-%y" )+
+                
+                labs(y=glue("Precip ({precip_regime} mm)"),
+                     title = "Yemen Rainfall and Impact",
+                     subtitle = glue("Yemen - {nm}"))+
+                theme_hdx()+
+                theme(
+                    axis.title.x = element_blank(),
+                    axis.text.x = element_text(angle=90)
+                )
+            
+        }
+        return(ggiraph::girafe(ggobj=p))
+        
+    }
+    ) %>% 
+        set_names(names(pt_cluster_list))
+}
+```
+
+
+```{r}
+
+# remove 1 site neither in Hajjah or Marib
+cccm_flood_impact_data_ready <- cccm_flood_impact_data_w_coords %>% 
+    filter(site_id !="YE1712_0643")
+
+p_rainfall_rp_impact_num_shelters <- zonal_stats_high_risk_hull %>%
+    names() %>% 
+    map(\(precip_windows){
+        plot_rainfall_rps_impact(impact_data=cccm_flood_impact_data_ready,
+                         historical_rainfall=zonal_stats_high_risk_hull,
+                         precip_regime= precip_windows,
+                         impact_var = "num_shelters_affected",
+                         rp_year= c(2,3,4,5, 10),
+                         scale=F,
+                         k=5,
+                         aggregate_impact = NULL
+                         )
+        
+    }) %>% 
+    set_names(zonal_stats_high_risk_hull %>%
+    names() )
+
+
+
+p_rainfall_rp_impact_num_shelters_agg <- zonal_stats_high_risk_hull %>%
+    names() %>% 
+    map(\(precip_windows){
+        plot_rainfall_rps_impact(impact_data=cccm_flood_impact_data_ready,
+                         historical_rainfall=zonal_stats_high_risk_hull,
+                         precip_regime= precip_windows,
+                         impact_var = "num_shelters_affected",
+                         rp_year= c(2,3,4,5, 10),
+                         scale=F,k=5,
+                         aggregate_impact = "total"
+                         )
+        
+    }) %>% 
+    set_names(zonal_stats_high_risk_hull %>%
+    names() )
+
+
+p_rainfall_rp_impact_num_events_agg <- zonal_stats_high_risk_hull %>%
+    names() %>% 
+    map(\(precip_windows){
+        plot_rainfall_rps_impact(impact_data=cccm_flood_impact_data_ready,
+                         historical_rainfall=zonal_stats_high_risk_hull,
+                         precip_regime= precip_windows,
+                         impact_var = "num_shelters_affected",
+                         rp_year= c(2,3,4,5, 10),
+                         scale=F,k=5,
+                         aggregate_impact = "num_events"
+                         )
+        
+    }) %>% 
+    set_names(zonal_stats_high_risk_hull %>%
+    names() )
+
+
+```
+
+```{r, eval=FALSE}
+
+# exploring issues in marib
+cccm_flood_impact_data_ready %>% 
+    mutate(
+        date= ymd(date_of_episode)
+    ) %>% 
+    filter(governorate_name=="Marib") %>% 
+    filter(month(date)%in%c(4)) %>% 
+    select(
+        governorate_name,district_name,
+        site_id,site_name,
+           date, starts_with("num_"))
+
+cccm_flood_impact_data_ready %>% 
+    st_drop_geometry() %>% 
+    mutate(
+        date= ymd(date_of_episode)
+    ) %>% 
+    filter(
+        site_id =="YE2613_1961"
+    ) %>% 
+    View()
+    glimpse()
+    ```
+
+
+
+#### Hajjah Grouped By Event
+
+- number shelters affected
+
+```{r, out.width="100%"}
+hajjah_event_plots <- modify_depth(p_rainfall_rp_impact_num_shelters, 1, "Hajjah")
+marib_event_plots <- modify_depth(p_rainfall_rp_impact_num_shelters, 1, "Marib")
+```
+
+
+```{r, out.width="100%"}
+
+htmltools::tagList(hajjah_event_plots)
+
+```
+
+#### Marib Grouped By Event
+
+- number shelters affected
+
+```{r, out.width="100%"}
+htmltools::tagList(marib_event_plots)
+# walk(marib_event_plots,~print(.x))
+```
+
+#### Hajjah Grouped By Cluster
+
+- Number of shelters affected aggregated by cluster
+```{r, out.width="100%"}
+
+hajjah_cluster_shelter_plots <- modify_depth(p_rainfall_rp_impact_num_shelters_agg, 1, "Hajjah")
+hajjah_cluster_event_plots <- modify_depth(p_rainfall_rp_impact_num_events_agg, 1, "Hajjah")
+marib_cluster_event_plots <- modify_depth(p_rainfall_rp_impact_num_events_agg, 1, "Marib")
+marib_cluster_shelter_plots <- modify_depth(p_rainfall_rp_impact_num_shelters_agg, 1, "Marib")
+walk(hajjah_cluster_shelter_plots,~print(.x))
+```
+
+- Number events aggregated by cluster
+```{r, out.width="100%"}
+# walk(hajjah_cluster_event_plots,~print(.x))
+htmltools::tagList(hajjah_cluster_event_plots)
+```
+
+#### Marib Grouped By Cluster
+
+- Number of shelters affected aggregated by cluster
+```{r, out.width="100%"}
+# walk(marib_cluster_shelter_plots,~print(.x))
+htmltools::tagList(marib_cluster_shelter_plots)
+```
+
+- Number events aggregated by cluster
+
+```{r, out.width="100%"}
+htmltools::tagList(marib_cluster_event_plots)
 ```
 
 
@@ -617,5 +1057,403 @@ ck %>%
         axis.text.x = element_text(angle=90)
     )
     
+```
+
+## Cluster Performance
+
+```{r}
+events_clustered <- spatial_pt_clusters(df=cccm_impact_c1,
+                                        date = "date",
+                                        lon = "lon",
+                                        lat="lat",
+                                        k=5,
+                                        event = NULL,
+                                        scale=F) %>% 
+    map(
+        ~st_drop_geometry(.x)
+    )
+ex_cldf <- events_clustered$Hajjah %>% 
+    split(.$cluster) 
+ex_cldf <- ex_cldf$Hajjah_4  %>% st_drop_geometry()
+
+rainfall_hajjah = zonal_stats_high_risk_hull$roll10 %>% 
+    split(.$governorate_name) %>% 
+    keep_at(~.x =="Hajjah")
+rainfall_hajjah <- rainfall_hajjah %>% unname() %>% data.frame()
+
+classify_cluster <- function(df,
+                             rainfall,
+                             rainfall_value= "mean",
+                             thresh=25,
+                             date= "date",
+                             look_ahead=7,
+                             look_back=7){
+    
+    start_search <- as_date(min(as_date(df[[date]]),na.rm=T)-look_back)
+    end_search <- as_date(max(as_date(df[[date]]),na.rm=T)+look_ahead)
+    date_incl <- seq(start_search,end_search,by="day")
+   
+     rainfall_filt <- rainfall %>% 
+        filter(as_date(date) %in% date_incl)
+    
+    if(any(rainfall_filt[[rainfall_value]]>=thresh)){
+        data.frame(
+            threshold = thresh,
+            classification = "TP"
+            
+        )
+    }else{
+         data.frame(
+            threshold = thresh,
+            classification = "FN"
+            
+        )
+        
+    }
+}
+get_exclusion_dates <-  function(df=events_clustered$Hajjah %>% 
+                                     st_drop_geometry(),
+                          date="date", 
+                          look_back=7, look_ahead=7){
+    event_dates <- df %>% 
+        mutate(
+            date= as_date(!!sym(date))
+        ) %>% 
+        group_by(cluster) %>% 
+        summarise(
+            min_date = min(date)- look_back,
+            max_date = max(date)+look_ahead,groups="drop",
+            dates_included = list(seq(min_date,max_date, by ="day"))
+        ) %>% 
+        pull(dates_included) %>% 
+        unlist()%>% 
+        unique() %>% 
+        as_date() %>% 
+        sort()
+    
+}
+
+# debugonce(classify_events_now)
+boom <- classify_events_now(impact = bind_rows(events_clustered),
+                    rainfall = zonal_stats_high_risk_hull,
+                    precip_regime = "roll10",
+                    date = "date",
+                    look_ahead = 7,
+                    look_back = 7
+                    )
+
+boom$Hajjah$eval_ratios %>% pull(ratio)
+boom %>% 
+    map(
+        \(summary_class_tbl){
+            summary_class_tbl$class_freq %>%  
+                ggplot(aes(x= threshold, 
+                           y= n ,
+                           color= classification, 
+                           group= classification))+
+                geom_line()+
+                geom_line(data= summary_class_tbl$eval_ratios,
+                          aes(x=threshold, y=ratio*10,color=eval_ratio,group=eval_ratio)
+                )+
+                scale_y_continuous( sec.axis = sec_axis(trans =~.*(1/10), name="ratio"))+
+                theme_hdx()
+        }
+    )
+    
+
+#' Title
+#'
+#' @param impact data.frame containing events, dates, and clusters
+#' @param rainfall list
+#' @param precip_regime 
+#' @param date 
+#' @param look_back 
+#' @param look_ahead 
+#' @param plot 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+classify_events_now <- function(impact,
+                                rainfall,
+                                precip_regime="roll10",
+                                date,
+                                look_back,
+                                look_ahead,
+                                plot=F
+                                ){
+    
+    rainfall_split <-  rainfall[[precip_regime]] %>% 
+    split(.$governorate_name) 
+    
+    impact_split <-  impact %>% 
+    split(.$governorate_name) 
+    
+    performance_metrics <- map2(impact_split,rainfall_split,\(cluster_gov_df,rainfall_df){
+        rainfall_df <- rainfall_df %>% 
+            arrange(date) %>% 
+            mutate(
+                idx = row_number()
+            )
+        
+            cluster_gov_df <- cluster_gov_df %>% 
+                mutate(date= as_date(!!sym(date)))
+        
+            excl_dates<- get_exclusion_dates(df = cluster_gov_df,
+                                             date = date, 
+                                             look_back = look_back,
+                                             look_ahead = look_ahead )
+            
+            date_range <-  range(cluster_gov_df[[date]],na.rm=T)
+            date_range_incl <-  seq(date_range[1]-look_back,date_range[2]+look_ahead, by ="days")
+            
+            # df filtered for TP/FN classification
+            rainfall_filt <- rainfall_df %>% 
+                mutate(
+                    date= as_date(!!sym(date))
+                ) %>% 
+                filter(date %in% date_range_incl)
+            
+            # df  filtered for FP classification
+            rainfall_fp_df <- rainfall_filt %>% 
+                filter(!date %in% excl_dates) %>% 
+                arrange(date)
+            
+            max_rainfall <-  ceiling(max(rainfall_filt$mean,na.rm=T))
+            
+            # classification of events (TP/FN) is done per cluster
+            events_classified <- cluster_gov_df %>% 
+                split(.$cluster) %>% 
+                # and for all thresholds
+                imap_dfr(\(single_cluster_df,clust_name){
+                    seq(0,max_rainfall, by =1) %>% 
+                        map_dfr(\(threshold){
+                           classify_cluster(df= single_cluster_df,
+                                             rainfall= rainfall_filt,
+                                            thresh = threshold,
+                                            look_ahead = look_ahead ,
+                                            look_back=look_back) %>% 
+                                mutate(cluster= clust_name)
+                        })
+                }) # end double inner mapper
+            
+            tpfn_summary <- events_classified %>% 
+                mutate(classification=as_factor(classification)) %>% 
+                group_by(threshold,classification,.drop=F) %>% 
+                summarise(
+                    n= n() ,
+                    .groups="drop"
+                )
+                    
+                          
+            # need a separate mapping process for FPs
+            fp_summary <- seq(0,max_rainfall, by =1) %>% 
+                map_dfr(\(threshold){
+                    
+                    # use index to break vector into lists where each item 
+                    # contains the consecutive run.
+                    idx <- rainfall_fp_df$idx
+                    # find break points
+                    idx_split_idx <- c(1, which(diff(idx) > (1)) + 1, 
+                                          length(idx) + 1)
+                    idx_lists <- split(idx,cumsum(seq_along(idx) %in% idx_split_idx))
+                    
+                    # for each list apply criteria for FP classsificatin
+                    fp_df <- idx_lists %>% 
+                        map_dfr(\(idx_set){
+                                gte_thresh <- rainfall_fp_df[idx%in% idx_set,][["mean"]]>=threshold
+                                idx_gte_thresh<- idx_set[gte_thresh]
+                                starts_lgl <- diff(c(0,idx_gte_thresh))>1
+                                idx_starts <- idx_gte_thresh[starts_lgl]
+                                num_fps<- length(idx_starts)
+                                tibble(
+                                    threshold = threshold,
+                                    classification = "FP",
+                                    n = num_fps
+                                )
+                        }) # end inner mapper
+                    fp_df %>% 
+                        group_by(threshold, classification) %>% 
+                        summarise(
+                            n= sum(n,na.rm = T),.groups="drop"
+                        )
+                    
+                }) # end outer mapper
+                                
+            class_freq <- bind_rows(tpfn_summary,fp_summary) %>% 
+                arrange(threshold)
+            
+            evaluation_ratios <- class_freq %>% 
+                # group_by(threshold) %>% 
+                pivot_wider(id_cols = threshold,
+                            names_from = classification,
+                            values_from = n
+                ) %>% 
+                mutate(precision = TP/(TP+FP),
+                       recall = TP/(TP+FN)) %>%
+                select(threshold, precision, recall) %>% 
+                pivot_longer(cols=precision:recall,
+                             names_to = "eval_ratio",
+                             values_to= "ratio")
+            ret <- list()
+            ret$class_freq <- class_freq
+            ret$eval_ratios <- evaluation_ratios
+            return(ret)
+            if(plot){
+                
+            }
+                    
+        }) # end outer map
+        
+    return(performance_metrics)
+}
+
+
+# need to finish this one - 
+viz_cluster_classification <- function(impact,
+                                rainfall,
+                                precip_regime="roll10",
+                                threshold,
+                                date,
+                                look_back,
+                                look_ahead,
+                                
+                                ){
+    
+    rainfall_split <-  rainfall[[precip_regime]] %>% 
+    split(.$governorate_name) 
+    
+    impact_split <-  impact %>% 
+    split(.$governorate_name) 
+    
+    performance_metrics <- map2(impact_split,rainfall_split,\(cluster_gov_df,rainfall_df){
+        rainfall_df <- rainfall_df %>% 
+            arrange(date) %>% 
+            mutate(
+                idx = row_number()
+            )
+        
+            cluster_gov_df <- cluster_gov_df %>% 
+                mutate(date= as_date(!!sym(date)))
+        
+            excl_dates<- get_exclusion_dates(df = cluster_gov_df,
+                                             date = date, 
+                                             look_back = look_back,
+                                             look_ahead = look_ahead )
+            
+            date_range <-  range(cluster_gov_df[[date]],na.rm=T)
+            date_range_incl <-  seq(date_range[1]-look_back,date_range[2]+look_ahead, by ="days")
+            
+            # df filtered for TP/FN classification
+            rainfall_filt <- rainfall_df %>% 
+                mutate(
+                    date= as_date(!!sym(date))
+                ) %>% 
+                filter(date %in% date_range_incl)
+            
+            # df  filtered for FP classification
+            rainfall_fp_df <- rainfall_filt %>% 
+                filter(!date %in% excl_dates) %>% 
+                arrange(date)
+            
+            max_rainfall <-  ceiling(max(rainfall_filt$mean,na.rm=T))
+            
+            # classification of events (TP/FN) is done per cluster
+            events_classified <- cluster_gov_df %>% 
+                split(.$cluster) %>% 
+                # and for all thresholds
+                imap_dfr(\(single_cluster_df,clust_name){
+                           classify_cluster(df= single_cluster_df,
+                                             rainfall= rainfall_filt,
+                                            thresh = threshold,
+                                            look_ahead = look_ahead ,
+                                            look_back=look_back) %>% 
+                                mutate(cluster= clust_name)
+                        })
+                }) # end double inner mapper
+            
+            tpfn_summary <- events_classified %>% 
+                mutate(classification=as_factor(classification)) %>% 
+                group_by(threshold,classification,.drop=F) %>% 
+                summarise(
+                    n= n() ,
+                    .groups="drop"
+                )
+                    
+                          
+            # need a separate mapping process for FPs
+            fp_summary <- seq(0,max_rainfall, by =1) %>% 
+                map_dfr(\(threshold){
+                    
+                    # use index to break vector into lists where each item 
+                    # contains the consecutive run.
+                    idx <- rainfall_fp_df$idx
+                    # find break points
+                    idx_split_idx <- c(1, which(diff(idx) > (1)) + 1, 
+                                          length(idx) + 1)
+                    idx_lists <- split(idx,cumsum(seq_along(idx) %in% idx_split_idx))
+                    
+                    # for each list apply criteria for FP classsificatin
+                    fp_df <- idx_lists %>% 
+                        map_dfr(\(idx_set){
+                                gte_thresh <- rainfall_fp_df[idx%in% idx_set,][["mean"]]>=threshold
+                                idx_gte_thresh<- idx_set[gte_thresh]
+                                starts_lgl <- diff(c(0,idx_gte_thresh))>1
+                                idx_starts <- idx_gte_thresh[starts_lgl]
+                                num_fps<- length(idx_starts)
+                                tibble(
+                                    threshold = threshold,
+                                    classification = "FP",
+                                    n = num_fps
+                                )
+                        }) # end inner mapper
+                    fp_df %>% 
+                        group_by(threshold, classification) %>% 
+                        summarise(
+                            n= sum(n,na.rm = T),.groups="drop"
+                        )
+                    
+                }) # end outer mapper
+                                
+            class_freq <- bind_rows(tpfn_summary,fp_summary) %>% 
+                arrange(threshold)
+            
+            evaluation_ratios <- class_freq %>% 
+                # group_by(threshold) %>% 
+                pivot_wider(id_cols = threshold,
+                            names_from = classification,
+                            values_from = n
+                ) %>% 
+                mutate(precision = TP/(TP+FP),
+                       recall = TP/(TP+FN)) %>%
+                select(threshold, precision, recall) %>% 
+                pivot_longer(cols=precision:recall,
+                             names_to = "eval_ratio",
+                             values_to= "ratio")
+            ret <- list()
+            ret$class_freq <- class_freq
+            ret$eval_ratios <- evaluation_ratios
+            return(ret)
+                    }) # end outer map
+        
+    return(performance_metrics)
+}
+
+
+viz_cluster_classification <-  function()
+# 
+# seq(1:200) %>% 
+#     map_dfr(
+#         ~classify_cluster(df = ex_cldf,
+#                  rainfall = tibble(rainfall_hajjah ),
+#                  rainfall_value = "mean",
+#                  thresh = .x,
+#                  date = "date",
+#                  look_ahead = 7,
+#                  look_back = 7)
+#     )
+
 
 ```
+
