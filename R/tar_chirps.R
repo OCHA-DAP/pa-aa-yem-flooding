@@ -86,6 +86,15 @@ chirps_daily_to_sites <- function(raster_dir, pt,batch_by_year) {
 
 
 
+#' Title
+#'
+#' @param raster_dir 
+#' @param batch_by_year 
+#'
+#' @return
+#' @export
+#'
+#' @examples
 load_chirps_stack <- function(raster_dir, batch_by_year=T){
     full_fps <- list.files(raster_dir, full.names = T)
     rast_names <- list.files(raster_dir)
@@ -108,12 +117,15 @@ load_chirps_stack <- function(raster_dir, batch_by_year=T){
         )
         file_tbl_split <- split(file_tbl, file_tbl$rast_year)
         
-        rstack_list <- file_tbl_split %>%
+        rstack <- file_tbl_split %>%
             map(\(file_group){
                 yr_temp <- unique(file_group$rast_year)
                 cat("loading  ",yr_temp, "\n")
                 rstack <- terra:::rast(raster::stack(file_group$full_path))
                 terra::set.names(rstack, file_group$rast_dates)
+                cat("replacing -9999 with NA\n")
+                rstack[rstack == -9999] <- NA
+                
                 return(rstack)
             })
     
@@ -127,4 +139,58 @@ load_chirps_stack <- function(raster_dir, batch_by_year=T){
         rstack[rstack == -9999] <- NA
     }
     return(rstack)
+}
+
+
+extract_zonal_stats_chirps <- function(raster_dir=chirps_dir,
+                                       zonal_boundary=high_risk_hulls,
+                                       roll_windows=c(3,5,10,15,20,25,30)){
+    rstack_list <- load_chirps_stack(raster_dir=raster_dir, batch_by_year = T)
+    full_date_names <- rstack_list %>% 
+        map(~names(.x)) %>% 
+        unlist() %>% 
+        unname()
+    rstack_r <- terra::rast(rstack_list)
+ 
+    set.names(rstack_r, full_date_names)
+    
+    
+    zonal_daily <- exact_extract(x = rstack_r,
+                           y = zonal_boundary,
+                           append_cols = "governorate_name",
+                           fun = c("mean","median"),
+                           force_df = T,
+                           full_colnames = T
+                           ) %>% 
+        pivot_longer(-matches("governorate_name")) %>%
+        separate(name, into = c("stat", "date"), sep = "\\.") %>%
+        pivot_wider(names_from = "stat", values_from = "value")
+
+    
+    rollnames <- paste0("roll",roll_windows)
+    
+    zonal_stat_list <- roll_windows %>% 
+        map(\(day_window){
+            cat("calculating ",day_window,"rolling stats - pixel level")
+             roll_r <- terra::roll(rstack_r, n = day_window, fun = sum, type = "to")
+            
+            zonal_stat<- exact_extract(x = roll_r,
+                                   y = zonal_boundary,
+                                   append_cols = "governorate_name",
+                                   fun = c("mean","median"),
+                                   force_df = T,
+                                   full_colnames = T
+            )
+            
+            zonal_stat_long <- zonal_stat %>%
+                pivot_longer(-matches("governorate_name")) %>%
+                separate(name, into = c("stat", "date"), sep = "\\.") %>%
+                pivot_wider(names_from = "stat", values_from = "value")
+            return(zonal_stat_long)
+        }
+        ) %>% 
+        set_names(rollnames)
+    zonal_stat_list$precip_daily <- zonal_daily
+    return(zonal_stat_list)
+    
 }

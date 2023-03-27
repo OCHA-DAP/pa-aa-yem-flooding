@@ -17,7 +17,7 @@ req_CRAN_pkgs <- c(
   "zoo",
   "rgee",
   "ggrepel",
-  "tidyrgee"
+  "tidyrgee", "extRemes"
 )
 
 new_CRAN_pkgs <- req_CRAN_pkgs[!(req_CRAN_pkgs %in% installed.packages()[, "Package"])]
@@ -54,19 +54,7 @@ ee_Initialize(drive= T)
 tar_option_set(
     # i think loading the packages w/ library() call above is fine
     # until you want to try parallel compute
-  packages = c("tibble",
-               "tidyverse",
-               "sf",
-               "terra",
-               "exactextractr",
-               "lubridate",
-               "readxl",
-               "janitor",
-               "zoo",
-               "rgee",
-               "ggrepel",
-               "tidyrgee",
-               "gghdx"), # packages that your targets need to run
+  packages = c(req_CRAN_pkgs,"gghdx"), # packages that your targets need to run
   format = "rds" # default storage format
   # Set other options as needed.
 )
@@ -267,7 +255,53 @@ list(
         command = calc_rolling_precip_sites(df = cccm_site_chirps)
     ),
     
-    # Rainfall + Impact -------------------------------------------------------
+  # we want to get historical Return Periods for sites -- so we are going to use the convex hulls for
+  # for the zonal stats
+  tar_target(
+      name= high_risk_hulls,
+      command = high_risk_convex_hulls(master_site_list = cccm_wb$`ML- Flooding Available data`,
+                                       floodscore_db = cccm_floodscore_df)
+  ),
+  tar_target(
+      name= zonal_stats_high_risk_hull,
+      command = extract_zonal_stats_chirps(raster_dir=chirps_dir,
+                                           zonal_boundary=high_risk_hulls,
+                                           roll_windows=c(3,5,10,15,20,25,30))
+      ),
+  tar_target(
+      name= return_period_levels,
+      command = zonal_stats_high_risk_hull %>% 
+          map(\(rainfall_df){
+              rainfall_df %>% 
+                  group_by(governorate_name,year=year(date)) %>% 
+                  summarise(
+                      across(c("mean","median"),~max(.x,na.rm = T)),.groups = "drop"
+                  ) %>% 
+                  split(.$governorate_name) %>% 
+                  map(\(gov_df){
+                      yearly_max_vec <- gov_df %>% 
+                          pull(mean)
+                      
+                      gev_fit <- fevd(yearly_max_vec, type = "GEV")
+                      
+                      ari_rps <- c(2,3,4,5,10)
+                      return_levels_ci<- return.level(x = gev_fit, 
+                                                 return.period =ari_rps,
+                                                 do.ci = TRUE, 
+                                                 alpha = 0.05)
+                      tibble(
+                          RP =ari_rps,
+                          estimate_low= xyz.coords(return_levels_ci)$x,
+                          estimate_upp= xyz.coords(return_levels_ci)$z,
+                          estimate= xyz.coords(return_levels_ci)$y
+                      )
+                  })
+               
+          }
+          )
+      ),
+      
+      # Rainfall + Impact -------------------------------------------------------
     
     # produce a bunch of plots over the timespan (2021-2022) of CCCM reporting
     # comparing reported events against different window accumualations.

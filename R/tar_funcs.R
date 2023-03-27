@@ -844,6 +844,41 @@ plot_performance_all_sites <- function(df,
 }
 
 
+high_risk_convex_hulls <- function(master_site_list, floodscore_db){
+    all_site_coords <- master_site_list %>% 
+        select(longitude=available_coordinates_longitude,
+               latitude= available_coordinates_latitude, site_id) %>% 
+        filter(!is.na(longitude),!is.na(latitude))
+    
+    all_high_risk_site_coords <- floodscore_db %>% 
+        filter(site_flood_hazard_score=="High Hazard") %>% 
+        left_join(all_site_coords) %>% 
+        filter(!is.na(longitude),!is.na(latitude))
+    
+    high_risk_convex_hulls <- c("Hajjah","Marib") %>% 
+        map(
+            \(gov){
+                pts_sf <-  all_high_risk_site_coords %>% 
+                    filter(governorate_name ==gov,
+                           # i did a spatial check w/ adm1 COD -- this is the only one outisde
+                           site_id !="YE1712_0643"
+                    ) %>% 
+                    st_as_sf(coords=c("longitude","latitude"),crs=4326)
+                st_convex_hull(st_union(pts_sf)) %>% 
+                    st_as_sf() %>% 
+                    mutate(governorate_name = gov) %>% 
+                    rename(geometry=x)
+            }
+        ) %>% bind_rows()
+    return(high_risk_convex_hulls)
+    
+}
+
+
+
+
+
+
 
 
     

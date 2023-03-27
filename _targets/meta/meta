@@ -1,5 +1,5 @@
 name|type|data|command|depend|seed|path|time|size|bytes|format|repository|iteration|parent|children|seconds|warnings|error
-.Random.seed|object|90b47045720b4ccb|||||||||||||||
+.Random.seed|object|12dc4538058d13db|||||||||||||||
 adm_sf|stem|d814208e77634ebe|c0460a3bc14ebd57|5b6883bff12d4128|421735004||t19419.4297679868s|6e36be5798e8a713|6111599|rds|local|vector|||0.124||
 alos_landform_lookup|object|b415a69efa003277|||||||||||||||
 calc_rolling_precip_sites|function|6dc98d60d6e9b310|||||||||||||||
@@ -31,6 +31,7 @@ ee_dist_jrc_max_extent|function|c6def6de6bd7b3c3|||||||||||||||
 ee_roll|function|647c4a22b3745857|||||||||||||||
 extract_chirps_gefs_to_pts|function|e2c85544fa820048|||||||||||||||
 extract_geomorph_landform_indicators|function|9d126d52d72f9a50|||||||||||||||
+extract_zonal_stats_chirps|function|0f26d8727ed30d84|||||||||||||||
 find_priority_sites|function|49851487dce4a587|||||||||||||||
 floodscore_pct_by|function|340a4e306055af36|||||||||||||||
 floodscore_pop_stats_by_admin|function|e0788f5790d5e695|||||||||||||||
@@ -42,8 +43,11 @@ gov_area_rainfall_impact_tbl|stem|7f74d4a8a1bc106d|cf9c6b1ecb8e2e8b|42d2ad2ec9e6
 grp_data_by|function|824fd4a15a465b3a|||||||||||||||
 have_gghdx|object|909013909b1f03d4|||||||||||||||
 high_priority_sites|stem|f89765913b4ebe03|9b197453f0b431da|d5de6373782115cc|-820784353||t19415.3399868541s|784af77b44a4c901|2662|rds|local|vector|||0.04||
+high_risk_convex_hulls|function|0b3ee529fefd2172|||||||||||||||
 high_risk_flood_stats_by_cod|stem|d860c6251bb0aae3|2169e3fffbc5320b|6b84e189b78a8f2b|1141281475||t19431.7242034574s|20358d92a31e2a38|5684240|rds|local|vector|||0.145||
+high_risk_hulls|stem|63f1d28551f19345|5f8940a704bfd938|8468f14f979d565b|-251989231||t19437.4207779796s|6faa1491e5d149ae|1128|rds|local|vector|||0.091||
 load_cccm_wb|function|b6e4997cc76ab131|||||||||||||||
+load_chirps_stack|function|0d31bedb251fb033|||||||||||||||
 load_local_chirps_stack|function|ee0164b33b558e5a|||||||||||||||
 merge_rainfall_cccm_impact|function|aea81a2af065dea6|||||||||||||||
 new_CRAN_pkgs|object|ef46db3751d8e999|||||||||||||||
@@ -64,7 +68,8 @@ rast_dates|object|457561422b35ea2d|||||||||||||||
 rast_names|object|3bcccfbb18f3b89a|||||||||||||||
 recode_from_gee_lookup_table|function|27bddf2129f5c3ba|||||||||||||||
 recode_srtm_alos_categorical|function|f31ecd413d01eb92|||||||||||||||
-req_CRAN_pkgs|object|a00de11a27696400|||||||||||||||
+req_CRAN_pkgs|object|5b2bba5570c9bfa2|||||||||||||||
+return_period_levels|stem|47f6faac690438b2|1c7a2adab0dcf23a|58052558c4e18c24|-102421470||t19437.6590603374s|6d4247ac45086801|2288|rds|local|vector|||0.505||
 roll_wrapped|function|28b1d056f490ccb0|||||||||||||||
 rollingsum_chirps_to_sites|function|bfd6c3d058177fdf|||||||||||||||
 site_level_performance|function|d673fb1536a5224a|||||||||||||||
@@ -89,3 +94,4 @@ thresh_class_freq_30d|stem|ee453ad7f2c36576|2c3f1971851e3e81|b36106a413329059|14
 thresh_class_freq_5d|stem|15638c522769cb8a|8a13c1c6000d1eaf|1db286118057a47a|45894301||t19430.5147201393s|05f8a79a207166df|39914|rds|local|vector|||404.866||
 thresh_class_freq_b7f3|stem|34520202e8f0ec8c|ed84a39038c87996|5f36b00408d969cc|1607664225||t19436.4012609022s|a8c34bfb1b293b76|1079282|rds|local|vector|||9433.876||
 thresh_class_freq_b7f7|stem|34520202e8f0ec8c|fb7141ee2ed2f6ff|5f36b00408d969cc|1577680602||t19436.514400953s|a8c34bfb1b293b76|1079282|rds|local|vector|||9774.003||
+zonal_stats_high_risk_hull|stem|6f332681740b07b5|063f507f8244801a|e2f8bdc63b69960d|947145415||t19437.5648035839s|6c860fd714a66112|1834683|rds|local|vector|||438.951|No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.|
