@@ -9,41 +9,16 @@
 #' @param look_ahead \code{integer} number of days to look ahead from date of event
 #'
 #' @return list containing a vector of FPs, and a data.frame containing the TP and FN classifications
-#' @examples
+#' @examples \dontrun{
+#' 
 #' df <- tibble(
 #'   date = seq(as.Date("2020-01-01"), as.Date("2020-01-10"), by = "day"),
 #'   precip_roll10 = c(10, 20, 30, 15, 5, 25, 35, 40, 10, 20),
-#'   fevent = c(0, 0, 1, 0, 0, 1, 0, 1, 0, 0)
+#'   fevent = c(FALSE, FALSE, TRUE, FALSE, FALSE, TRUE, FALSE, TRUE, FALSE, FALSE)
 #' )
 #' calc_TPFPFN(df, "precip_roll10", "fevent", thresh = 25, look_back = 3, look_ahead = 2)
-# library(targets)
-# library(tidyverse)
-# library(lubridate)
-# tar_load(gov_area_rainfall_impact_tbl)
-# df_roi <- gov_area_rainfall_impact_tbl %>%
-#' #    filter(governorate_name %in% c("Hajjah"))
-# ck <- calc_TPFPFN(df = df_roi %>% arrange(date),
-#' #            x = "precip_roll10_mean",
-#' #            event = "fevent",
-#' #            look_back = 7,
-#' #            look_ahead = 3,
-#' #            thresh = 30
-#' #            )
-# df_roi2 <- df_roi
-# df_roi$fp <- ck$FPs
-# df_roi %>% filter(fp) %>% glimpse()
-#' ## plot_site_events(df = df_roi,
-#' ##                  x = "precip_roll10_mean",
-#' ##                  event = 'fevent',
-#' ##                  thresh = 50,
-#' ##                  day_window = 60)
-#' ## #
-# plot_site_events_classified(df = df_roi %>%
-#' #                                arrange(date),
-#' #                            x = "precip_roll10_mean",
-#' #                            event = "fevent",
-#' #                            thresh = 30,
-#' #                            day_window = 30,plot_title = "test")
+#' 
+
 calc_TPFPFN <- function(df,
                         x = "precip_roll10",
                         event = "fevent",
