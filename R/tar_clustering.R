@@ -259,7 +259,7 @@ clustered_performance_calcs <- function(impact,
         
         tpfn_summary <- events_classified %>% 
             mutate(classification=as_factor(classification)) %>% 
-            group_by(threshold,classification,.drop=F) %>% 
+            group_by(thresh=threshold,classification,.drop=F) %>% 
             summarise(
                 n= n() ,
                 .groups="drop"
@@ -286,42 +286,46 @@ clustered_performance_calcs <- function(impact,
                         idx_starts <- idx_gte_thresh[starts_lgl]
                         num_fps<- length(idx_starts)
                         tibble(
-                            threshold = threshold,
+                            thresh = threshold,
                             classification = "FP",
                             n = num_fps
                         )
                     }) # end inner mapper
                 fp_df %>% 
-                    group_by(threshold, classification) %>% 
+                    group_by(thresh, classification) %>% 
                     summarise(
                         n= sum(n,na.rm = T),.groups="drop"
-                    )
-                
-            }) # end outer mapper
+                    )}) # end outer mapper
         
         class_freq <- bind_rows(tpfn_summary,fp_summary) %>% 
-            arrange(threshold)
+            arrange(thresh)
         
-        metric_ratios <- class_freq %>% 
+        class_freq_wide <- class_freq %>% 
             # group_by(threshold) %>% 
-            pivot_wider(id_cols = threshold,
+            pivot_wider(id_cols = thresh,
                         names_from = classification,
                         values_from = n
             ) %>% 
             mutate(precision = TP/(TP+FP),
-                   recall = TP/(TP+FN)) %>%
-            select(threshold, precision, recall) %>% 
-            pivot_longer(cols=precision:recall,
-                         names_to = "metric",
-                         values_to= "value")
-        ret <- list()
-        ret$class_freq <- class_freq
-        ret$performance_metric <- metric_ratios
-        return(ret)
+                   recall = TP/(TP+FN),
+                   f1_score = 2*((precision*recall)/(precision+recall))
+             
+            )
         
+        
+        return(class_freq_wide)
     }) # end outer map
     
-    return(performance_metrics)
+    return(
+        performance_metrics %>% 
+            imap(\(tbl_temp,nm_tbl){
+                tbl_temp %>% 
+                    mutate(
+                        governorate_name= nm_tbl
+                    )
+            }) %>% bind_rows()
+        )
+    
 }
 
 
