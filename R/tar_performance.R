@@ -1,18 +1,20 @@
-#
-# test_func <-  function(df, by = c("thresh","class")){
-#     df %>%
-#         group_by(across(all_of(by)))
-#
-# }
-#
-# df <- thresh_class_freq_10d
-# calculate_performance_metrics(df = thresh_class_freq_10d,
-#                               cccm_wb = cccm_wb,
-#                               by = c("governorate_name","thresh","class"))
 
 
-
-
+#' calculate_performance_metrics 
+#' @description 
+#' helper function used in target pipeline which is run on:
+#' 1. data.frames stored thresh_class_freq_b7f3 to create targets: tbl_performance_overall_gov, tbl_performance_overall
+#' 2. data.frames stored in : tbl_performance_gov_area_level to create targets: tbl_performance_area_marib_hajjah
+#' The actual classification of events (TP & FN) and FPs is done the prior step using the function: `performance_frequencies_by_threshold()` which relies 
+#' heavily on `calc_TPFPFN()` used internally.
+#' @param df data.frame
+#' @param cccm_wb target data.fraem (cccm_wb) which contains list of data.frames. 
+#' @param level \code{character} level of input data set. For example when we use `thesh_class_freq_b7f3` the classificaitons were done at the site level. 
+#'   Therefore, to aggregate to the governorate level we have need to have the governorate column added.
+#' @param by \code{character} levels to agggregate performance frequencies (TP, FP, FN) by.
+#'
+#' @return summary table for aggregated performance class frequencies at each threshold as well as `precision` and `recall`
+#' 
 calculate_performance_metrics <- function(df,
                                           cccm_wb,
                                           level = "site",
@@ -57,40 +59,28 @@ calculate_performance_metrics <- function(df,
 }
 
 
-#' Title
-#'
+#' plot_performance_metrics
+#' @description
+#' helper function used in `_targets`pipeline to plot performance classifications aggregated by threshold as well as performance metrics such as precision and recall
 #' @param df
-#' @param governorate
-#' @param pseudo_log
+#' @param governorate \code{character} indicate which governorate to plot data for. If NULL (default), the plot is created for all together
+#' @param pseudo_log \code{logical} if TRUE pseudolog scale y-axis. If, FALSE (default) a linear continuous scale is used.
+#' @return ggplot style  dual y-axis plot.  e x-axis = threshold, left y-axis corresponds to the number of TPs, FPs, FNs at each threshold , 
+#'  and the right y-axis corresponds to f1_score and precision ratios
 #'
-#' @return
-#' @export
-#'
-#' @examples
-#'
-#'
-#'
-# tar_load(tbl_performance_5d_gov)
-# plot_performance_metrics(df = tbl_performance_10d_overall %>% filter(as.numeric(thresh)>10),
-#' #                         pseudo_log = F)
-#' ## #
-# plot_performance_metrics(df = tbl_performance_10d_gov,
-#' #                         governorate = "Marib",
-#' #                         pseudo_log = F)
-# plot_performance_metrics(df = tbl_performance_5d_gov,
-#' #                         governorate = "Hajjah",
-#' #                         pseudo_log = F,x_axis_title = "asdfa")+
-#' #    labs(x="5 day threshold (mm)")
-# plot_performance_metrics(df = tbl_performance_10d_gov,
-#' #                         governorate = "Marib",
-#' #                         pseudo_log = T)
-# plot_performance_metrics(df = tbl_performance_30d_gov,
-#' #                         governorate = "Marib",
-#' #                         pseudo_log = T,
-#' #                         x_axis_title = "30 day threshold (mm)")
-# plot_performance_metrics(df = tbl_performance_30d_overall,
-#' #                         pseudo_log = T,
-#' #                         x_axis_title = "30 day threshold (mm)")
+#' @examples \dontrun{
+#' library(targets)
+#' library(tiddyverse)
+#' tar_source()
+#' tar_load(tbl_performance_5d_gov)
+#' plot_performance_metrics(df = tbl_performance_5d_gov, 
+#'                          governorate = "Hajjah",
+#'                          pseudo_log = F,
+#'                          x_axis_title = "asdfa")
+#' }
+
+
+
 plot_performance_metrics <- function(df,
                                      governorate = NULL,
                                      pseudo_log = F,
@@ -192,3 +182,162 @@ summarise_rainfall_impact_to_gov <- function(df) {
       fevent = any(fevent), .groups = "drop"
     )
 }
+
+
+
+
+
+
+#' plot_impact_by_threshold
+#' @description iterate through threshold and plot the % impact at each threshold and above. So far this is only used in 
+#'  07_checkpoint_1a_overview.rmd
+#' @param impact data.frame containing impact (flood events) and numeric variable which quantify impact (i.e number shelters affected)
+#' @param rainfall data.frame containing rainfall statistics for area of interest during the time period of interest
+#' @param window \code{integer} for each reported incident we will look at the date +/ this window (in days) to find the maximum rainfall 
+#'  event that occured (default = 5)
+#' @param by \code{character} should we do the calculations at the overall level (if so by is NULL, this is default) or 
+#'  by goernorate ("governorate_name")
+#' @param rainfall_val \code{character} name of column containing rainfall values to use (default = "mean")
+#' @param impact_val \code{character} name of column contianing impact value to use (default = "num_verified_hhs")
+#'
+#' @return plot with x-axis = threshold/precip amount (mm) and y axis= % imapct value representing the % impact at each threshold and above.
+
+plot_impact_by_threshold <-  function(impact,
+                                     rainfall,
+                                     window,
+                                     by=NULL,
+                                     rainfall_val = "mean",
+                                     impact_val = "num_verified_hhs"
+){
+    
+
+    assertthat::assert_that(is.null(by) || by == "governorate_name",
+                msg = "Error: `by` must be NULL or 'governorate_name'")
+    
+    ylab<- switch(impact_val,
+                  "num_shelters_affected"= "% Shelters Affected",
+                  "num_verified_hhs"="% Verified HHs Affected")
+    
+    events_with_max_rainfall<- max_rainfall_around_event(
+        impact = impact,
+        rainfall = rainfall,
+        window=window
+    )
+    
+    event_impact_w_max_rainfall<- cccm_flood_marib_hajjah_impact %>% 
+        left_join(events_with_max_rainfall,
+                  by = c("governorate_name","date")
+        ) 
+    
+    if(is.null(by)){
+        impact_by_thresh_df <- impact_by_thresh(
+            df = event_impact_w_max_rainfall,
+            val = rainfall_val,
+            impact_val = impact_val
+        )
+        
+        p <- impact_by_thresh_df %>% 
+            ggplot(aes(x=value,
+                       y=pct_impact
+            ))+
+            geom_line()+
+            scale_y_continuous_hdx(labels= scales::percent, limits=c(0,1))+
+            labs(x= "threshold (mm)", 
+                 y = ylab,
+                 title = glue("{ylab} at and above each rainfall threshold (mm)")
+            )+
+            theme_hdx()
+    }
+    if(!is.null(by)){
+        impact_by_thresh_df <-  event_impact_w_max_rainfall %>% 
+            split(.$governorate_name) %>% 
+            imap_dfr(\(df_temp,nm ){
+                impact_by_thresh(df = df_temp,
+                                 val = "mean",
+                                 impact_val = "num_verified_hhs") %>% 
+                    mutate(governorate_name =nm)
+            })
+        
+        p <- impact_by_thresh_df %>% 
+            ggplot(aes(x=value,
+                       y=pct_impact,
+                       color=governorate_name, 
+                       group=governorate_name))+
+            geom_line()+
+            scale_y_continuous_hdx(labels= scales::percent, limits=c(0,1))+
+            labs(x= "threshold (mm)", 
+                 y = ylab,
+                 title = glue("{ylab} at and above each rainfall threshold (mm)"))+
+            theme_hdx()
+        
+    }
+    
+    return(p)   
+}
+
+impact_by_thresh <- function(
+        df, 
+        val,
+        impact_val){
+    
+    max_thresh<- max(df[[val]],na.rm=T) %>% ceiling()
+    iter_seq <- seq(0, max_thresh,by = 1)
+    iter_seq %>% 
+        map_dfr(\(val_temp){
+            total_impact <- sum(df[[impact_val]],na.rm = T)
+            df %>% 
+                filter(!!sym(val)>=val_temp) %>% 
+                summarise(
+                    value =val_temp,
+                    impact_sum = sum(!!sym(impact_val),na.rm = T),
+                    pct_impact = impact_sum/total_impact,
+                    pct_impact_inv = 1- pct_impact
+                )
+            
+        })
+}
+
+
+
+
+max_rainfall_around_event <- function(impact, 
+                                      rainfall, 
+                                      window = 5
+){
+    
+    rainfall_split <- rainfall %>% 
+        split(.$governorate_name)
+    
+    impact_split <-  impact %>% 
+        split(.$governorate_name)
+    
+    map2(impact_split, rainfall_split,\(impact_temp, rainfall_temp){
+        impact_temp$date %>% 
+            unique() %>%
+            sort() %>% 
+            map_dfr(
+                \(dt){
+                    start_date <- dt-window
+                    end_date <- dt+window
+                    start_to_end <-  seq(start_date, end_date,by =1)
+                    rainfall_temp %>% 
+                        mutate(
+                            date= ymd(date)
+                        ) %>% 
+                        group_by(governorate_name) %>% 
+                        
+                        filter(
+                            date %in% start_to_end
+                        ) %>% 
+                        summarise(
+                            date= dt,
+                            mean = max(mean,na.rm=T)
+                        ) 
+                }
+            )
+    }) %>% 
+        bind_rows()
+    
+    
+}
+
