@@ -613,6 +613,8 @@ list(
           }
           ) %>% set_names(names(tbl_performance_gov_area_level))
   ),
+  ## Clustering - Area level ####
+  # Clean up high risk sites we have impact data and coordinates for 
   tar_target(
       name = cccm_flood_marib_hajjah_impact,
       command = cccm_flood_impact_data_w_coords %>% 
@@ -626,9 +628,12 @@ list(
           filter(
               # when mapped this site does not fall in Marib or Hajjah.
               site_id !="YE1712_0643",
+              # only interested in these 2 for now
               governorate_name %in% c("Marib","Hajjah")
           ) 
   ),
+  
+  # cluster Marib & Hajjah events on coordinates and date. Do Marib & Hajjah separately, then combine results
   tar_target(
       name= marib_hajjah_cccm_flood_clustered5,
       command = cccm_flood_marib_hajjah_impact %>% 
@@ -636,16 +641,18 @@ list(
           spatial_pt_clusters(df=.,
                               date = "date",
                               lon = "lon",
-                              lat="lat",
-                              k=5,
-                              event = NULL,
-                              scale=F) %>% 
+                              lat="lat", 
+                              k=5, # number of clusters
+                              event = NULL, # all records in data.frame are events
+                              scale=F # don't scale vars (explained in 05_clustering_events.rmd)
+                              ) %>% 
           map(
               ~st_drop_geometry(.x)
           ) %>% 
-          bind_rows()
+          bind_rows() 
       
   ),
+  # run performance calculations  on clustered data
   tar_target(
       name =tbl_performance_area_clustered5_b7f7,
       command = names(zonal_stats_high_risk_hull) %>% 
@@ -662,10 +669,14 @@ list(
   ) %>% 
       set_names(names(zonal_stats_high_risk_hull))
   ),
-  # Impact vs Rainfall & RPs ------------------------------------------------
+  # Impact vs Rainfall & Return period ------------------------------------------------
+  
+  # in this section we make plots showing a.) rainfall over flood reporting period, b.  2,3,4,5 return return period
+  # levels calculated form CHIRPS 1981-2022, c.) reported events & impact
   
   ## Individual events impact ####
   
+  # In these plots each point is an specific event
   tar_target(
       name = p_rainfall_rp_impact_num_shelters,
       command = zonal_stats_high_risk_hull %>%
@@ -673,12 +684,12 @@ list(
           map(\(precip_windows){
               plot_rainfall_rps_impact(impact_data=cccm_flood_marib_hajjah_impact,
                                        historical_rainfall=zonal_stats_high_risk_hull,
-                                       precip_regime= precip_windows,
+                                       precip_regime= precip_windows, # map through each precip regime
                                        impact_var = "num_shelters_affected",
-                                       rp_year= c(2,3,4,5, 10),
-                                       scale=F,
-                                       k=5,
-                                       aggregate_impact = NULL
+                                       rp_year= c(2,3,4,5, 10), # return period years
+                                       scale=F, # don't scale vars before kmeans
+                                       k=5, # 5 clusters 
+                                       aggregate_impact = NULL # plot individual event impact -not aggregated
               )
               
           }) %>% 
@@ -687,6 +698,7 @@ list(
   ),
   
   ## Events Clustered and Aggregated ####
+  # in these plots points represent events that have been aggregated together mostly by date, but also coords
   tar_target(
       name = p_rainfall_rp_impact_num_shelters_agg,
       command = zonal_stats_high_risk_hull %>%
@@ -696,9 +708,10 @@ list(
                                        historical_rainfall=zonal_stats_high_risk_hull,
                                        precip_regime= precip_windows,
                                        impact_var = "num_shelters_affected",
-                                       rp_year= c(2,3,4,5, 10),
-                                       scale=F,k=5,
-                                       aggregate_impact = "total"
+                                       rp_year= c(2,3,4,5, 10), 
+                                       scale=F, 
+                                       k=5, 
+                                       aggregate_impact = "total" # aggregate impact_var by cluster
               )
               
           }) %>% 
@@ -723,37 +736,6 @@ list(
           set_names(zonal_stats_high_risk_hull %>%
                         names() )
   )
-    # tar_target(
-    #     name = tbl_performance_10d_gov,
-    #     command =  calculate_performance_metrics(df = thresh_class_freq_10d,
-    #                                        cccm_wb = cccm_wb,
-    #                                       by = c("governorate_name", "thresh","class"))
-    # ),
-    # tar_target(
-    #     name = tbl_performance_5d_overall,
-    #     command =  calculate_performance_metrics(df = thresh_class_freq_5d,
-    #                                        cccm_wb = cccm_wb,
-    #                                       by = c("thresh","class"))
-    # ),
-    # tar_target(
-    #     name = tbl_performance_5d_gov,
-    #     command =  calculate_performance_metrics(df = thresh_class_freq_5d,
-    #                                        cccm_wb = cccm_wb,
-    #                                       by = c("governorate_name", "thresh","class"))
-    # ),
-    # 
-    # tar_target(
-    #     name = tbl_performance_30d_gov,
-    #     command =  calculate_performance_metrics(df = thresh_class_freq_5d,
-    #                                        cccm_wb = cccm_wb,
-    #                                       by = c("governorate_name", "thresh","class"))
-    # ),
-    # tar_target(
-    #     name = tbl_performance_30d_overall,
-    #     command =  calculate_performance_metrics(df = thresh_class_freq_5d,
-    #                                        cccm_wb = cccm_wb,
-    #                                       by = c("thresh","class"))
-    # )
-  
+
 
 )
