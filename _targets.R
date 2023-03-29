@@ -17,6 +17,8 @@ req_CRAN_pkgs <- c(
   "zoo",
   "rgee",
   "ggrepel",
+  "glue",
+  "ggiraph",
   "tidyrgee", "extRemes"
 )
 
@@ -597,6 +599,9 @@ list(
       "precip_roll30_c_mean"
   ) )
   ),
+
+
+  
   tar_target(
       name = tbl_performance_area_marib_hajjah,
       command =  tbl_performance_gov_area_level %>% 
@@ -607,6 +612,116 @@ list(
                                             by = c("governorate_name","class","thresh"))
           }
           ) %>% set_names(names(tbl_performance_gov_area_level))
+  ),
+  tar_target(
+      name = cccm_flood_marib_hajjah_impact,
+      command = cccm_flood_impact_data_w_coords %>% 
+          mutate(date= as_date(date_of_episode)) %>% 
+          group_by(governorate_name, site_name, site_id, lon, lat,date) %>% 
+          summarise(
+              # this just removes duplicate reporting in flood db.
+              across(starts_with("num_"),~mean(.x,na.rm=T)),
+              .groups="drop"
+          ) %>% 
+          filter(
+              # when mapped this site does not fall in Marib or Hajjah.
+              site_id !="YE1712_0643",
+              governorate_name %in% c("Marib","Hajjah")
+          ) 
+  ),
+  tar_target(
+      name= marib_hajjah_cccm_flood_clustered5,
+      command = cccm_flood_marib_hajjah_impact %>% 
+          # cluster
+          spatial_pt_clusters(df=.,
+                              date = "date",
+                              lon = "lon",
+                              lat="lat",
+                              k=5,
+                              event = NULL,
+                              scale=F) %>% 
+          map(
+              ~st_drop_geometry(.x)
+          ) %>% 
+          bind_rows()
+      
+  ),
+  tar_target(
+      name =tbl_performance_area_clustered5_b7f7,
+      command = names(zonal_stats_high_risk_hull) %>% 
+          map(\( nm_tbl){
+              clustered_performance_calcs(
+                  impact = marib_hajjah_cccm_flood_clustered5,
+                  rainfall = zonal_stats_high_risk_hull,
+                  precip_regime = nm_tbl,
+                  date = "date",
+                  look_ahead = 7,
+                  look_back = 7
+              )  
+          }
+  ) %>% 
+      set_names(names(zonal_stats_high_risk_hull))
+  ),
+  # Impact vs Rainfall & RPs ------------------------------------------------
+  
+  ## Individual events impact ####
+  
+  tar_target(
+      name = p_rainfall_rp_impact_num_shelters,
+      command = zonal_stats_high_risk_hull %>%
+          names() %>% 
+          map(\(precip_windows){
+              plot_rainfall_rps_impact(impact_data=cccm_flood_marib_hajjah_impact,
+                                       historical_rainfall=zonal_stats_high_risk_hull,
+                                       precip_regime= precip_windows,
+                                       impact_var = "num_shelters_affected",
+                                       rp_year= c(2,3,4,5, 10),
+                                       scale=F,
+                                       k=5,
+                                       aggregate_impact = NULL
+              )
+              
+          }) %>% 
+          set_names(zonal_stats_high_risk_hull %>%
+                        names() )
+  ),
+  
+  ## Events Clustered and Aggregated ####
+  tar_target(
+      name = p_rainfall_rp_impact_num_shelters_agg,
+      command = zonal_stats_high_risk_hull %>%
+          names() %>% 
+          map(\(precip_windows){
+              plot_rainfall_rps_impact(impact_data=cccm_flood_marib_hajjah_impact,
+                                       historical_rainfall=zonal_stats_high_risk_hull,
+                                       precip_regime= precip_windows,
+                                       impact_var = "num_shelters_affected",
+                                       rp_year= c(2,3,4,5, 10),
+                                       scale=F,k=5,
+                                       aggregate_impact = "total"
+              )
+              
+          }) %>% 
+          set_names(zonal_stats_high_risk_hull %>%
+                        names() )
+  ),
+  tar_target(
+      name = p_rainfall_rp_impact_num_events_agg,
+      command = zonal_stats_high_risk_hull %>%
+          names() %>% 
+          map(\(precip_windows){
+              plot_rainfall_rps_impact(impact_data=cccm_flood_marib_hajjah_impact,
+                                       historical_rainfall=zonal_stats_high_risk_hull,
+                                       precip_regime= precip_windows,
+                                       impact_var = "num_shelters_affected",
+                                       rp_year= c(2,3,4,5, 10),
+                                       scale=F,k=5,
+                                       aggregate_impact = "num_events"
+              )
+              
+          }) %>% 
+          set_names(zonal_stats_high_risk_hull %>%
+                        names() )
   )
     # tar_target(
     #     name = tbl_performance_10d_gov,
