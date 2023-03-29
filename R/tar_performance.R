@@ -11,7 +11,7 @@
 #' @param cccm_wb target data.fraem (cccm_wb) which contains list of data.frames. 
 #' @param level \code{character} level of input data set. For example when we use `thesh_class_freq_b7f3` the classificaitons were done at the site level. 
 #'   Therefore, to aggregate to the governorate level we have need to have the governorate column added.
-#' @param by \code{character} levels to agggregate performance frequencies (TP, FP, FN) by.
+#' @param by \code{character} levels to aggregate performance frequencies (TP, FP, FN) by.
 #'
 #' @return summary table for aggregated performance class frequencies at each threshold as well as `precision` and `recall`
 #' 
@@ -275,6 +275,23 @@ plot_impact_by_threshold <-  function(impact,
     return(p)   
 }
 
+#' impact_by_thresh
+#' @description iterate through rainfall values and aggregate impact data based how much impact occurred
+#'  at that rainfall level or higher. This function is used inside `plot_impact_by_threshold()` which currently 
+#'  is only used inside `07_checkpoint_1a_overview.rmd`
+#' @param df data.frame containing impact data with rainfall value attached
+#' @param val \code{character} name of rainfall value column 
+#' @param impact_val \code{character} name of numeric impact column to use 
+#'  (i.e num_shelters affected, num_verified_hhs)
+#'
+#' @return data.frame aggregated by rainfall values. For each rainfall value the impact data
+#'  is aggregated based on all events that occured at that rainfall level or higher. The data.frame contains the 
+#'  following columns:
+#'      value = rainfall threshold (mm)
+#'      impact_sum = total impact (i.e num_shelters_affected) by rainfall greater than or equal to value
+#'      pct_impact = impact_sum/total impact in db
+#'      pct_impact_inv = 1- pct_impact (just helpful for a different view of data.)
+
 impact_by_thresh <- function(
         df, 
         val,
@@ -299,6 +316,20 @@ impact_by_thresh <- function(
 
 
 
+
+#' max_rainfall_around_event
+#' @description 
+#' provide: a.) impact data set of incidents/events and their dates, b.) historical rainfall data set with dates
+#' overlapping impact data, a search window in days and get the maximum rainfall within that window around event
+#' @param impact data.frame containing events/incidident dates
+#' @param rainfall data.frame containing historical rainfal data from the time period of interest
+#' @param window window to search on before and after incident dates for max rainfall value in rainfall data set
+#'
+#' @return data.frame containing the following columns:
+#'  `governorate_name`
+#'   `date` (corresponding to incident dates)
+#'   `mean` (max rainfall value)
+#' @details so far only used within `plot_impact_by_threshold()` inside `07_checkpoint_1a_overview.rmd`
 
 max_rainfall_around_event <- function(impact, 
                                       rainfall, 
@@ -337,7 +368,5 @@ max_rainfall_around_event <- function(impact,
             )
     }) %>% 
         bind_rows()
-    
-    
 }
 
