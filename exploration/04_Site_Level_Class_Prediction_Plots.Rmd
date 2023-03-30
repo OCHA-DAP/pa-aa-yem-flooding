@@ -20,7 +20,30 @@ library(sysfonts)
 font_add_google("Source Sans Pro")
 showtext::showtext_auto()
 
-tar_load(p_all_sites_events_pred_classifications)
+target_ready <- c(T, F)[2]
+if (target_ready) {
+  tar_load(p_all_sites_events_pred_classifications)
+}
+if (!target_ready) {
+  tar_source()
+  tar_load(rainfall_impact_tbl)
+  p_all_sites_events_pred_classifications <- plot_performance_all_sites(
+    df = rainfall_impact_tbl,
+    x = "precip_roll10",
+    event = "fevent",
+    thresh = 25,
+    day_window = 60
+  )
+}
+
+# unique(rainfall_impact_tbl$site_id)[5]
+#
+# plot_site_events_classified(df = rainfall_impact_tbl %>%
+#                                 filter(site_id=="YE1116_0037"),
+#                             x="precip_roll10",
+#                             event = "fevent",
+#                             thresh=25,
+#                             day_window=60,plot_title = "boom")
 ```
 
 ## Description

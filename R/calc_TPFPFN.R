@@ -14,131 +14,134 @@
 #' library(targets)
 #' library(tidvyerse)
 #' tar_source()
-#' df <- data.frame(precipitation = rnorm(100),
-#'                 fevent = as.logical(rbinom(100, 1, 0.5)),
-#'                  admin1 = rep(c("A", "B", "C", "D"), each = 25))
-#'  calc_TPFPFN(df = df %>%
-#'                 filter(admin1=="C"),
-#'                 x = "precipitation", look_back=1, look_ahead=2   ,
-#'                 event = "fevent",thresh = 1)
+#' df <- data.frame(
+#'   precipitation = rnorm(100),
+#'   fevent = as.logical(rbinom(100, 1, 0.5)),
+#'   admin1 = rep(c("A", "B", "C", "D"), each = 25)
+#' )
+#' calc_TPFPFN(
+#'   df = df %>%
+#'     filter(admin1 == "C"),
+#'   x = "precipitation", look_back = 1, look_ahead = 2,
+#'   event = "fevent", thresh = 1
+#' )
 #' }
-
 calc_TPFPFN <- function(df,
                         x = "precip_roll10",
                         event = "fevent",
                         thresh = 10,
                         look_back = 7,
                         look_ahead = 3) {
-    x <- df %>% pull(x)
-    event <- df %>% pull(event)
-    full_idx <- seq(1,length(x), by =1)
-    x_gte <- x >= thresh
-    event_idx <- which(event)
-    # classify event as TP or FP....
-    event_classification <- event_idx %>%
-        map_dfr(
-            \(idx){
-                if (idx <= look_back) {
-                    look_back <- (idx - 1)
-                }
-                if ((idx + look_ahead) >= length(x)) {
-                    look_ahead <- length(x) - idx
-                }
-                search_window <- (idx - look_back):(idx + look_ahead)
-                thresh_in_window <- any(x[search_window] >= thresh)
-                
-                end_idx = idx+look_ahead
-                start_idx = idx - look_back
-                
-                if(thresh_in_window){
-                    # might be good to put this sequence in it's own `helper` function as it is 
-                    # highly confusing and is reused with modification in other parts of this project
-                    # ... but to explain:
-                    
-                    # 1. get all values after TP classification gte threshold
-                    gte_after_TP_idx<- which(x_gte & (full_idx >=end_idx))
-                    
-                    # 2. we only want the first run of these values - so this finds break points 
-                    # where consecutive values stop being gte threshold
-                    consec_gte_after_TP_idx_split_pts <- c(
-                        1, which(diff(gte_after_TP_idx) > (1)) + 1,
-                        length(gte_after_TP_idx) + 1
-                    )
-                    # then split the runs - we are only intersted in the first one after the TP of interest
-                    consec_gte_after_TP_idx_list <- split(gte_after_TP_idx,
-                                                          cumsum(seq_along(gte_after_TP_idx) %in% 
-                                                                           consec_gte_after_TP_idx_split_pts))
-                    
-                    # if we have these consecutive runs - get the first one
-                    # we also want to exclude the the TP search window (start_idx:end_idx)
-                    if(length(consec_gte_after_TP_idx_list)>0){
-                        idx_exclude <- unique(c(consec_gte_after_TP_idx_list$`1`,start_idx:end_idx))
-                    }
-                    # if no consecutive runs - just exclude TP search window
-                    if(length(consec_gte_after_TP_idx_list)==0){
-                        idx_exclude <-  start_idx:end_idx
-                    }
-                }
-                # if no TPs we still want exclude TP search window
-                if(!thresh_in_window){
-                    idx_exclude <- start_idx:end_idx
-                }
-                  
-                event_df <- tibble(
-                    idx = idx,
-                    start_idx = start_idx,
-                    end_idx = end_idx,
-                    positive = thresh_in_window,
-                    TPFN = ifelse(thresh_in_window, "TP", "FN"),
-                    idx_exclude = list(idx_exclude)
-                )
-                
-            }
+  x <- df %>% pull(x)
+  event <- df %>% pull(event)
+  full_idx <- seq(1, length(x), by = 1)
+  x_gte <- x >= thresh
+  event_idx <- which(event)
+  # classify event as TP or FP....
+  event_classification <- event_idx %>%
+    map_dfr(
+      \(idx){
+        if (idx <= look_back) {
+          look_back <- (idx - 1)
+        }
+        if ((idx + look_ahead) >= length(x)) {
+          look_ahead <- length(x) - idx
+        }
+        search_window <- (idx - look_back):(idx + look_ahead)
+        thresh_in_window <- any(x[search_window] >= thresh)
+
+        end_idx <- idx + look_ahead
+        start_idx <- idx - look_back
+
+        if (thresh_in_window) {
+          # might be good to put this sequence in it's own `helper` function as it is
+          # highly confusing and is reused with modification in other parts of this project
+          # ... but to explain:
+
+          # 1. get all values after TP classification gte threshold
+          gte_after_TP_idx <- which(x_gte & (full_idx >= end_idx))
+
+          # 2. we only want the first run of these values - so this finds break points
+          # where consecutive values stop being gte threshold
+          consec_gte_after_TP_idx_split_pts <- c(
+            1, which(diff(gte_after_TP_idx) > (1)) + 1,
+            length(gte_after_TP_idx) + 1
+          )
+          # then split the runs - we are only intersted in the first one after the TP of interest
+          consec_gte_after_TP_idx_list <- split(
+            gte_after_TP_idx,
+            cumsum(seq_along(gte_after_TP_idx) %in%
+              consec_gte_after_TP_idx_split_pts)
+          )
+
+          # if we have these consecutive runs - get the first one
+          # we also want to exclude the the TP search window (start_idx:end_idx)
+          if (length(consec_gte_after_TP_idx_list) > 0) {
+            idx_exclude <- unique(c(consec_gte_after_TP_idx_list$`1`, start_idx:end_idx))
+          }
+          # if no consecutive runs - just exclude TP search window
+          if (length(consec_gte_after_TP_idx_list) == 0) {
+            idx_exclude <- start_idx:end_idx
+          }
+        }
+        # if no TPs we still want exclude TP search window
+        if (!thresh_in_window) {
+          idx_exclude <- start_idx:end_idx
+        }
+
+        event_df <- tibble(
+          idx = idx,
+          start_idx = start_idx,
+          end_idx = end_idx,
+          positive = thresh_in_window,
+          TPFN = ifelse(thresh_in_window, "TP", "FN"),
+          idx_exclude = list(idx_exclude)
         )
-    # need to wipe out possibility of FP after TP when consecute gte threshold
-    
-    
-    idx_exclude_from_fp_search <- event_classification %>% 
-        select(idx_exclude) %>% 
-        unnest_longer(idx_exclude) %>% 
-        pull(idx_exclude) %>% 
-        unique()
-    
-    # make full T vec to flip off
-    fp_search_lgl <- rep(T,length(full_idx))
-    fp_search_lgl[idx_exclude_from_fp_search] <- F # flip off to exclude
-    x_gte_in_range<- x_gte & fp_search_lgl
-    consec_runs <- diff(cumsum(c(0, x_gte_in_range))) > 0
-    
-    # this code gives me the starts of the runs
-    consec_run_starts <- which(diff(c(0, as.integer(consec_runs))) == 1)
-    # now flip it all FALSE and put run starts as true
-    fp_search_lgl <- rep(F,length(full_idx))
-    fp_search_lgl[consec_run_starts] <- T
-    
-    
-    # a little condition on the TPs
-    tp_idx <- event_classification$idx[which(event_classification$positive)]
-    # if more -- than 1 TP classification within look_back + look_ahead window of eachother - just take the first one.
-    if (length(tp_idx) > 1) {
-        # Split the list based on the specified difference
-        tp_split_indices <- c(1, which(diff(tp_idx) > (look_back + look_ahead)) + 1, length(tp_idx) + 1)
-        # tp_split_indices <- c(1, which(diff(tp_idx) > look_back) , length(tp_idx)+1)
-        tp_idx_lists <- split(tp_idx, cumsum(seq_along(tp_idx) %in% tp_split_indices))
-        
-        # it would be simpler if we could just take the min of each of the runs.... can we?
-        # I guess the value could fluctuate below the thresh inbetween, but i think that's fine
-        tp_idx_keep <- tp_idx_lists %>%
-            map_int(~ min(.x))
-        event_classification <- event_classification %>%
-            filter(!positive |
-                       (positive & idx %in% tp_idx_keep))
-    }
-    ret <- list()
-    ret$FPs <-  fp_search_lgl
-    ret$event_classification <-  event_classification
-    return(ret)
-    
+      }
+    )
+  # need to wipe out possibility of FP after TP when consecute gte threshold
+
+
+  idx_exclude_from_fp_search <- event_classification %>%
+    select(idx_exclude) %>%
+    unnest_longer(idx_exclude) %>%
+    pull(idx_exclude) %>%
+    unique()
+
+  # make full T vec to flip off
+  fp_search_lgl <- rep(T, length(full_idx))
+  fp_search_lgl[idx_exclude_from_fp_search] <- F # flip off to exclude
+  x_gte_in_range <- x_gte & fp_search_lgl
+  consec_runs <- diff(cumsum(c(0, x_gte_in_range))) > 0
+
+  # this code gives me the starts of the runs
+  consec_run_starts <- which(diff(c(0, as.integer(consec_runs))) == 1)
+  # now flip it all FALSE and put run starts as true
+  fp_search_lgl <- rep(F, length(full_idx))
+  fp_search_lgl[consec_run_starts] <- T
+
+
+  # a little condition on the TPs
+  tp_idx <- event_classification$idx[which(event_classification$positive)]
+  # if more -- than 1 TP classification within look_back + look_ahead window of eachother - just take the first one.
+  if (length(tp_idx) > 1) {
+    # Split the list based on the specified difference
+    tp_split_indices <- c(1, which(diff(tp_idx) > (look_back + look_ahead)) + 1, length(tp_idx) + 1)
+    # tp_split_indices <- c(1, which(diff(tp_idx) > look_back) , length(tp_idx)+1)
+    tp_idx_lists <- split(tp_idx, cumsum(seq_along(tp_idx) %in% tp_split_indices))
+
+    # it would be simpler if we could just take the min of each of the runs.... can we?
+    # I guess the value could fluctuate below the thresh inbetween, but i think that's fine
+    tp_idx_keep <- tp_idx_lists %>%
+      map_int(~ min(.x))
+    event_classification <- event_classification %>%
+      filter(!positive |
+        (positive & idx %in% tp_idx_keep))
+  }
+  ret <- list()
+  ret$FPs <- fp_search_lgl
+  ret$event_classification <- event_classification
+  return(ret)
 }
 
 
@@ -164,34 +167,38 @@ calc_TPFPFN <- function(df,
 #' library(targets)
 #' library(tidvyerse)
 #' tar_source()
-#' df <- data.frame(precipitation = rnorm(100),
-#'                 fevent = as.logical(rbinom(100, 1, 0.5)),
-#'                  admin1 = rep(c("A", "B", "C", "D"), each = 25))
-#'  calc_TPFPFN(df = df %>%
-#'                 filter(admin1=="C"),
-#'                 x = "precipitation", look_back=1, look_ahead=2   ,
-#'                 event = "fevent",thresh = 1)
-#'             
+#' df <- data.frame(
+#'   precipitation = rnorm(100),
+#'   fevent = as.logical(rbinom(100, 1, 0.5)),
+#'   admin1 = rep(c("A", "B", "C", "D"), each = 25)
+#' )
+#' calc_TPFPFN(
+#'   df = df %>%
+#'     filter(admin1 == "C"),
+#'   x = "precipitation", look_back = 1, look_ahead = 2,
+#'   event = "fevent", thresh = 1
+#' )
+#'
 #' # Calculate performance frequencies by threshold, grouped by admin1
-#' ck <- performance_frequencies_by_threshold( 
-#'                                     df,
-#'                                     x = "precipitation",
-#'                                     by = "admin1",
-#'                                     event = "fevent",
-#'                                     thresholds = seq(0,100, by =1))
-#' tar_load(rainfall_impact_tbl)                             
-#' max_rainfall <- ceiling(max(rainfall_impact_tbl$precip_roll10,na.rm=T) )       
-#' pred_class_freq_tbl <- performance_frequencies_by_threshold(df = rainfall_impact_tbl,
-#'                                           x="precip_roll10",
-#'                                           by="site_id",
-#'                                           event="fevent",
-#'                                           look_back = 7,
-#'                                           look_ahead = 3,
-#'                                           thresholds = seq(0,max_rainfall,1))
+#' ck <- performance_frequencies_by_threshold(
+#'   df,
+#'   x = "precipitation",
+#'   by = "admin1",
+#'   event = "fevent",
+#'   thresholds = seq(0, 100, by = 1)
+#' )
+#' tar_load(rainfall_impact_tbl)
+#' max_rainfall <- ceiling(max(rainfall_impact_tbl$precip_roll10, na.rm = T))
+#' pred_class_freq_tbl <- performance_frequencies_by_threshold(
+#'   df = rainfall_impact_tbl,
+#'   x = "precip_roll10",
+#'   by = "site_id",
+#'   event = "fevent",
+#'   look_back = 7,
+#'   look_ahead = 3,
+#'   thresholds = seq(0, max_rainfall, 1)
+#' )
 #' }
-
-
-
 performance_frequencies_by_threshold <- function(df,
                                                  x,
                                                  by = "governorate_name",

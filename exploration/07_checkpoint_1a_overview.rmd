@@ -210,8 +210,6 @@ It would be nice to have some statistics/ 1 liners like: `x %` HHs were affected
 
 
 ```{r, eval = T}
-
-
 p_pct_impacted_shelters_by_thresh_gov <- zonal_stats_high_risk_hull %>%
   map(
     \(precip_regime_df){
@@ -255,16 +253,17 @@ This analysis is **most** interesting when just looking at daily rainfall. The 5
 Looking at daily rainfall value for all Marib & Hajjah data together we see a large drop in % shelter affected after 17 mm \@ref(fig:plot-pctImpactVsThreshTotal). We see that  over 80% of shelters affected were affected when there was a daily rainfall event of over >= 17 mm within 5 days of the incident being reported. 
 
 ```{r plot-pctImpactVsThreshTotal, fig.cap="Over 80% of shelters affected were affected when there was a daily rainfall event of over >= 17 mm within 5 days of the incident being reported.", out.width="100%"}
-p_pct_impacted_shelters_by_thresh_total$precip_daily+
-    geom_vline(xintercept = c(17), linetype="dashed", color="#F2645A",lwd=1)+
-    geom_hline(yintercept = 0.815, color="#F2645A", linetype="dashed",lwd=1)+
-    labs(title= "% shelters affected at and above each rainfall threshold",
-         subtitle= "maximum daily rainfall within 5 days of incident being reported"
-    )+
-     theme(
-        legend.title = element_blank(),
-        plot.caption = element_text(hjust=0)
-    )
+p_pct_impacted_shelters_by_thresh_total$precip_daily +
+  geom_vline(xintercept = c(17), linetype = "dashed", color = "#F2645A", lwd = 1) +
+  geom_hline(yintercept = 0.815, color = "#F2645A", linetype = "dashed", lwd = 1) +
+  labs(
+    title = "% shelters affected at and above each rainfall threshold",
+    subtitle = "maximum daily rainfall within 5 days of incident being reported"
+  ) +
+  theme(
+    legend.title = element_blank(),
+    plot.caption = element_text(hjust = 0)
+  )
 ```
 
 We can look at this type of relationship for each Governorate as well. We see that in Hajjah ~75 % of shelters affected were affected when there was a daily rainfall event of over >= 17 mm within 5 days of the incident being reported. Whereas in Marib >= 90 % of shelters affected were affected when there was a daily rainfall event of over >= 19 mm (\@ref(fig:plot-pctImpactVsThreshGov)). 
@@ -272,20 +271,20 @@ We can look at this type of relationship for each Governorate as well. We see th
 The steep drop in values near 0 mm observed most strikingly in Hajjah is must be largely due to the odd cluster ("Hajjah_3") of reported events on June 16 & 17. If this could be properly dealt with perhaps the Hajjah curve would more closely resemble the Marib curve.
 
 ```{r plot-pctImpactVsThreshGov,fig.cap="75 % of shelters affected in Hajjah & > 90 % in Marib were affected when there was a daily rainfall event of over >= 17 and >=19 mm, respectively, within 5 days of the incident being reported.", out.width="100%"}
-p_pct_impacted_shelters_by_thresh_gov$precip_daily+
-    geom_vline(xintercept = c(17), linetype="dashed", color="#F2645A",lwd=0.5)+
-    geom_vline(xintercept = c(19), linetype="dashed", color="#1EBFB3",lwd=0.5)+
-    geom_hline(yintercept = 0.75, color="#F2645A", linetype="dashed",lwd=0.5)+
-    geom_hline(yintercept = 0.91, color="#1EBFB3", linetype="dashed",lwd=0.5)+
-    labs(x ="threshold (mm)",
-         title= "% shelters affected at and above each rainfall threshold",
-         subtitle= "maximum daily rainfall within 5 days of incident being reported"
-    )+
-    theme(
-        legend.title = element_blank(),
-        plot.caption = element_text(hjust=0)
-    )
-    
+p_pct_impacted_shelters_by_thresh_gov$precip_daily +
+  geom_vline(xintercept = c(17), linetype = "dashed", color = "#F2645A", lwd = 0.5) +
+  geom_vline(xintercept = c(19), linetype = "dashed", color = "#1EBFB3", lwd = 0.5) +
+  geom_hline(yintercept = 0.75, color = "#F2645A", linetype = "dashed", lwd = 0.5) +
+  geom_hline(yintercept = 0.91, color = "#1EBFB3", linetype = "dashed", lwd = 0.5) +
+  labs(
+    x = "threshold (mm)",
+    title = "% shelters affected at and above each rainfall threshold",
+    subtitle = "maximum daily rainfall within 5 days of incident being reported"
+  ) +
+  theme(
+    legend.title = element_blank(),
+    plot.caption = element_text(hjust = 0)
+  )
 ```
 
 ## Next Steps 
