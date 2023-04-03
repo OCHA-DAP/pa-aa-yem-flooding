@@ -18,6 +18,8 @@ knitr::opts_chunk$set(
 
 
 ```{r libsImerge}
+# run Near Real Time? if true it will pull data to make notebook, if FALSE we 
+run_nrt <-  c(T,F)
 library(rgee)
 library(tidyrgee)
 library(tidyverse)
@@ -44,7 +46,9 @@ latest_img <- imerg_ic$limit(1, "system:time_start", FALSE)$first()
 latest_img_date <- ee_get_date_img(latest_img)
 ```
 
-# IMERG - GPM for Near Real Time (NRT) Precipitation Monitoring
+## IMERG - GPM for Near Real Time (NRT) Precipitation Monitoring
+
+The goal of this notebook is to explore the viability of IMERG GPM for NRT rainfall monitoring in YEM. While we have been using CHIRPS as our main historial rainfall data set, the latency at which it is realeased seems problematic for NRT monitoring. **Takeaway:** it seems like IMERG GPM could be a good option.
  
 Global Precipitation Measurement (GPM) provides global precipitation data with half hour time steps via The Integrated Multi-satellitE Retrievals for GPM (IMERG) algorithm (Huffman et al., 2019: GPM IMERG Final Precipitation L3 Half Hourly 0.1 degree x 0.1 degree V06, DOI: 10.5067/GPM/IMERG /3B-HH/06)
 
@@ -55,12 +59,13 @@ current_time_gmt <- with_tz(Sys.time(), tzone = "GMT")
 time_diff_hours <- difftime(current_time_gmt, latest_img_date$time_start, units = "hours")
 ```
 
-## Latency 
+### Latency 
 
 This notebook is being run at `r current_time_gmt` and the latest image available is from `r latest_img_date$time_start` - time difference: `r time_diff_hours` hours.
+
 Seems pretty good!
     
-## Viz data 
+### Viz data 
 
 ```{r temporalAgg}
 end_date <- as_date(latest_img_date$time_start)
@@ -99,7 +104,6 @@ imerg_daily_mm_ic <- imerg_daily_mm %>%
 # I'll probably make these outputs a target object so that I don't have to download the data in the notebook
 # for now it's ok.
 
-
 # bring in adm1 and filter to AOI -  simplify the feature a bit
 adm1_marib_hajjah <- adm_sf$yem_admbnda_adm1_govyem_cso_20191002 %>%
   filter(adm1_en %in% c("Ma'rib", "Hajjah")) %>%
@@ -128,8 +132,10 @@ max_daily_precip_aoi <- ee_extract_tidy(
 )
 ```
 
-
 ### Weekly Time Series
+
+We could set up/process to easily plot the previous 7 days of rain like so:
+
 ```{r plotLastWeek,out.width="100%", fig.align="center"}
 # plot  daily precip for the past week for hajjah and Marib
 avg_daily_precip_aoi %>%
@@ -145,6 +151,8 @@ avg_daily_precip_aoi %>%
   )
 ```
 
+
+We can also rainfall data spatially, but need to choose a date. Since GEE `leaflet()` maps expire every 4 hours I just used a screenshot of one from March 28, however this could be continuously updated in NRT.
 
 ```{r,eval=F}
 # GEE Interactive Maps expire after ~4 hours so I will make it a screenshot. This is why eval=F
