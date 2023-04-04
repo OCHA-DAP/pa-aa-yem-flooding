@@ -18,6 +18,13 @@ date_range = rrule.rrule(
     until=end_date,
 )
 
+# Read in template dataset
+template_filename = (
+    Path(os.environ["OAP_DATA_DIR"]) / "private/raw/yem/ecmwf/"
+    "yem_fc_tp_2007-01-01.grib2"
+)
+ds_template = xr.load_dataset(template_filename)
+
 for forecast_date in date_range:
     print(forecast_date)
     forecast_date_string = forecast_date.strftime("%Y-%m-%d")
@@ -42,19 +49,20 @@ for forecast_date in date_range:
     da = xr.load_dataset(input_filename, engine="cfgrib")["tp"]
     steps = (da.step.values / np.timedelta64(1, "D")).astype(int)
 
-    x, y = np.arange(42.1, 55.0, 0.1), np.arange(12.1, 19.0, 0.1)
+    x, y = np.arange(42.0, 55.1, 0.1), np.arange(12.1, 19.1, 0.1)
+    y = y[::-1]
     xi = tuple(np.meshgrid(x, y))
-    new_values = np.empty((len(steps), len(x), len(y)))
+    new_values = np.empty((len(steps), len(y), len(x)))
 
     for istep in steps:
         da_step = da.isel(step=istep)
         points = (da_step.longitude.values, da_step.latitude.values)
         values = da_step.values
-        new_values[istep] = griddata(points, values, xi).T
+        new_values[istep] = griddata(points, values, xi)
 
-    ds = xr.Dataset(
-        data_vars=dict(tp=(["step", "x", "y"], new_values)),
-        coords=dict(step=(["step"], steps), lon=(["x"], x), lat=(["y"], y)),
-        attrs=da.attrs,
-    )
+    ds = ds_template.copy(deep=True)
+    ds.coords["time"] = forecast_date
+    ds.coords["valid_time"] = ds.time + ds.step
+    ds["tp"].values = new_values
+
     ds.to_netcdf(output_filename)
