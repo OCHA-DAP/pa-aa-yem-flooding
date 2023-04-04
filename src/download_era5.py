@@ -61,7 +61,7 @@ for forecast_date in date_range:
     }
     output_filename = (
         Path(os.environ["OAP_DATA_DIR"])
-        / f"private/raw/yem/ecmwf/yem_era5_tp_{forecast_date_string}.grib2"
+        / f"public/raw/yem/ecmwf/yem_era5_tp_{forecast_date_string}.grib2"
     )
     if output_filename.exists():
         print(f"{forecast_date_string} exists, skipping")
