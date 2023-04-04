@@ -10,7 +10,6 @@ from scipy.interpolate import griddata
 clobber = True
 
 start_date = date(2007, 1, 1)
-# end_date = date(2007, 1, 1)
 end_date = date(2022, 12, 31)
 
 date_range = rrule.rrule(
@@ -56,5 +55,6 @@ for forecast_date in date_range:
     ds = xr.Dataset(
         data_vars=dict(tp=(["step", "x", "y"], new_values)),
         coords=dict(step=(["step"], steps), lon=(["x"], x), lat=(["y"], y)),
+        attrs=da.attrs,
     )
     ds.to_netcdf(output_filename)
