@@ -669,6 +669,29 @@ list(
   ) %>% 
       set_names(names(zonal_stats_high_risk_hull))
   ),
+  # run performance calculations  on clustered data
+  tar_target(
+      name =tbl_performance_area_clustered5_b7f7_wind_rm,
+      command = names(zonal_stats_high_risk_hull) %>% 
+          map(\( nm_tbl){
+              clustered_performance_calcs(
+                  impact = marib_hajjah_cccm_flood_clustered5 %>% 
+                      filter(
+                          # this whole cluster appears to be wind damage rather than rainfall
+                          cluster !="Hajjah_2",
+                          # confirmed that this particular event was wind rather than rainfall
+                          !(site_id =="YE2613_1961"  & date =="2022-04-30")
+                      ),
+                  rainfall = zonal_stats_high_risk_hull,
+                  precip_regime = nm_tbl,
+                  date = "date",
+                  look_ahead = 7,
+                  look_back = 7
+              )  
+          }
+  ) %>% 
+      set_names(names(zonal_stats_high_risk_hull))
+  ),
   # Impact vs Rainfall & Return period ------------------------------------------------
   
   # in this section we make plots showing a.) rainfall over flood reporting period, b.  2,3,4,5 return return period
