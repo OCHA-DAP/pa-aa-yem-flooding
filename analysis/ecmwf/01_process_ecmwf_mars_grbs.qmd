@@ -1,8 +1,16 @@
 
 
-## ECMWF MARS DATA Wrangling
+# ECMWF MARS DATA Wrangling
 
-The ECMWF MARS data appears to be in a very odd format which is proving quite difficult. It may be possibl to get it in a better format in the future, but for now we will wrangle it- yeeehaw
+## Background
+
+The ECMWF MARS data appears to be in a very odd format which is proving quite difficult. Hopefully in the future we will be able to receive it in a more user friendly format. Nonetheless for now we will rangle it.
+
+In this document we go through the process of processing the data by:
+
+1. interpolating the surface for a single band of a single file
+2. Write a function iterating through multiple band of a single file
+3. Iterate through all the files and bands to write new outputs.
 
 ```{python}
 import numpy as np
@@ -11,27 +19,24 @@ import xarray as xr
 import metview as mv # this seems to be necessary to get eccodes working
 import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
-
+import glob
+import re
 # raster gdal stuff
 import rasterio
 from rasterio.transform import Affine
 #get crs as wkt
 from rasterio.crs import CRS
-
 ```
 
-For this notebook I will first attempt/create the process on a single file and then attempt to functionalize and iterate for all the files
+## Single File 
 
-Load a single file the way we would expect with `{xarray}` 
+Let's just try on one file fisrt.
+
 ```{python}
 data_dir = os.environ['OAP_DATA_DIR']
 sub_dir  = 'private/raw/yem/ecmwf/strange_coords'
 fp = os.path.join(data_dir, sub_dir,'yem_fc_tp_2021-07-23.grib2')
 ds= xr.open_dataset(fp)
-
-
-
-
 ```
 
 We see that longitude and latitude exist as coordinates exist as coordinates, but are not dimesnional. We've played with xarray functionality such as `set_coords` and `assign_coords`, but it did not work well.
@@ -66,7 +71,6 @@ plt.imshow(grid_ecmwf)
 type(grid_ecmwf)
 ```
 
-
 This code will write the raster as tiff into the working directory.
 ```{python}
 interpRaster = rasterio.open('interp_ecmwf_raster_example.tif',
@@ -91,63 +95,63 @@ Let's see how we can do a multi-band raster
 da2 = ds['tp'].isel(step=2)
 da3 = ds['tp'].isel(step=3)
 
-
 grid_ecmwf2 = griddata(points, da2.values, (gridX, gridY),method='linear')
 
 grid_ecmwf3 = griddata(points, da3.values, (gridX, gridY),method='linear')
-grid_ecmwf3.shape
 
-grid_ecmwf_2_3 = np.dstack([ grid_ecmwf2, grid_ecmwf3])
-grid_ecmwf_2_3
+# the code below didn't end up working - thought it might be useful
+# later -- skip to next chunk for solution
+################################################################\
 
-grid_ecmwf_2_3.shape
+# grid_ecmwf_2_3 = np.dstack([ grid_ecmwf2, grid_ecmwf3])
+# grid_ecmwf_2_3
 
-
-ecmwf_2_3_array = np.zeros((2, grid_ecmwf2.shape[0], grid_ecmwf2.shape[1]), dtype=grid_ecmwf2.dtype)
-ecmwf_2_3_array[0, :, :] = grid_ecmwf2
-ecmwf_2_3_array[1, :, :] = grid_ecmwf3
-
-ecmwf_2_3_array.shape
-grid_ecmwf_2_3[10].shape
-with rasterio.open('interpRaster3.tif', 'w', driver='GTiff',
-                   width=ecmwf_2_3_array.shape[1], height=ecmwf_2_3_array.shape[0],
-                   count=2,
-                    dtype=ecmwf_2_3_array.dtype, crs=rasterCrs,
-                   transform=transform) as dst:
-    dst.write(ecmwf_2_3_array)
-
-with rasterio.open('bingbong.tif', 'w', driver='GTiff',
-                   width=grid_ecmwf_2_3.shape[1], height=grid_ecmwf_2_3.shape[2],
-                   count=2,
-                    dtype=grid_ecmwf_2_3.dtype, 
-                    crs=rasterCrs,
-                   transform=transform) as dst:
-    dst.write(grid_ecmwf_2_3,2)
-
-interpRaster = rasterio.open('ecmwf_grid_2_3.tif', # insert path here
-                                'w',
-                                driver='GTiff',
-                                height=ecmwf_2_3_array.shape[0],
-                                width=ecmwf_2_3_array.shape[1],
-                                count=2,
-                                dtype=ecmwf_2_3_array.dtype,
-                                crs=rasterCrs,
-                                transform=transform,
-                                )
-interpRaster.write(ecmwf_2_3_array,1)
-interpRaster.close()
+# grid_ecmwf_2_3.shape
 
 
-out_image = "stack.tiff"
-file_list = [blue, green, red, nir]
-with rasterio.open(out_img, 'w', **out_meta) as dest:
-    for band_nr, src in enumerate(file_list, start=1):
-        dest.write(src, band_nr)
+# ecmwf_2_3_array = np.zeros((2, grid_ecmwf2.shape[0], grid_ecmwf2.shape[1]), dtype=grid_ecmwf2.dtype)
+# ecmwf_2_3_array[0, :, :] = grid_ecmwf2
+# ecmwf_2_3_array[1, :, :] = grid_ecmwf3
+
+# ecmwf_2_3_array.shape
+# grid_ecmwf_2_3[10].shape
+# with rasterio.open('interpRaster3.tif', 'w', driver='GTiff',
+#                    width=ecmwf_2_3_array.shape[1], height=ecmwf_2_3_array.shape[0],
+#                    count=2,
+#                     dtype=ecmwf_2_3_array.dtype, crs=rasterCrs,
+#                    transform=transform) as dst:
+#     dst.write(ecmwf_2_3_array)
+
+# with rasterio.open('bingbong.tif', 'w', driver='GTiff',
+#                    width=grid_ecmwf_2_3.shape[1], height=grid_ecmwf_2_3.shape[2],
+#                    count=2,
+#                     dtype=grid_ecmwf_2_3.dtype, 
+#                     crs=rasterCrs,
+#                    transform=transform) as dst:
+#     dst.write(grid_ecmwf_2_3,2)
+
+# interpRaster = rasterio.open('ecmwf_grid_2_3.tif', # insert path here
+#                                 'w',
+#                                 driver='GTiff',
+#                                 height=ecmwf_2_3_array.shape[0],
+#                                 width=ecmwf_2_3_array.shape[1],
+#                                 count=2,
+#                                 dtype=ecmwf_2_3_array.dtype,
+#                                 crs=rasterCrs,
+#                                 transform=transform,
+#                                 )
+# interpRaster.write(ecmwf_2_3_array,1)
+# interpRaster.close()
+
+
+# out_image = "stack.tiff"
+# file_list = [blue, green, red, nir]
+# with rasterio.open(out_img, 'w', **out_meta) as dest:
+#     for band_nr, src in enumerate(file_list, start=1):
+#         dest.write(src, band_nr)
 ```
 
-ok above is looking like garbage  -- lets try a better approach
-
-since this works
+The commented out code didn't work as expected. Instead this how we do it:
 ```{python}
 # Write the raster
 
@@ -160,10 +164,12 @@ with rasterio.open("close_to_the_edge.tif", 'w', driver='GTiff', height=grid_ecm
 
 ```
 
+
+## Putting it all together
+
+### The function 
+
 ```{python}
-import rasterio
-import numpy as np
-from scipy.interpolate import griddata
 # from rasterio.transform import from_origin  # can check thsi out later
 
 def write_multiband_raster(ds, step_indices, rRes, out_raster):
@@ -217,7 +223,7 @@ def write_multiband_raster(ds, step_indices, rRes, out_raster):
 
 ```
 
-
+Write multiple bands to one raster file
 ```{python}
 
 # define list of step indices to interpolate and write to raster
@@ -234,13 +240,10 @@ write_multiband_raster(ds, step_indices, rRes, out_raster)
 
 ```
 
-run on all fles
-```{python}
-import glob
-import os
-import re
-import xarray
+### The iteration 
 
+run the above on all files
+```{python}
 grib_file_paths = []
 for file in glob.glob(os.path.join(data_dir, sub_dir, "*.grib2")):
     grib_file_paths.append(file)
@@ -264,41 +267,5 @@ for file in grib_file_paths:
     # Open the dataset and write the raster
     ds_temp = xarray.open_dataset(file)
     write_multiband_raster(ds=ds_temp, step_indices=step_indices, rRes=rRes, out_raster=out_file_path)
-
-
-
 ```
-
-```{python}
-# list files in a directory
-
-```
-
-Ok let's functionalize it now and iterate through all files
-```{python}
-def grid_from_xarray_points(dataset,param,step, res= 0.1):
-    data_sub = dataset[param].isel(step=step)
-    points = list(zip(data_sub.longitude.values, data_sub.latitude.values))
-    vals = data_sub.values
-
-    xRange = data_sub.arange(data_sub.longitude.min(), data_sub.longitude.max()+ res,res)
-    yRange = data_sub.arange(data_sub.latitude.min(), data_sub.latitude.max()+ res, res)
-    gridX,gridY = np.meshgrid(xRange, yRange)
-    grid_ecmwf = griddata(points, forecast_vals, (gridX, gridY),method='linear')
-    transform = Affine.translation(gridX[0][0]-res/2, gridY[0][0]-res/2)*Affine.scale(res,res)
-    rasterCrs = CRS.from_epsg(4326)
-
-def write_grid_to_tiff(dataset,param,step, res= 0.1):
-    data_sub = dataset[param].isel(step=step)
-    points = list(zip(data_sub.longitude.values, data_sub.latitude.values))
-    vals = data_sub.values
-
-    xRange = data_sub.arange(data_sub.longitude.min(), data_sub.longitude.max()+ res,res)
-    yRange = data_sub.arange(data_sub.latitude.min(), data_sub.latitude.max()+ res, res)
-    gridX,gridY = np.meshgrid(xRange, yRange)
-    grid_ecmwf = griddata(points, forecast_vals, (gridX, gridY),method='linear')
-    transform = Affine.translation(gridX[0][0]-res/2, gridY[0][0]-res/2)*Affine.scale(res,res)
-    rasterCrs = CRS.from_epsg(4326)
-```
-
 
