@@ -14,7 +14,7 @@ load_era_daily <- function(poly,ds=NULL){
         era_filt <- era$filterDate("1981-01-01","2023-01-01")$select("total_precipitation")
         scale_val <- 27830 
     }
-    if(ds=="raw"){
+    if(!is.null(ds)){
         era <- ee$ImageCollection("ECMWF/ERA5_LAND/DAILY_RAW")
         era_filt <- era$filterDate("1981-01-01","2023-01-01")$select("total_precipitation_sum")
         scale_val = 11132
