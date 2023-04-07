@@ -14,7 +14,7 @@ return_period_level_tibble <- function(df, value = "mean", date = "date", rp_yea
     # can remove governorate if its going to be split on governorate
     group_by(governorate_name, year = year(!!sym(date))) %>%
     summarise(
-      across(c("mean", "median"), ~ max(.x, na.rm = T)),
+      across(c(value), ~ max(.x, na.rm = T)),
       .groups = "drop"
     )
 
@@ -66,7 +66,8 @@ plot_rainfall_rps_impact <- function(impact_data = cccm_flood_impact_data_w_coor
                                      rp_year,
                                      scale = F,
                                      k = 5,
-                                     aggregate_impact = NULL) {
+                                     aggregate_impact = NULL,
+                                     remove_wind=F) {
   historical_rainfall_df <- historical_rainfall[[precip_regime]]
   historical_rainfall_df$labels <- paste0(
     "<br> date: ", historical_rainfall_df$date,
@@ -86,8 +87,6 @@ plot_rainfall_rps_impact <- function(impact_data = cccm_flood_impact_data_w_coor
     ) %>%
     filter(governorate_name %in% c("Marib", "Hajjah"))
 
-
-
   pt_cluster_list <- spatial_pt_clusters(
     df = impact_data_filtered,
     date = "date",
@@ -100,8 +99,20 @@ plot_rainfall_rps_impact <- function(impact_data = cccm_flood_impact_data_w_coor
     scale = scale
   ) %>%
     map(\(pt_sf){
+        
       pt_df <- pt_sf %>%
         st_drop_geometry()
+      
+      if(remove_wind){
+          pt_df <- pt_df %>% 
+              filter(
+                  # this whole cluster appears to be wind damage rather than rainfall
+                  cluster !="Hajjah_2",
+                  # confirmed that this particular event was wind rather than rainfall
+                  !(site_id =="YE2613_1961"  & date =="2022-04-30")
+              )
+      }
+      
       pt_df$pt_labels <- paste0(
         "Site_ID:", pt_df$site_id,
         "<br> date:", pt_df$date,
@@ -111,6 +122,7 @@ plot_rainfall_rps_impact <- function(impact_data = cccm_flood_impact_data_w_coor
       ) %>% lapply(htmltools::HTML)
       return(pt_df)
     })
+  
 
   cluster_palette <- RColorBrewer::brewer.pal(n = k, name = "Spectral")
 
@@ -141,6 +153,9 @@ plot_rainfall_rps_impact <- function(impact_data = cccm_flood_impact_data_w_coor
       pt_size <- 5
     }
 
+    
+    n_colors <- length(unique(impact$cluster))
+    cluster_palette <- RColorBrewer::brewer.pal(n = n_colors, name = "Spectral")
     # to keep cluster colors from changing? - also need to set.seed in clustering
     named_cluster_palette <- cluster_palette %>%
       set_names(
