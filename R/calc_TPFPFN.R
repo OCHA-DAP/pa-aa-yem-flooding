@@ -245,7 +245,10 @@ plot_site_events_classified <- function(df,
                                         event,
                                         thresh = thresh,
                                         day_window,
-                                        plot_title) {
+                                        plot_title,
+                                        just_events= F,
+                                        mark_first = T
+                                            ) {
   site_classification_list <- calc_TPFPFN(
     df = df,
     x = x,
@@ -269,19 +272,23 @@ plot_site_events_classified <- function(df,
   all_events_plot <- df_p[[event]]
 
   p_ts <- plot_site_events(
-    df = df_p,
-    x = x,
-    event = event,
-    thresh = thresh, day_window = day_window
+      df = df_p,
+      x = x,
+      event = event,
+      thresh = thresh, 
+      day_window = day_window
   ) +
-
-    geom_point(data = . %>% filter(FPs)) +
-    geom_label(
-      data = . %>% filter(!is.na(TPFN)),
-      aes(label = TPFN, y = 15)
-    ) +
-    ggtitle(plot_title)
-  if (length(all_events_plot) > 1) {
+      ggtitle(plot_title)
+  if(!just_events){
+      p_ts <- p_ts+
+          geom_point(data = . %>% filter(FPs)) +
+          geom_label(
+              data = . %>% filter(!is.na(TPFN)),
+              aes(label = TPFN, y = 15)
+          )  
+  }
+ 
+  if (length(all_events_plot) > 1 & mark_first) {
     p_ts <- p_ts +
       geom_vline(xintercept = tp_grp_date, color = "black", linewidth = 2)
   }
@@ -312,7 +319,8 @@ plot_site_events <- function(df,
     filter(date >= min_date, date <= max_date)
   col_grid <- rgb(235, 235, 235, 70, maxColorValue = 255)
   event_label_y_pos <- max(df_plot %>% pull(x), na.rm = T) * .75
-  df_plot %>%
+  
+  p <- df_plot %>%
     ggplot(aes(x = date, y = !!sym(x_str))) +
     scale_x_date(
       date_breaks = "5 days",
@@ -329,28 +337,30 @@ plot_site_events <- function(df,
       aes(xintercept = date),
       color = "red"
     ) +
-    geom_hline(aes(yintercept = thresh), linetype = "dashed", color = "blue") +
-    # geom_text(aes(x=ymd("2022-08-20"), y=17,label ="threshold a: 15 mm"))+
-    # geom_text(aes(x=ymd("2022-08-20"), y=27,label ="threshold b: 25 mm"))+
-    geom_text(
-      data = . %>%
-        filter(!!sym(event)),
-      aes(
-        x = ymd(date) - 2,
-        y = event_label_y_pos,
-        label = "Reported event"
-      ), angle = 90
-    ) +
-    # theme_hdx()+
-    labs(y = "10 day rain accumulation (mm)") +
+    # geom_text(
+    #   data = . %>%
+    #     filter(!!sym(event)),
+    #   aes(
+    #     x = ymd(date) - 2,
+    #     y = event_label_y_pos,
+    #     label = "Reported event"
+    #   ), angle = 90
+    # ) +
+    labs(y = "10 day rain accumulation (mm)",subtitle= "vertical red lines represent reported flood event dates") +
     theme_hdx() +
     theme(
+        axis.title.x = element_blank(),
       panel.grid.minor.x = element_line(color = col_grid),
       panel.grid.major.x = element_line(color = "darkgrey"),
       panel.grid.minor.y = element_line(),
       panel.grid.major.y = element_line(),
       axis.text.x = element_text(angle = 90)
     )
+  if(!is.null(thresh)){
+      p <- p+
+          geom_hline(aes(yintercept = thresh), linetype = "dashed", color = "blue") 
+  }
+  return(p)
 }
 
 
