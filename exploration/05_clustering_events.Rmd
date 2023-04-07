@@ -92,6 +92,24 @@ p_rainfall_events_gov <- c("Hajjah", "Marib") %>%
       )
     }
   )
+p_rainfall_events_gov <- c("Hajjah", "Marib") %>%
+  map(
+    \(gov){
+      plot_site_events_classified(
+        df = gov_area_rainfall_impact_tbl %>%
+          filter(governorate_name == gov),
+        x = "precip_roll10_mean",
+        event = "fevent",
+        thresh = NULL,
+        day_window = 60,
+        plot_title = gov,
+        mark_first = F,just_events=T
+      )
+    }
+  )
+
+p_rainfall_events_gov[[1]]
+
 ```
 
 ```{r, out.width="100%"}
