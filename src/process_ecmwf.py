@@ -7,9 +7,11 @@ import xarray as xr
 from dateutil import rrule
 from scipy.interpolate import griddata
 
-clobber = True
+clobber = False
 
 start_date = date(2007, 1, 1)
+# TODO: check date 2020-01-01
+# start_date = date(2020, 1, 2)
 end_date = date(2022, 12, 31)
 
 date_range = rrule.rrule(
