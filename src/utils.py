@@ -50,13 +50,19 @@ def download_and_process_chirps(clobber=False):
     chirps.process(clobber=clobber)
 
 
-def download_chirps_gefs(days_ahead, clobber=False):
+def download_chirps_gefs(year=None, clobber=False):
     adm0 = load_codab(admin_level=0)
-    end_date = datetime.date(year=2022, month=12, day=31)
+    if year is not None:
+        start_date = datetime.date(year=year, month=1, day=1)
+        end_date = datetime.date(year=year, month=12, day=31)
+    else:
+        start_date = datetime.date(year=2020, month=1, day=1)
+        end_date = datetime.date(year=2022, month=12, day=31)
     chirps_gefs = ChirpsGefs(
         country_config=constants.country_config,
-        days_ahead=days_ahead,
         adm0=adm0,
+        start_date=start_date,
         end_date=end_date,
+        leadtime_max=10,
     )
     chirps_gefs.download(clobber=clobber)
