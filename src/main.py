@@ -20,7 +20,13 @@ def run_pipeline(clobber: bool = False):
     # utils.process_floodscan_admin(admin_level=1)
     # utils.process_floodscan_admin(admin_level=2)
     # Chirps
-    utils.download_and_process_chirps(clobber=clobber)
+    # utils.download_and_process_chirps(clobber=clobber)
+    # Chirps-Gefs
+    utils.download_chirps_gefs(clobber=clobber)
+    # utils.download_chirps_gefs(days_ahead=5, clobber=clobber)
+    # utils.download_chirps_gefs(days_ahead=10, clobber=clobber)
+    # utils.download_chirps_gefs(days_ahead=15, clobber=clobber)
+    return
 
 
 if __name__ == "__main__":

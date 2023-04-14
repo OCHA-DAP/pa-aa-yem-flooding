@@ -6,7 +6,7 @@ import xarray as xr
 from ochanticipy import ChirpsDaily, CodAB, GeoBoundingBox
 
 from src import constants
-from src.datasource_extensions import FloodScan
+from src.datasource_extensions import ChirpsGefs, FloodScan
 
 logger = logging.getLogger(__name__)
 
@@ -48,3 +48,21 @@ def download_and_process_chirps(clobber=False):
     )
     chirps.download(clobber=clobber)
     chirps.process(clobber=clobber)
+
+
+def download_chirps_gefs(year=None, clobber=False):
+    adm0 = load_codab(admin_level=0)
+    if year is not None:
+        start_date = datetime.date(year=year, month=1, day=1)
+        end_date = datetime.date(year=year, month=12, day=31)
+    else:
+        start_date = datetime.date(year=2020, month=1, day=1)
+        end_date = datetime.date(year=2022, month=12, day=31)
+    chirps_gefs = ChirpsGefs(
+        country_config=constants.country_config,
+        adm0=adm0,
+        start_date=start_date,
+        end_date=end_date,
+        leadtime_max=10,
+    )
+    chirps_gefs.download(clobber=clobber)
