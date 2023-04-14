@@ -160,18 +160,9 @@ dmypy.json
 # Package-specific files
 *.tar.gz
 *.Rcheck/
-<<<<<<< Updated upstream
-
 
 # notebooks
 *.ipynb
 
-in_prog/
-
-=======
 *.rds
 .httr-oauth
-
-# Notebooks
-*.ipynb
->>>>>>> Stashed changes
