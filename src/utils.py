@@ -1,9 +1,13 @@
 import datetime
 import logging
 
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import xarray as xr
 from ochanticipy import ChirpsDaily, CodAB, GeoBoundingBox
+from scipy.interpolate import interp1d
+from scipy.stats import genextreme as gev
 
 from src import constants
 from src.datasource_extensions import ChirpsGefs, FloodScan
@@ -66,3 +70,44 @@ def download_chirps_gefs(year=None, clobber=False):
         leadtime_max=10,
     )
     chirps_gefs.download(clobber=clobber)
+
+
+def get_return_period_function_analytical(
+    df_rp: pd.DataFrame,
+    rp_var: str,
+    show_plots: bool = False,
+    plot_title: str = "",
+    extend_factor: int = 1,
+):
+    """
+    :param df_rp: DataFrame where the index is the year, and the rp_var
+    column contains the maximum value per year
+    :param rp_var: The column with the quantity to be evaluated
+    :param show_plots: Show the histogram with GEV distribution overlaid
+    :param plot_title: The title of the plot
+    :param extend_factor: Extend the interpolation range in case you want to
+    calculate a relatively high return period
+    :return: Interpolated function that gives the quantity for a
+    given return period
+    """
+    df_rp = df_rp.sort_values(by=rp_var, ascending=False)
+    rp_var_values = df_rp[rp_var]
+    shape, loc, scale = gev.fit(
+        rp_var_values,
+        loc=rp_var_values.median(),
+        scale=rp_var_values.median() / 2,
+    )
+    x = np.linspace(
+        rp_var_values.min(),
+        rp_var_values.max() * extend_factor,
+        100 * extend_factor,
+    )
+    if show_plots:
+        fig, ax = plt.subplots()
+        ax.hist(rp_var_values, density=True, bins=20)
+        ax.plot(x, gev.pdf(x, shape, loc, scale))
+        ax.set_title(plot_title)
+        plt.show()
+    y = gev.cdf(x, shape, loc, scale)
+    y = 1 / (1 - y)
+    return interp1d(y, x)
