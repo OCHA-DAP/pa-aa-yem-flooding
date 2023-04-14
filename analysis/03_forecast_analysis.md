@@ -255,6 +255,83 @@ for quantity in ["mae", "bias"]:
     ax.set_ylabel("percent error")
 ```
 
-```python
+### Forecast events
 
+Use both the observation and forecast 1-in-2 year threshold to
+find events and compare performance
+
+```python
+# Loop through lead times
+min_duration = 1  # day
+days_before_buffer = 5
+days_after_buffer = 1
+
+df_event_stats = pd.DataFrame()
+leadtimes = np.arange(1, 9)
+
+for gov in GOVS:
+    df = df_comb_dict[gov].copy()
+    rp_value = rp_dict[gov]
+    # Get the model and dates
+    model = df["era_roll3"]
+    model_dates = utils.get_dates_list_from_data_series(
+        model, rp_value, min_duration=min_duration
+    )
+    for leadtime in leadtimes:
+        # Get the forecast at a specific lead time and dates
+        forecast = df[leadtime]
+        forecast_dates = utils.get_dates_list_from_data_series(
+            forecast, rp_value, min_duration=min_duration
+        )
+        # Match the dates to events
+        detection_stats = utils.get_detection_stats(
+            true_event_dates=model_dates,
+            forecasted_event_dates=forecast_dates,
+            days_before_buffer=days_before_buffer,
+            days_after_buffer=days_after_buffer,
+        )
+        df_event_stats = pd.concat(
+            (
+                df_event_stats,
+                pd.DataFrame(
+                    {
+                        **{"gov": gov, "leadtime": leadtime},
+                        **detection_stats,
+                    },
+                    index=[0],
+                ),
+            ),
+            ignore_index=True,
+        )
+df_event_stats = utils.get_more_detection_stats(df_event_stats)
+df_event_stats
+```
+
+```python
+cdict = {
+    "TP": "tab:olive",
+    "FP": "tab:orange",
+    "FN": "tab:red",
+    "POD": "tab:blue",
+    "FAR": "tab:cyan",
+}
+
+for gov in GOVS:
+    fig, ax = plt.subplots()
+    ax2 = ax.twinx()
+    df = df_event_stats[df_event_stats["gov"] == gov]
+    lines1, lines2 = [], []
+    for stat in ["TP", "FP", "FN"]:
+        lines1 += ax.plot(df["leadtime"], df[stat], c=cdict[stat], label=stat)
+    for stat in ["POD", "FAR"]:
+        lines2 += ax2.plot(df["leadtime"], df[stat], c=cdict[stat], label=stat)
+    lines = lines1 + lines2
+    labels = [line.get_label() for line in lines]
+    ax.legend(lines, labels)
+    ax.set_ylim(-1, 60)
+    ax2.set_ylim(-0.03, 1.03)
+    ax.set_ylabel("Number")
+    ax.set_xlabel("Lead time [days]")
+    ax2.set_ylabel("POD / FAR")
+    ax.set_title(gov)
 ```
