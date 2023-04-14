@@ -19,12 +19,6 @@ from src import constants, utils
 ```
 
 ```python
-from importlib import reload
-
-reload(utils)
-```
-
-```python
 # Governorate names
 GOVS = ["Hajjah", "Marib"]
 RP = 2
