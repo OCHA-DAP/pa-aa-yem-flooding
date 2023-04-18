@@ -14,7 +14,7 @@ others if needed.
 ```
 
 ```python
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import xarray as xr
 ```
@@ -33,19 +33,20 @@ First read in the ERA5 data, which was downloaded from
 (land hourly data)
 
 ```python
-# Read in HRES data and select desired date
+# Read in HRES data and select desired date.
+# Also select the final step (00:00) as this provides
+# the cumulative rainfall for the day.
 da_era5 = (
     xr.load_dataset(filename_era5, engine="cfgrib")["tp"]
-    .sum(dim="step")
     .sel(time=compare_date)
+    .isel(step=-1)
 )
 ```
 
 A plot of the data shows significant rainfall along the west coast.
-My best guess is that the precipitation is presented in mm?
 
 ```python
-da_era5.plot(vmin=0, vmax=0.3)
+da_era5.plot(vmin=0, vmax=0.03)
 ```
 
 ## HRES
@@ -60,10 +61,19 @@ using a query such as
 da_hres = xr.load_dataset(filename_hres, engine="cfgrib")["tp"].isel(step=1)
 ```
 
-Plotting the HRES data, it looks to be about a factor of 10 below ERA5.
-So I'm guessing it's in cm? Even though the units say m, which I don't
-think is correct.
+Plotting the HRES data, there also appears to be significant rainfall
+along the west coast, although the forecast is not as smooth
+as the model.
 
 ```python
 da_hres.plot(vmin=0, vmax=0.03)
+```
+
+## Difference
+
+Calculate the difference between ERA5 and HRES data.
+The plot below shows the ERA5 - HRES, in mm.
+
+```python
+((da_era5 - da_hres) * 1000).plot(cmap="RdBu_r")
 ```
