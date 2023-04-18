@@ -2,6 +2,7 @@ import datetime
 import logging
 from typing import List
 
+import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -11,7 +12,7 @@ from scipy.interpolate import interp1d
 from scipy.stats import genextreme as gev
 
 from src import constants
-from src.datasource_extensions import ChirpsGefs, FloodScan
+from src.datasource_extensions import ChirpsGefs, Era5, FloodScan
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,15 @@ def load_codab(admin_level=0):
 def load_floodscan_raw() -> xr.Dataset:
     floodscan = FloodScan(country_config=constants.country_config)
     return floodscan.load_raw(gdf=load_codab(admin_level=0))
+
+
+def load_high_risk_hulls() -> gpd.GeoDataFrame:
+    # TODO: In R targets make the shapefile output be written somewhere
+    #  automatically, then update the filepath
+    return gpd.read_file(
+        constants.oap_data_dir / "private/processed/yem/targets_20230407/csv/"
+        "high_risk_hulls.shp"
+    )
 
 
 def process_floodscan_admin(admin_level: int = 2):
@@ -53,6 +63,13 @@ def download_and_process_chirps(clobber=False):
     )
     chirps.download(clobber=clobber)
     chirps.process(clobber=clobber)
+
+
+def process_era5(clobber=False):
+    chirps = Era5(
+        country_config=constants.country_config,
+    )
+    chirps.process(high_risk_hulls=load_high_risk_hulls())
 
 
 def download_chirps_gefs(year=None, clobber=False):

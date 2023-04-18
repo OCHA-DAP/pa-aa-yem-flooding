@@ -77,3 +77,7 @@ The plot below shows the ERA5 - HRES, in mm.
 ```python
 ((da_era5 - da_hres) * 1000).plot(cmap="RdBu_r")
 ```
+
+```python
+
+```

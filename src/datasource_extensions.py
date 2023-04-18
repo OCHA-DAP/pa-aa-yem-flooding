@@ -3,13 +3,17 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import rasterio
 import xarray as xr
 from dateutil import rrule
 from ochanticipy import CountryConfig
 from ochanticipy.datasources.datasource import DataSource
+from rasterio.crs import CRS
+from rasterio.enums import Resampling
 from rasterio.errors import RasterioIOError
+from shapely.geometry import box
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +95,78 @@ class FloodScan(_DataSourceExtension):
         return pd.read_csv(
             self._processed_base_dir / f"floodscan_stats_{feature_col}.csv"
         )
+
+
+class Era5(_DataSourceExtension):
+    _DATASOURCE_BASENAME = "ecmwf"
+    _IS_PUBLIC = True
+    _IS_GLOBAL_RAW = False
+    _PROCESSED_FILENAME = "era5_high_risk_hulls.csv"
+
+    def __init__(
+        self,
+        country_config: CountryConfig,
+    ):
+        super().__init__(country_config)
+
+    def process(
+        self,
+        high_risk_hulls: gpd.GeoDataFrame,
+        bounds_buffer: float = 0.5,
+        resolution=0.01,
+    ):
+        # Load all the raw netcdf files
+        era5_files = list(self._raw_base_dir.glob("*.grib2"))
+        da = (
+            xr.open_mfdataset(era5_files, engine="cfgrib")["tp"]
+            # Select the 24h time point
+            .isel(step=-1)
+            # Set coordinates to EPSG 4326
+            .rio.write_crs(CRS.from_epsg(4326))
+        )
+        # Loop through the high risk hulls
+        df_era5 = pd.DataFrame()
+        for _, row in high_risk_hulls.iterrows():
+            logger.info(f"Running for {row.gvrnrt_}")
+            bounds = row.geometry.bounds
+            new_bounds = box(
+                bounds[0] - bounds_buffer,
+                bounds[1] - bounds_buffer,
+                bounds[2] + bounds_buffer,
+                bounds[3] + bounds_buffer,
+            )
+            # Clip to bounds
+            logger.info("Clipping and reporjecting")
+            da_hull = (
+                da.rio.clip([new_bounds])
+                # resample to much higher resolution
+                .rio.reproject(
+                    da.rio.crs,
+                    resolution=resolution,
+                    resampling=Resampling.nearest,
+                    nodata=np.nan,
+                )
+                # Then clip again to the hull
+                .rio.clip([row.geometry])
+                # Take the mean along lat / lon
+                .mean(axis=(1, 2))
+            )
+            df_era5 = df_era5.append(
+                pd.DataFrame(
+                    {
+                        "time": da_hull.time,
+                        "value": da_hull.values,
+                        "gov": row.gvrnrt_,
+                    }
+                ),
+                ignore_index=True,
+            )
+
+        processed_filepath = (
+            self._processed_base_dir / self._PROCESSED_FILENAME
+        )
+        processed_filepath.parent.mkdir(parents=True, exist_ok=True)
+        df_era5.to_csv(processed_filepath, index=False)
 
 
 class ChirpsGefs(_DataSourceExtension):
