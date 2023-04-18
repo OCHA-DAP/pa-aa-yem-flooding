@@ -72,6 +72,16 @@ def process_era5(clobber=False):
     chirps.process(high_risk_hulls=load_high_risk_hulls())
 
 
+def process_chirps_gefs(clobber=False):
+    adm0 = load_codab(admin_level=0)
+    chirps_gefs = ChirpsGefs(
+        country_config=constants.country_config,
+        adm0=adm0,
+        leadtime_max=10,
+    )
+    chirps_gefs.process(high_risk_hulls=load_high_risk_hulls())
+
+
 def download_chirps_gefs(year=None, clobber=False):
     adm0 = load_codab(admin_level=0)
     if year is not None:

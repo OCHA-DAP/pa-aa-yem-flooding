@@ -125,7 +125,7 @@ class Era5(_DataSourceExtension):
             .rio.write_crs(CRS.from_epsg(4326))
         )
         # Loop through the high risk hulls
-        df_era5 = pd.DataFrame()
+        df_results = pd.DataFrame()
         for _, row in high_risk_hulls.iterrows():
             logger.info(f"Running for {row.gvrnrt_}")
             bounds = row.geometry.bounds
@@ -151,7 +151,7 @@ class Era5(_DataSourceExtension):
                 # Take the mean along lat / lon
                 .mean(axis=(1, 2))
             )
-            df_era5 = df_era5.append(
+            df_results = df_results.append(
                 pd.DataFrame(
                     {
                         "time": da_hull.time,
@@ -166,7 +166,7 @@ class Era5(_DataSourceExtension):
             self._processed_base_dir / self._PROCESSED_FILENAME
         )
         processed_filepath.parent.mkdir(parents=True, exist_ok=True)
-        df_era5.to_csv(processed_filepath, index=False)
+        df_results.to_csv(processed_filepath, index=False)
 
 
 class ChirpsGefs(_DataSourceExtension):
@@ -180,12 +180,13 @@ class ChirpsGefs(_DataSourceExtension):
     )
     _RUN_DATE_FORMAT = "%Y/%m/%d"
     _FORECAST_DATE_FORMAT = "%Y.%m%d"
+    _PROCESSED_FILENAME = "chirps-gefs_daily_high_risk_hulls.csv"
 
     def __init__(
         self,
         country_config: CountryConfig,
         adm0: gpd.GeoDataFrame,
-        end_date: date,
+        end_date: date = date(2022, 12, 31),
         start_date: date = date(2000, 1, 1),
         leadtime_max: int = 15,
     ):
@@ -205,16 +206,11 @@ class ChirpsGefs(_DataSourceExtension):
         """Download the chirps-gefs forecast for the given year and
         day of the year
         """
-        raw_dir = self._raw_base_dir / "daily"
-        raw_dir.mkdir(parents=True, exist_ok=True)
         for run_date in self._date_range:
             for leadtime in range(self._leadtime_max + 1):
-                filename = (
-                    f"chirpsgefs_{self._country_config.iso3}_"
-                    f"{run_date.strftime('%Y-%m-%d')}_"
-                    f"lt{str(leadtime).zfill(2)}d.tif"
+                download_filepath = self._get_download_filepath(
+                    run_date, leadtime
                 )
-                download_filepath = raw_dir / filename
                 if not clobber and download_filepath.exists():
                     logger.info(
                         f"{download_filepath} already exists and "
@@ -254,3 +250,99 @@ class ChirpsGefs(_DataSourceExtension):
                 logger.info(
                     f"Downloaded and cropped {url} to {download_filepath}"
                 )
+
+    def _get_download_filepath(self, run_date, leadtime):
+        raw_dir = self._raw_base_dir / "daily"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        return (
+            raw_dir / f"chirpsgefs_{self._country_config.iso3}_"
+            f"{run_date.strftime('%Y-%m-%d')}_"
+            f"lt{str(leadtime).zfill(2)}d.tif"
+        )
+
+    def process(
+        self,
+        high_risk_hulls: gpd.GeoDataFrame,
+        bounds_buffer: float = 0.5,
+        resolution=0.01,
+    ):
+        # Loop through all dates
+        df_results_full = pd.DataFrame()
+        for run_date in self._date_range:
+            # Loop through all lead times
+            for leadtime in range(10):
+                df_output = self._process_single_file(
+                    run_date=run_date,
+                    leadtime=leadtime + 1,
+                    high_risk_hulls=high_risk_hulls,
+                    bounds_buffer=bounds_buffer,
+                    resolution=resolution,
+                )
+                if df_output is None:
+                    continue
+                df_results_full = pd.concat(
+                    (df_results_full, df_output), ignore_index=True
+                )
+
+        processed_filepath = (
+            self._processed_base_dir / self._PROCESSED_FILENAME
+        )
+        processed_filepath.parent.mkdir(parents=True, exist_ok=True)
+        df_results_full.to_csv(processed_filepath, index=False)
+
+    def _process_single_file(
+        self, run_date, leadtime, high_risk_hulls, bounds_buffer, resolution
+    ):
+        # Load all the raw netcdf files
+        filename = self._get_download_filepath(
+            run_date=run_date, leadtime=leadtime
+        )
+        logger.info(f"Processing {filename}")
+        try:
+            da = (
+                xr.load_dataset(filename, engine="rasterio")["band_data"]
+                # Set coordinates to EPSG 4326
+                .rio.write_crs(CRS.from_epsg(4326))
+            )
+        except RasterioIOError:
+            logger.warning("file does not exist")
+            return
+        # Loop through the high risk hulls
+        df_results = pd.DataFrame()
+        for _, row in high_risk_hulls.iterrows():
+            bounds = row.geometry.bounds
+            new_bounds = box(
+                bounds[0] - bounds_buffer,
+                bounds[1] - bounds_buffer,
+                bounds[2] + bounds_buffer,
+                bounds[3] + bounds_buffer,
+            )
+            # Clip to bounds
+            da_hull = (
+                da.rio.clip([new_bounds])
+                # resample to much higher resolution
+                .rio.reproject(
+                    da.rio.crs,
+                    resolution=resolution,
+                    resampling=Resampling.nearest,
+                    nodata=np.nan,
+                )
+                # Then clip again to the hull
+                .rio.clip([row.geometry])
+                # Take the mean along lat / lon
+                .mean(axis=(1, 2))
+            )
+            df_results = pd.concat(
+                (
+                    df_results,
+                    pd.DataFrame(
+                        {
+                            "time": run_date,
+                            "leadtime": leadtime,
+                            "value": da_hull.values,
+                            "gov": row.gvrnrt_,
+                        }
+                    ),
+                ),
+                ignore_index=True,
+            )
