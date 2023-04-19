@@ -346,3 +346,4 @@ class ChirpsGefs(_DataSourceExtension):
                 ),
                 ignore_index=True,
             )
+        return df_results
