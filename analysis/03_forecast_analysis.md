@@ -3,8 +3,8 @@
 Analyzing HRES hindcast downloaded from MARS
 (and also using ERA5 historical).
 
-Using two csvs that were crated by hand from the R targets:
-`ecmwf_mars_high_risk_hulls` (hres.csv) and `era5_w_rolling` (era5.csv).
+The HRES data was created by hand from the R target
+`ecmwf_mars_high_risk_hulls` (hres.csv).
 
 ```python
 %load_ext jupyter_black
@@ -26,21 +26,29 @@ RP = 2
 
 ```python
 # Read in the data
-data_dir = (
+era5_data_dir = constants.oap_data_dir / "public/processed/yem/ecmwf/"
+df_era5 = pd.read_csv(era5_data_dir / "era5_high_risk_hulls.csv")
+
+hres_data_dir = (
     constants.oap_data_dir / "private/processed/yem/targets_20230407/csv/"
 )
-df_era5 = pd.read_csv(data_dir / "era5.csv")
-df_hres = pd.read_csv(data_dir / "hres.csv")
+df_hres = pd.read_csv(hres_data_dir / "hres.csv")
 ```
 
 ```python
 # Clean the dataframes a bit
+# In both cases convert m to mm (x by 1000)
+
 df_era5_dict = {
-    gov: df_era5.loc[df_era5["governorate_name"] == gov][
-        ["date", "era_roll3"]
-    ].set_index("date")
+    gov: df_era5.loc[df_era5["gov"] == gov][["time", "value"]]
+    .rename(columns={"value": "era5"})
+    .set_index("time")
+    .multiply(1000)
     for gov in GOVS
 }
+
+# df_hres["mean"] = df_hres["mean"]
+df_hres["mean"] = df_hres["mean"] * 1000
 df_hres_dict = {
     gov: df_hres.loc[df_hres["governorate_name"] == gov][["date", "mean"]]
     for gov in GOVS
@@ -50,7 +58,16 @@ df_hres_dict = {
 ## ERA5 return period
 
 ```python
-# First let's look quickly at the ERA5 data, for Hajjah
+# For era5 need to conver tot 3 day rolling
+for gov in GOVS:
+    df = df_era5_dict[gov]
+    df.index = pd.to_datetime(df.index).to_period("D")
+    df = df.rolling(3).sum().shift(-1).dropna()
+    df_era5_dict[gov] = df
+```
+
+```python
+# Then let's look quickly at the ERA5 data, for Hajjah
 df_era5_dict[GOVS[0]].plot(rot=90, title=GOVS[0])
 ```
 
@@ -58,11 +75,9 @@ df_era5_dict[GOVS[0]].plot(rot=90, title=GOVS[0])
 df_era5_dict[GOVS[1]].plot(rot=90, title=GOVS[1])
 ```
 
-A bit concerned about these plots. The data don't seem
+A couple of potential issues: The data don't seem
 as smooth as with CHIRPS, and the peak rainfall in the last
-3 years does not appear to be present.
-
-The units appear to be mm.
+3 years does not appear to be present for Marib.
 
 Next, on to RP calculation.
 
@@ -72,18 +87,14 @@ show_plots = True
 rp_dict = {}
 for gov in GOVS:
     df = df_era5_dict[gov].copy()
-    df.index = pd.to_datetime(df.index).to_period()
-    df = df.resample(rule="A", kind="period").max().sort_values(by="era_roll3")
+    df = df.resample(rule="A", kind="period").max().sort_values(by="era5")
     rp_func = utils.get_return_period_function_analytical(
-        df_rp=df, rp_var="era_roll3", show_plots=show_plots
+        df_rp=df, rp_var="era5", show_plots=show_plots
     )
     rp_dict[gov] = float(rp_func(RP))
 
 rp_dict
 ```
-
-For Hajjah the RP value is similar (40 vs I think ~30 or 35 mm
-for CHIRPS) but Marib is much lower.
 
 ## Processing HRES
 
@@ -102,12 +113,7 @@ df[["date", "step"]] = (
 df["step"] = (pd.to_numeric(df["step"]) / 24).astype(int)
 # Convert columns to leadtime,
 # for each lead time, subtract previous, since it's cumulative,
-# then multiply by 1000 (I think Zack must have changed the units?)
-df = (
-    df.pivot(columns="step", values="mean", index="date")
-    .diff(axis=1)
-    .multiply(1000)
-)
+df = df.pivot(columns="step", values="mean", index="date").diff(axis=1)
 df
 ```
 
@@ -148,11 +154,7 @@ for gov in GOVS:
     # Convert columns to leadtime,
     # for each lead time, subtract previous, since it's cumulative,
     # then multiply by 1000 (I think Zack must have changed the units?)
-    df = (
-        df.pivot(columns="step", values="mean", index="date")
-        .diff(axis=1)
-        .multiply(1000)
-    )
+    df = df.pivot(columns="step", values="mean", index="date").diff(axis=1)
     # Next do the rolling 3-day sum, but across columns
     # Doing by hand because I don't know how to apply rolling
     df = df.rolling(3, axis=1).sum().drop(columns=[0, 1, 2])
@@ -164,10 +166,6 @@ for gov in GOVS:
     df_hres_proc_dict[gov] = df
 ```
 
-```python
-df_hres_proc_dict[GOVS[0]][1].plot()
-```
-
 ## Forecast analysis
 
 Start by merging data frames
@@ -177,10 +175,24 @@ df_comb_dict = {}
 for gov in GOVS:
     obs = df_era5_dict[gov].copy()
     fc = df_hres_proc_dict[gov].copy()
-    obs.index = pd.to_datetime(obs.index)
-    fc.index = pd.to_datetime(fc.index)
-    df_comb_dict[gov] = pd.merge(obs, fc, left_index=True, right_index=True)
+    fc.index = pd.to_datetime(fc.index).to_period("D")
+    df_comb = pd.merge(obs, fc, left_index=True, right_index=True)
+    df_comb.index = df_comb.index.to_timestamp()
+    df_comb_dict[gov] = df_comb
+
 df_comb_dict
+```
+
+```python
+from datetime import date
+
+for gov in GOVS:
+    fig, ax = plt.subplots()
+    df = df_comb_dict[gov]
+    ax.plot(df["era5"] - df[1], alpha=0.3)
+    ax.plot(df["era5"] - df[5], alpha=0.3)
+    ax.set_xlim(date(2020, 1, 1), date(2022, 12, 31))
+    ax.set_title(gov)
 ```
 
 ## General forecast skill and bias
@@ -207,7 +219,7 @@ leadtimes = np.arange(1, 9)
 for gov in GOVS:
     df = df_comb_dict[gov].copy()
     for minval in [1, rp_dict[gov]]:
-        df = df[df["era_roll3"] > minval]
+        df = df[df["era5"] > minval]
         for quantity in ["mae", "bias"]:
             df_results = pd.concat(
                 (
@@ -216,7 +228,7 @@ for gov in GOVS:
                         dict(
                             values=[
                                 func_dict[quantity](
-                                    df["era_roll3"], df[leadtime]
+                                    df["era5"], df[leadtime]
                                 ).mean()
                                 for leadtime in leadtimes
                             ],
@@ -255,6 +267,10 @@ Use both the observation and forecast 1-in-2 year threshold to
 find events and compare performance
 
 ```python
+model_dates
+```
+
+```python
 # Loop through lead times
 min_duration = 1  # day
 days_before_buffer = 5
@@ -267,7 +283,7 @@ for gov in GOVS:
     df = df_comb_dict[gov].copy()
     rp_value = rp_dict[gov]
     # Get the model and dates
-    model = df["era_roll3"]
+    model = df["era5"]
     model_dates = utils.get_dates_list_from_data_series(
         model, rp_value, min_duration=min_duration
     )
@@ -306,8 +322,9 @@ cdict = {
     "TP": "tab:olive",
     "FP": "tab:orange",
     "FN": "tab:red",
-    "POD": "tab:blue",
-    "FAR": "tab:cyan",
+    "precision": "tab:blue",
+    "recall": "tab:cyan",
+    "F1": "tab:green",
 }
 
 for gov in GOVS:
@@ -317,7 +334,7 @@ for gov in GOVS:
     lines1, lines2 = [], []
     for stat in ["TP", "FP", "FN"]:
         lines1 += ax.plot(df["leadtime"], df[stat], c=cdict[stat], label=stat)
-    for stat in ["POD", "FAR"]:
+    for stat in ["precision", "recall", "F1"]:
         lines2 += ax2.plot(df["leadtime"], df[stat], c=cdict[stat], label=stat)
     lines = lines1 + lines2
     labels = [line.get_label() for line in lines]
@@ -328,4 +345,8 @@ for gov in GOVS:
     ax.set_xlabel("Lead time [days]")
     ax2.set_ylabel("POD / FAR")
     ax.set_title(gov)
+```
+
+```python
+
 ```

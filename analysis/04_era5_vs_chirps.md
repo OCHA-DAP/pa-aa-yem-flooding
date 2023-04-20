@@ -1,12 +1,10 @@
-<!-- #region -->
 # ERA5 vs CHIRPS
 
 Checking how well the ECMWF rainfall model, ERA5,
 corresponds with CHIRPS rainfall.
 
-Using two csvs that were crated by hand from the R targets:
-`zonal_stats_high_risk_hulls` (chirps.csv) and `era5_w_rolling` (era5.csv).
-<!-- #endregion -->
+Using csv that were crated by hand from the R targets:
+`zonal_stats_high_risk_hulls` (chirps.csv)
 
 ```python
 %load_ext jupyter_black
@@ -26,23 +24,25 @@ RP = 2
 
 ```python
 # Read in the data
-data_dir = (
+
+# Read in the data
+era5_data_dir = constants.oap_data_dir / "public/processed/yem/ecmwf/"
+df_era5 = pd.read_csv(era5_data_dir / "era5_high_risk_hulls.csv")
+
+
+chirps_data_dir = (
     constants.oap_data_dir / "private/processed/yem/targets_20230407/csv/"
 )
-df_era5 = pd.read_csv(data_dir / "era5.csv")
-df_chirps = pd.read_csv(data_dir / "chirps.csv")
-```
-
-```python
-df_chirps
+df_chirps = pd.read_csv(chirps_data_dir / "chirps.csv")
 ```
 
 ```python
 # Clean the dataframes a bit
 df_era5_dict = {
-    gov: df_era5.loc[df_era5["governorate_name"] == gov][
-        ["date", "era_roll3"]
-    ].set_index("date")
+    gov: df_era5.loc[df_era5["gov"] == gov][["time", "value"]]
+    .rename(columns={"value": "era5"})
+    .set_index("time")
+    .multiply(1000)
     for gov in GOVS
 }
 
@@ -59,15 +59,27 @@ df_chirps_dict = {
 ### ERA5
 
 ```python
+# For era5 need to conver tot 3 day rolling
+for gov in GOVS:
+    df = df_era5_dict[gov]
+    df.index = pd.to_datetime(df.index).to_period("D")
+    df = df.rolling(3).sum().shift(1).dropna()
+    df_era5_dict[gov] = df
+```
+
+```python
+df_era5_dict
+```
+
+```python
 show_plots = True
 
 rp_era5_dict = {}
 for gov in GOVS:
     df = df_era5_dict[gov].copy()
-    df.index = pd.to_datetime(df.index).to_period()
-    df = df.resample(rule="A", kind="period").max().sort_values(by="era_roll3")
+    df = df.resample(rule="A", kind="period").max().sort_values(by="era5")
     rp_func = utils.get_return_period_function_analytical(
-        df_rp=df, rp_var="era_roll3", show_plots=show_plots
+        df_rp=df, rp_var="era5", show_plots=show_plots
     )
     rp_era5_dict[gov] = float(rp_func(RP))
 
@@ -101,16 +113,18 @@ for gov in GOVS:
     obs = df_chirps_dict[gov].copy().rename(columns={"mean": "chirps"})
     fc = df_era5_dict[gov].copy().rename(columns={"era_roll3": "era5"})
     obs.index = pd.to_datetime(obs.index)
-    fc.index = pd.to_datetime(fc.index)
-    df_comb_dict[gov] = pd.merge(obs, fc, left_index=True, right_index=True).dropna()
+    fc.index = fc.index.to_timestamp()
+    df_comb_dict[gov] = pd.merge(
+        obs, fc, left_index=True, right_index=True
+    ).dropna()
 df_comb_dict
 ```
 
 ```python
 # Loop through lead times
 min_duration = 1  # day
-days_before_buffer = 5
-days_after_buffer = 1
+days_before_buffer = 10
+days_after_buffer = 10
 
 df_event_stats = pd.DataFrame()
 
