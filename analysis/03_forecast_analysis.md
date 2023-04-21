@@ -162,7 +162,7 @@ for gov in GOVS:
     df.columns -= 2
     # Finally, shift the leadtimes
     for n in range(8):
-        df[n + 1] = df[n + 1].shift(n + 1)
+        df[n + 1] = df[n + 1].shift(n)
     df_hres_proc_dict[gov] = df
 ```
 
@@ -181,18 +181,6 @@ for gov in GOVS:
     df_comb_dict[gov] = df_comb
 
 df_comb_dict
-```
-
-```python
-from datetime import date
-
-for gov in GOVS:
-    fig, ax = plt.subplots()
-    df = df_comb_dict[gov]
-    ax.plot(df["era5"] - df[1], alpha=0.3)
-    ax.plot(df["era5"] - df[5], alpha=0.3)
-    ax.set_xlim(date(2020, 1, 1), date(2022, 12, 31))
-    ax.set_title(gov)
 ```
 
 ## General forecast skill and bias
@@ -267,14 +255,10 @@ Use both the observation and forecast 1-in-2 year threshold to
 find events and compare performance
 
 ```python
-model_dates
-```
-
-```python
 # Loop through lead times
 min_duration = 1  # day
-days_before_buffer = 5
-days_after_buffer = 1
+days_before_buffer = 15
+days_after_buffer = 15
 
 df_event_stats = pd.DataFrame()
 leadtimes = np.arange(1, 9)
@@ -343,10 +327,37 @@ for gov in GOVS:
     ax2.set_ylim(-0.03, 1.03)
     ax.set_ylabel("Number")
     ax.set_xlabel("Lead time [days]")
-    ax2.set_ylabel("POD / FAR")
+    ax2.set_ylabel("Fraction")
     ax.set_title(gov)
 ```
 
 ```python
+# Make plots of what happens when crossing thresholds
+min_duration = 1  # day
+leadtimes = np.arange(1, 9)
+xrange = np.timedelta64(15, "D")
 
+
+for gov in GOVS:
+    df = df_comb_dict[gov].copy()
+    rp_value = rp_dict[gov]
+    # Get the model and dates
+    for desired_events, title in zip(
+        (df["era5"], df[5]), ("ERA5", "HRES: LT=5d")
+    ):
+        event_dates = utils.get_dates_list_from_data_series(
+            desired_events, rp_value, min_duration=min_duration
+        )
+        for event_date in event_dates:
+            fig, ax = plt.subplots()
+            ax.set_xlim(
+                pd.Timestamp(event_date - xrange),
+                pd.Timestamp(event_date + xrange),
+            )
+            ax.axhline(rp_value, c="k", lw=1)
+            ax.axvline(event_date, c="k", lw=0.5)
+            df["era5"].plot(ax=ax, c="k", lw=2)
+            df[[1, 2, 3, 4, 5, 6, 7, 8]].plot(ax=ax, lw=0.5)
+            ax.set_title(f"{gov}, event from {title}")
+            plt.show()
 ```
