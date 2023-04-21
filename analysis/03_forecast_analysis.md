@@ -133,11 +133,11 @@ df = df.rolling(3, axis=1).sum().drop(columns=[0, 1, 2])
 df.columns -= 2
 # Finally, shift the leadtimes
 for n in range(8):
-    df[n + 1] = df[n + 1].shift(n + 1)
+    df[n + 1] = df[n + 1].shift(n)
 df
 ```
 
-## Apply to all HRES data
+### Apply to all HRES data
 
 ```python
 # Now apply the above to the hres data
@@ -164,6 +164,37 @@ for gov in GOVS:
     for n in range(8):
         df[n + 1] = df[n + 1].shift(n)
     df_hres_proc_dict[gov] = df
+```
+
+### Get HRES return periods
+
+```python
+rp_dict_hres = {}
+show_plots = False
+for gov in GOVS:
+    rp_dict_hres_leadtime = {}
+    df = df_hres_proc_dict[gov].copy()
+    # Recalculate ERA5 RP with new dates
+    df_era5 = df_era5_dict[gov].copy()
+    df_era5 = df_era5[df_era5.index >= df.index[0]]
+    df_era5 = (
+        df_era5.resample(rule="A", kind="period").max().sort_values(by="era5")
+    )
+    rp_func = utils.get_return_period_function_analytical(
+        df_rp=df_era5, rp_var="era5", show_plots=show_plots
+    )
+    rp_dict_hres_leadtime["era5"] = float(rp_func(RP))
+    # Now do HRES
+    df.index = pd.to_datetime(df.index).to_period("D")
+    df = df.resample(rule="A", kind="period").max()  # .sort_values(by="era5")
+    for leadtime in range(1, 9):
+        rp_func = utils.get_return_period_function_analytical(
+            df_rp=df, rp_var=leadtime, show_plots=show_plots
+        )
+        rp_dict_hres_leadtime[leadtime] = float(rp_func(RP))
+    rp_dict_hres[gov] = rp_dict_hres_leadtime
+
+rp_dict_hres
 ```
 
 ## Forecast analysis
@@ -206,7 +237,7 @@ df_results = pd.DataFrame(
 leadtimes = np.arange(1, 9)
 for gov in GOVS:
     df = df_comb_dict[gov].copy()
-    for minval in [1, rp_dict[gov]]:
+    for minval in [1, rp_dict[gov] / 10]:
         df = df[df["era5"] > minval]
         for quantity in ["mae", "bias"]:
             df_results = pd.concat(
