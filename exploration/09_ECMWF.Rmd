@@ -235,6 +235,9 @@ chirps_era_long %>%
 
 ## Return Periods
 
+
+### ERA 5 Precip RPs
+
 This chunk calculates the return period for the ERA data at daily, 3-day, 5-day, and 10-day accumulation levels.
 
 ```{r}
@@ -257,4 +260,96 @@ era_return_periods_df <- chirps_era_wide %>%
 
 era_return_periods_df
 ```
+
+### ECMWF-MARS RPS
+
+just the skeleton for ECMWF MARS RPs (not finished)
+
+```{r}
+tar_load(ecmwf_mars_leads_split_rolled)
+
+ecmwf_mars_rps <- ecmwf_mars_leads_split_rolled %>% 
+    split(.$governorate_name) %>% 
+    imap_dfr(
+        \(df_temp,nm){
+            c("lead_1_daily","lead_8_daily") %>% 
+                map(\(precip_temp){
+                    return_period_level_tibble(df = df_temp,
+                           value = precip_temp,
+                           date = "date_forecast_predict",rp_year = c(2,3,4,5 )) %>% 
+                        mutate(precip_regime= precip_temp,
+                               governorate_name=nm)
+                }
+                ) 
+            
+        }
+    ) 
+```
+
+## Compare GEE ERA5 Precip to Local
+
+Just curious to make sure ERA5 precip from GEE is the same as our local rasters
+
+```{r}
+tar_load(era5_w_rolling)
+# lets find the max rainfall date and look around that date as an example
+era5_w_rolling %>% 
+    filter(era_precip_daily==max(era_precip_daily))
+
+# max precip occured in Sep 2001 - let's ppull the data from that month
+era5_dir <-  file.path(Sys.getenv("AA_DATA_DIR"),"public", "raw","yem","ecmwf")
+era5_fp <- file.path(era5_dir, "yem_era5_tp_2001-09.grib2")
+
+# load month of data
+era5_sep2001 <- terra::rast(era5_fp)
+
+# rename layers with date
+era5_times <- terra::time(era5_sep2001)
+terra::set.names(era5_sep2001,terra::time(era5_sep2001))
+
+
+# load convex hulls for extraction
+tar_load(high_risk_hulls)
+
+# extract data to hulls
+era5_sep01_extr <- exact_extract(x = era5_sep2001,
+              y=high_risk_hulls, 
+              append_cols = "governorate_name",
+    fun = c("mean"),
+    force_df = T,
+    full_colnames = T
+  ) %>%
+    pivot_longer(-matches("governorate_name")) %>%
+    separate(name, into = c("stat", "date"), sep = "\\.") %>%
+    pivot_wider(names_from = "stat", values_from = "value") %>% 
+    mutate(
+        mean = mean*1000 # m to mm
+    )
+ 
+
+
+# combine GEE version and local data and calculate difference in daily values
+era5_daily_gee_vs_local <- era5_sep01_extr %>% 
+    rename(
+        date_time = "date"
+    ) %>% 
+    mutate(
+        date= as_date(date_time)-1
+    ) %>% 
+    filter(str_detect(date_time,"00:00:00")) %>% 
+    left_join(era5_w_rolling %>% select(governorate_name, era_precip_daily,date)) %>% 
+    mutate(
+        diff_mm=  mean- era_precip_daily
+    )
+
+# view 
+era5_daily_gee_vs_local
+
+# very little difference.
+mean(era5_daily_gee_vs_local$diff_mm)
+
+```
+
+GEE ERA 5 daily and local raster are essentially the same. Differences likely due to slight differences in how weighted calculations/simplifications of polygons are performed -- could compare pixels, but don't think it is worth it at this point
+
 
