@@ -34,20 +34,8 @@ if (!have_gghdx) {
 
 
 library(targets)
-# library(tidyverse)
-# library(sf)
-# library(terra)
-# library(exactextractr)
-# library(lubridate)
-# library(readxl)
-# library(janitor)
-# library(zoo)
 library(rgee) # `ee_Initialize()` is outside of pipeline.
 ee_Initialize(drive= T)
-# library(ggrepel)
-# library(tidyrgee)
-# library(gghdx)
-# 
 
 
 # library(tarchetypes) # Load other packages as needed. # nolint
