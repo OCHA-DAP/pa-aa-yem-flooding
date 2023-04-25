@@ -29,22 +29,27 @@ clean_cccm_impact_data|function|8d6350aa4cd7e977|||||||||||||||
 clustered_performance_calcs|function|cb4593932e57ed39|||||||||||||||
 cod_db_fp|stem|0750079050fda1f5|1fd60f0472fafe2c|a532b606f052f163|820157920|/Users/zackarno/Library/CloudStorage/GoogleDrive-Zachary.arno@humdata.org/Shared drives/Predictive Analytics/CERF Anticipatory Action/General - All AA projects/Data/public/raw/yem/cod_ab/yem_cod.gpkg|t19419.3062231161s|25c82e7c34e3cd75|11128832|file|local|vector|||0||
 dp2|object|0dca7516c30fdcda|||||||||||||||
+ecmwf_era5_dir|object|689cfaac3fb66d0b|||||||||||||||
+ecmwf_era5_rolling_zonal_local|function|9bd508c23dd798e1|||||||||||||||
+ecmwf_hres_rolling_zonal|function|8069c7d3aeb3f3ce|||||||||||||||
+ecmwf_hres_zonal_rolling2|stem|24720bbf7678e6c3|d3988858556aa85e|6804acbbd132f8f4|-2139548594||t19472.4257560546s|cc6e18b91b6f013a|2197774|rds|local|vector|||880.707||
 ecmwf_mars_clean|stem|d92d8b7f01963166|56aff68404946357|da958c35cda06832|-1568843160||t19454.0709439059s|f1bac05f694da67a|1429822|rds|local|vector|||0.324||
 ecmwf_mars_dir|object|0dca7516c30fdcda|||||||||||||||
-ecmwf_mars_high_risk_hulls|stem|0f8a3cce971aa7dd|25c272866783a28b|1f57a49350b57ef4|942999462||t19453.482721597s|b58c232437633dc9|1342806|rds|local|vector|||56.488||
-ecmwf_mars_historical_zonal_stats|function|616863430c49a009|||||||||||||||
+ecmwf_mars_high_risk_hulls|stem|0f8a3cce971aa7dd|25c272866783a28b|99440abe6abbf41b|942999462||t19472.40206955s|b58c232437633dc9|1342806|rds|local|vector|||56.354||
+ecmwf_mars_historical_zonal_stats|function|478b6ae30e84c0f1|||||||||||||||
 ecmwf_mars_leads_split_rolled|stem|b1fc4606c656b6b4|c38c101d2d2531ea|187b88785696c11a|-902169325||t19454.0709527202s|0a4e4b59c7f460be|2469726|rds|local|vector|||0.492||
 ee_closest_distance_to_val|function|8c526036dcfb368c|||||||||||||||
 ee_closest_distance_to_val.ee.image.Image|function|3b8e1363945e19b2|||||||||||||||
 ee_closest_distance_to_val.ee.imagecollection.ImageCollection|function|8e7bde8917b7fe03|||||||||||||||
 ee_dist_jrc_max_extent|function|c6def6de6bd7b3c3|||||||||||||||
 ee_roll|function|647c4a22b3745857|||||||||||||||
-era5_daily_high_risk_hulls|stem|46e3d082d3d686a4|3e31c82179070f65|95f35c0ad0b560f4|-205996208||t19453.4623373846s|09b6bd1b10f565ef|181215|rds|local|vector|||311.603||
 era5_daily_latest_re_high_risk_hulls|stem|46e3d082d3d686a4|3e31c82179070f65|e6d5d3295b79117c|-468994742||t19454.0995201118s|09b6bd1b10f565ef|181215|rds|local|vector|||151.06||
 era5_daily_raw_high_risk_hulls|stem|df97e2de356f010d|5df2ca5d731852e5|e6d5d3295b79117c|427459899||t19454.097771332s|6e83df08650dc9c4|253441|rds|local|vector|||121.294||
+era5_rolling_zonal_local|stem|c4324d6deb9fd06a|7f575bcc85fb176d|27d29e5d767f5b54|847329400||t19472.4126025513s|909f49965af4efa5|1102246|rds|local|vector|||210.246||
 era5_w_rolling|stem|7df15b4f6255bd5c|c26b014c3c18254c|3e03fc2c1b188f93|-1078427202||t19454.05950746s|91a9a1f4055e81e1|899668|rds|local|vector|||0.029||
 extract_chirps_gefs_to_pts|function|e2c85544fa820048|||||||||||||||
 extract_geomorph_landform_indicators|function|9d126d52d72f9a50|||||||||||||||
+extract_local_era5_daily|function|bc85ff0bd68214b2|||||||||||||||
 extract_zonal_stats_chirps|function|0f26d8727ed30d84|||||||||||||||
 find_priority_sites|function|49851487dce4a587|||||||||||||||
 floodscore_pct_by|function|340a4e306055af36|||||||||||||||
@@ -54,6 +59,7 @@ full_fps|object|b22fee75686dc7ee|||||||||||||||
 gefs_chirps_pts|stem|a3c435060ecf2d37|cfc6fc6e9e406ca9|903cba94252d740e|-2136007265||t19432.6313383938s|5fe48bd15ef55991|28122835|rds|local|vector|||1569.345||
 get_exclusion_dates|function|45a3b260a438632c|||||||||||||||
 get_geomorph_landform_indicators|function|49ab978139f5caf6|||||||||||||||
+get_local_era5_daily_precip|function|a3a4d0a08f34a0d5|||||||||||||||
 get_site_locs|function|d46cb1802b9496a1|||||||||||||||
 gov_area_rainfall_impact_tbl|stem|7f74d4a8a1bc106d|cf9c6b1ecb8e2e8b|42d2ad2ec9e607db|352936641||t19431.4342567926s|2d0328734d3a9bcc|503093|rds|local|vector|||0.648||
 grp_data_by|function|824fd4a15a465b3a|||||||||||||||
@@ -80,7 +86,6 @@ p_rainfall_rp_impact_num_shelters|stem|ff436d4b5c723ef2|20b7d41cbe686242|251867e
 p_rainfall_rp_impact_num_shelters_agg|stem|b46f34f7ff43efe6|ad4caf77488339a6|251867e6455224b4|22041185||t19453.9812993881s|30482928fba9d0bf|149149|rds|local|vector|||5.347||
 p_rainfall_rp_impact_num_shelters_agg_wind_rm|stem|c69e05369733a5d7|4f893d35576e7266|bd8e5f73672eb7e8|-1506752145||t19453.9811149946s|6c62ddff97e0e1e3|148503|rds|local|vector|||5.746|1m22mThere was 1 warning in summarise.1m22m36mℹ39m In argument acrosscvalue, max.x, na.rm  T.Caused by warning1m22m33m39m Using an external vector in selections was deprecated in tidyselect 1.1.0.36mℹ39m Please use all_of or any_of instead.   Was  data  selectvalue   Now  data  selectall_ofvalueSee httpstidyselect.rlib.orgreferencefaqexternalvector.html.|
 p_timeseries_rainfall|stem|49673e83782d72af|7af4bd6188ea6799|f3caee9b48a607c2|-1202216321||t19437.3936297921s|937cf6bd1db4b568|198691898|rds|local|vector|||45.892||
-p_top10_by_affected_shelters|stem|b5b63a65886a0ff9|56fb39d66ea9d3fd|2e0a84e6671b1b58|2005053012||t19415.4158512929s|d863b67d099ad1e3|29240319|rds|local|vector|||3.213||
 performance_frequencies_by_threshold|function|0b75450e2d26683d|||||||||||||||
 plot_chirps_gefs_comparison|function|7024a6e9a2a722df|||||||||||||||
 plot_high_priority_impact_vs_rainfall|function|8741ed4ab23b5a07|||||||||||||||
@@ -103,16 +108,13 @@ roll_wrapped|function|28b1d056f490ccb0|||||||||||||||
 rollingsum_chirps_to_sites|function|bfd6c3d058177fdf|||||||||||||||
 site_level_performance|function|d673fb1536a5224a|||||||||||||||
 spatial_pt_clusters|function|6df8eb5d784bb505|||||||||||||||
+split_hres_by_leadtimes|function|44bc9b43d22b32e3|||||||||||||||
 srtm_landform_lookup|object|b415a69efa003277|||||||||||||||
 stat_to_reducer|function|36647cda95b11d72|||||||||||||||
+subset_all_era5_hourly_to_daily|function|c998e35b4ed7061b|||||||||||||||
+subset_era5_hourly_to_daily|function|a3a4d0a08f34a0d5|||||||||||||||
 summarise_rainfall_impact_to_gov|function|47524da3470f3328|||||||||||||||
 switch_boolean|function|711877424cbfa3e4|||||||||||||||
-tbl_performance_10d_gov|stem|a0cbc19c6a451c6e|5497fa516b47241e|aff2ce4d05b80818|-2088999407||t19430.4181712288s|5615408b2d11b2cc|15993|rds|local|vector|||0.079||
-tbl_performance_10d_overall|stem|acebc63f31aaa0ec|26be47fbbbb76dbb|aff2ce4d05b80818|728233370||t19430.4181702743s|53be23bb1a38dab0|5498|rds|local|vector|||0.073||
-tbl_performance_30d_gov|stem|47352c95120758c7|7f2fc6fdb3a4f8f6|9ca2dbb7bdc5966f|1988971253||t19430.5745743308s|77f068c734313148|13028|rds|local|vector|||0.072||
-tbl_performance_30d_overall|stem|40508babf31603e2|81e821f6d624fd01|9ca2dbb7bdc5966f|1959168961||t19430.5745734536s|5297c7031d8b752c|4149|rds|local|vector|||0.098||
-tbl_performance_5d_gov|stem|47352c95120758c7|7f2fc6fdb3a4f8f6|9ca2dbb7bdc5966f|1884672460||t19430.5291091727s|77f068c734313148|13028|rds|local|vector|||0.069||
-tbl_performance_5d_overall|stem|40508babf31603e2|81e821f6d624fd01|9ca2dbb7bdc5966f|1178185053||t19430.5291083201s|5297c7031d8b752c|4149|rds|local|vector|||0.293||
 tbl_performance_area_clustered5_b7f7|stem|606ba209292d14d7|af81f0a3fe876674|0ea1c6ac5c8f33b3|-1112629018||t19446.7194797789s|df446457e9875fd5|4394|rds|local|vector|||53.894||
 tbl_performance_area_clustered5_b7f7_wind_rm|stem|ff1abd4819834f4e|8e6ad88842655e12|af3402a576b2bf7b|1643122249||t19450.1885006637s|a3cc22060fb1a10f|4373|rds|local|vector|||50.451||
 tbl_performance_area_marib_hajjah|stem|46ed0878aff97a30|650cb650d3895281|6abe882f095baac9|635551685||t19446.7232162703s|65e151d8ed55e831|48889|rds|local|vector|||0.497||
@@ -121,9 +123,6 @@ tbl_performance_overall|stem|4a29f5171b810b6d|7198b9fbd6ceaf73|c2a19dc197dd591b|
 tbl_performance_overall_gov|stem|042ae21516fef34b|bd3c8b1c2d2d42cf|c2a19dc197dd591b|1126698660||t19446.7232103837s|6055399aa9ccbc36|252812|rds|local|vector|||1.376||
 test_threshold_performance_all_sites|function|cb83b672acf0142e|||||||||||||||
 test_threshold_performance_area|function|a9663824f5944642|||||||||||||||
-thresh_class_freq_10d|stem|d3589436828231e3|bb354180f6ce1ce5|6561f94267736d48|-821655285||t19429.6007701255s|cf074985ef6c1dc8|53179|rds|local|vector|||546.566||
-thresh_class_freq_30d|stem|ee453ad7f2c36576|2c3f1971851e3e81|b36106a413329059|1497107620||t19430.5291046513s|86dd77400b49ee89|119565|rds|local|vector|||1228.336||
-thresh_class_freq_5d|stem|15638c522769cb8a|8a13c1c6000d1eaf|1db286118057a47a|45894301||t19430.5147201393s|05f8a79a207166df|39914|rds|local|vector|||404.866||
 thresh_class_freq_b7f3|stem|b45a03d3a69c2612|ed84a39038c87996|f1de83237b8676ab|1607664225||t19446.5745731443s|de57be143dbe27e1|1079042|rds|local|vector|||12498.222||
 thresh_class_freq_b7f7|stem|b45a03d3a69c2612|fb7141ee2ed2f6ff|f1de83237b8676ab|1577680602||t19446.7186957064s|de57be143dbe27e1|1079042|rds|local|vector|||12451.068||
 viz_cluster_classification|function|34ffb5430499d0da|||||||||||||||
