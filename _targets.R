@@ -87,6 +87,11 @@ ecmwf_mars_dir <-  file.path(
     "ecmwf",
     "strange_coords"
 )
+ecmwf_era5_dir <-  file.path(Sys.getenv("AA_DATA_DIR"),
+                             "public",
+                             "raw",
+                             "yem",
+                             "ecmwf")
 
 
 
@@ -337,6 +342,16 @@ list(
                 era_precip_daily = value
             ) %>% 
             select(-parameter)
+    ),
+    
+    # Above uses GEE and runs zonal stats -> rolling calcs
+    # here we use local files and run rolling calcs -> zonal stats
+    tar_target(
+        name = era5_rolling_zonal_local,
+        command= ecmwf_era5_rolling_zonal_local(ecmwf_era5_dir, 
+                                                pattern="\\.grib2$",
+                                                zonal_boundary = high_risk_hulls,
+                                                roll_windows=c(3,5,10,15,20,25,30))
     ),
     
     # Rainfall + Impact -------------------------------------------------------
@@ -815,7 +830,7 @@ list(
         ),
     # Forecast Analysis -------------------------------------------------------
     
-    # ECMWF MARS ####
+    # ECMWF HRES MARS ####
     tar_target(
         name = ecmwf_mars_high_risk_hulls,
         command = ecmwf_mars_historical_zonal_stats(raster_dir = ecmwf_mars_dir,
@@ -859,6 +874,15 @@ list(
             select(governorate_name,regime_id, date_forecasted,value) %>% 
             pivot_wider(id_cols = c(governorate_name, date_forecasted),names_from = regime_id,values_from = value) %>% 
             rename(date_forecast_predict = "date_forecasted")
+    ),
+    
+    tar_target(
+        name = ecmwf_hres_zonal_rolling2,
+        command = ecmwf_hres_rolling_zonal(raster_dir = ecmwf_mars_dir,
+                                 zonal_boundary = high_risk_hulls,
+                                 roll_windows=c(3,5,10),
+                                 lead_times=c(1:10)
+        )
     )
 
     )
