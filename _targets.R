@@ -864,7 +864,7 @@ list(
             mutate(
                 roll3=  rollsum(mean, fill= NA, k=3, align ="right"),
                 roll5=  rollsum(mean, fill= NA, k=5, align ="right"),
-                roll10= rollsum(mean, fill= NA, k=5, align ="right")
+                roll10= rollsum(mean, fill= NA, k=10, align ="right")
             ) %>% 
             ungroup() %>% 
             pivot_longer(cols = c("roll3","roll5","roll10",mean)) %>% 
