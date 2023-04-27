@@ -850,7 +850,14 @@ list(
                 date_forecast_made= as_date(str_extract(band,"\\d{4}-\\d{2}-\\d{2}")),
                 leadtime =as.numeric(str_extract(band, "(?<=tp_step=)\\d+"))/24,
                 date_forecasted= date_forecast_made + leadtime
-            ) 
+            ) %>% 
+            group_by(governorate_name, date_forecast_made) %>% 
+            arrange(governorate_name,date_forecast_made,leadtime) %>%
+            mutate(
+                mean=ifelse(leadtime==1,mean,mean-lag(mean)),
+                median=ifelse(leadtime==1,median,median-lag(median))
+                   ) %>% 
+            ungroup()
     ),
     tar_target(
         name= ecmwf_mars_leads_split_rolled,
