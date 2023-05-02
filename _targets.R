@@ -882,6 +882,29 @@ list(
             pivot_wider(id_cols = c(governorate_name, date_forecasted),names_from = regime_id,values_from = value) %>% 
             rename(date_forecast_predict = "date_forecasted")
     ),
+    # similary to above, but instead grouping per date generated prior to rolling
+    # this will be how rolling calcs are actually implemented in trigger scenario
+    tar_target(
+        name= hres_rolled_per_date_gen,
+        command = ecmwf_mars_clean %>%
+            select(-median,
+                   governorate_name, 
+                   date_forecasted,
+                   leadtime,mean) %>%
+            group_by(governorate_name,date_forecast_made) %>% 
+            arrange(date_forecasted) %>%
+            mutate(
+                roll3=  rollsum(mean, fill= NA, k=3, align ="right"),
+                roll5=  rollsum(mean, fill= NA, k=5, align ="right"),
+                roll10= rollsum(mean, fill= NA, k=10, align ="right")
+            ) %>% 
+            ungroup() %>% 
+            pivot_longer(cols = c("roll3","roll5","roll10",mean)) %>% 
+            mutate(
+                name = str_replace(name, "mean","precip_daily"),
+            ) %>% 
+            rename(date_forecast_predict = "date_forecasted")
+    ),
     
     tar_target(
         name = ecmwf_hres_zonal_rolling2,

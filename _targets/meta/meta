@@ -1,5 +1,5 @@
 name|type|data|command|depend|seed|path|time|size|bytes|format|repository|iteration|parent|children|seconds|warnings|error
-.Random.seed|object|a793163852b036c7|||||||||||||||
+.Random.seed|object|25a7105499fa20be|||||||||||||||
 adm_sf|stem|d814208e77634ebe|c0460a3bc14ebd57|5b6883bff12d4128|421735004||t19419.4297679868s|6e36be5798e8a713|6111599|rds|local|vector|||0.124||
 alos_landform_lookup|object|b415a69efa003277|||||||||||||||
 calc_rolling_precip_sites|function|6dc98d60d6e9b310|||||||||||||||
@@ -68,6 +68,7 @@ high_priority_sites|stem|f89765913b4ebe03|9b197453f0b431da|d5de6373782115cc|-820
 high_risk_convex_hulls|function|0b3ee529fefd2172|||||||||||||||
 high_risk_flood_stats_by_cod|stem|d860c6251bb0aae3|2169e3fffbc5320b|6b84e189b78a8f2b|1141281475||t19431.7242034574s|20358d92a31e2a38|5684240|rds|local|vector|||0.145||
 high_risk_hulls|stem|63f1d28551f19345|5f8940a704bfd938|8468f14f979d565b|-251989231||t19437.4207779796s|6faa1491e5d149ae|1128|rds|local|vector|||0.091||
+hres_rolled_per_date_gen|stem|8b1a8bf797dcd624|5a644a633565050b|e2b68f7d48b8c2ab|-1185540771||t19478.3555104726s|a4d9f55f7c355481|1918528|rds|local|vector|||3.509||
 impact_by_thresh|function|70ff663725d9018f|||||||||||||||
 kmeans_cluster_events|function|c362c87bd6e11b03|||||||||||||||
 load_cccm_wb|function|b6e4997cc76ab131|||||||||||||||
