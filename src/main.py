@@ -24,6 +24,7 @@ def run_pipeline(clobber: bool = False):
     # Chirps-Gefs
     # utils.download_chirps_gefs(clobber=clobber)
     # ECMWF
+    # utils.download_era5(clobber=clobber)
     # utils.process_era5(clobber=clobber)
     utils.process_chirps_gefs(clobber=clobber)
     return
