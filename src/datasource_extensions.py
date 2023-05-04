@@ -1,11 +1,19 @@
 import logging
+from datetime import date, timedelta
 from pathlib import Path
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
+import rasterio
 import xarray as xr
+from dateutil import rrule
 from ochanticipy import CountryConfig
 from ochanticipy.datasources.datasource import DataSource
+from rasterio.crs import CRS
+from rasterio.enums import Resampling
+from rasterio.errors import RasterioIOError
+from shapely.geometry import box
 
 logger = logging.getLogger(__name__)
 
@@ -89,17 +97,253 @@ class FloodScan(_DataSourceExtension):
         )
 
 
-class FloodScanStats(_DataSourceExtension):
+class Era5(_DataSourceExtension):
+    _DATASOURCE_BASENAME = "ecmwf"
+    _IS_PUBLIC = True
+    _IS_GLOBAL_RAW = False
+    _PROCESSED_FILENAME = "era5_high_risk_hulls.csv"
+
     def __init__(
         self,
         country_config: CountryConfig,
-        adm_level: int,
-        is_global_raw=False,
     ):
-        self._PROCESSED_FILENAME = f"tcd_floodscan_stats_adm{adm_level}.csv"
-        self._DATASOURCE_BASENAME = "floodscan"
-        self._IS_PUBLIC = False
-        super().__init__(country_config, is_global_raw)
+        super().__init__(country_config)
 
-    def load(self) -> pd.DataFrame:
-        return pd.read_csv(self.processed_filepath, parse_dates=["time"])
+    def process(
+        self,
+        high_risk_hulls: gpd.GeoDataFrame,
+        bounds_buffer: float = 0.5,
+        resolution=0.01,
+    ):
+        # Load all the raw netcdf files
+        era5_files = list(self._raw_base_dir.glob("*.grib2"))
+        da = (
+            xr.open_mfdataset(era5_files, engine="cfgrib")["tp"]
+            # Select the 24h time point
+            .isel(step=-1)
+            # Set coordinates to EPSG 4326
+            .rio.write_crs(CRS.from_epsg(4326))
+        )
+        # Loop through the high risk hulls
+        df_results = pd.DataFrame()
+        for _, row in high_risk_hulls.iterrows():
+            logger.info(f"Running for {row.gvrnrt_}")
+            bounds = row.geometry.bounds
+            new_bounds = box(
+                bounds[0] - bounds_buffer,
+                bounds[1] - bounds_buffer,
+                bounds[2] + bounds_buffer,
+                bounds[3] + bounds_buffer,
+            )
+            # Clip to bounds
+            logger.info("Clipping and reporjecting")
+            da_hull = (
+                da.rio.clip([new_bounds])
+                # resample to much higher resolution
+                .rio.reproject(
+                    da.rio.crs,
+                    resolution=resolution,
+                    resampling=Resampling.nearest,
+                    nodata=np.nan,
+                )
+                # Then clip again to the hull
+                .rio.clip([row.geometry])
+                # Take the mean along lat / lon
+                .mean(axis=(1, 2))
+            )
+            df_results = df_results.append(
+                pd.DataFrame(
+                    {
+                        "time": da_hull.time,
+                        "value": da_hull.values,
+                        "gov": row.gvrnrt_,
+                    }
+                ),
+                ignore_index=True,
+            )
+
+        processed_filepath = (
+            self._processed_base_dir / self._PROCESSED_FILENAME
+        )
+        processed_filepath.parent.mkdir(parents=True, exist_ok=True)
+        df_results.to_csv(processed_filepath, index=False)
+
+
+class ChirpsGefs(_DataSourceExtension):
+    _DATASOURCE_BASENAME = "chirps_gefs"
+    _IS_PUBLIC = True
+    _IS_GLOBAL_RAW = False
+    _BASE_URL = (
+        "https://data.chc.ucsb.edu/products/EWX/data/forecasts/"
+        "CHIRPS-GEFS_precip_v12/daily_16day/{run_date}/"
+        "data.{forecast_date}.tif"
+    )
+    _RUN_DATE_FORMAT = "%Y/%m/%d"
+    _FORECAST_DATE_FORMAT = "%Y.%m%d"
+    _PROCESSED_FILENAME = "chirps-gefs_daily_high_risk_hulls.csv"
+
+    def __init__(
+        self,
+        country_config: CountryConfig,
+        adm0: gpd.GeoDataFrame,
+        end_date: date = date(2022, 12, 31),
+        start_date: date = date(2000, 1, 1),
+        leadtime_max: int = 15,
+    ):
+        # Add anything here
+        self._adm0 = adm0
+        self._start_date = start_date
+        self._end_date = end_date
+        self._date_range = rrule.rrule(
+            freq=rrule.DAILY,
+            dtstart=self._start_date,
+            until=self._end_date,
+        )
+        self._leadtime_max = leadtime_max
+        super().__init__(country_config)
+
+    def download(self, clobber=False):
+        """Download the chirps-gefs forecast for the given year and
+        day of the year
+        """
+        for run_date in self._date_range:
+            for leadtime in range(self._leadtime_max + 1):
+                download_filepath = self._get_download_filepath(
+                    run_date, leadtime
+                )
+                if not clobber and download_filepath.exists():
+                    logger.info(
+                        f"{download_filepath} already exists and "
+                        f"clobber is False, skipping"
+                    )
+                    continue
+                # TODO: check if exists
+                url = self._BASE_URL.format(
+                    run_date=run_date.strftime(self._RUN_DATE_FORMAT),
+                    forecast_date=(
+                        run_date + timedelta(days=leadtime)
+                    ).strftime(self._FORECAST_DATE_FORMAT),
+                )
+                try:
+                    with rasterio.open(url) as src:
+                        # From here
+                        # https://rasterio.readthedocs.io/en/latest/topics/masking-by-shapefile.html
+                        out_image, out_transform = rasterio.mask.mask(
+                            src, self._adm0.geometry, crop=True
+                        )
+                        out_meta = src.meta
+                except RasterioIOError:
+                    logger.warning(
+                        f"Url {url} for {run_date} doesn't exist, skipping"
+                    )
+                    continue
+                out_meta.update(
+                    {
+                        "driver": "GTiff",
+                        "height": out_image.shape[1],
+                        "width": out_image.shape[2],
+                        "transform": out_transform,
+                    }
+                )
+                with rasterio.open(download_filepath, "w", **out_meta) as dest:
+                    dest.write(out_image)
+                logger.info(
+                    f"Downloaded and cropped {url} to {download_filepath}"
+                )
+
+    def _get_download_filepath(self, run_date, leadtime):
+        raw_dir = self._raw_base_dir / "daily"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        return (
+            raw_dir / f"chirpsgefs_{self._country_config.iso3}_"
+            f"{run_date.strftime('%Y-%m-%d')}_"
+            f"lt{str(leadtime).zfill(2)}d.tif"
+        )
+
+    def process(
+        self,
+        high_risk_hulls: gpd.GeoDataFrame,
+        bounds_buffer: float = 0.5,
+        resolution=0.01,
+    ):
+        # Loop through all dates
+        df_results_full = pd.DataFrame()
+        for run_date in self._date_range:
+            # Loop through all lead times
+            for leadtime in range(10):
+                df_output = self._process_single_file(
+                    run_date=run_date,
+                    leadtime=leadtime + 1,
+                    high_risk_hulls=high_risk_hulls,
+                    bounds_buffer=bounds_buffer,
+                    resolution=resolution,
+                )
+                if df_output is None:
+                    continue
+                df_results_full = pd.concat(
+                    (df_results_full, df_output), ignore_index=True
+                )
+
+        processed_filepath = (
+            self._processed_base_dir / self._PROCESSED_FILENAME
+        )
+        processed_filepath.parent.mkdir(parents=True, exist_ok=True)
+        df_results_full.to_csv(processed_filepath, index=False)
+
+    def _process_single_file(
+        self, run_date, leadtime, high_risk_hulls, bounds_buffer, resolution
+    ):
+        # Load all the raw netcdf files
+        filename = self._get_download_filepath(
+            run_date=run_date, leadtime=leadtime
+        )
+        logger.info(f"Processing {filename}")
+        try:
+            da = (
+                xr.load_dataset(filename, engine="rasterio")["band_data"]
+                # Set coordinates to EPSG 4326
+                .rio.write_crs(CRS.from_epsg(4326))
+            )
+        except RasterioIOError:
+            logger.warning("file does not exist")
+            return
+        # Loop through the high risk hulls
+        df_results = pd.DataFrame()
+        for _, row in high_risk_hulls.iterrows():
+            bounds = row.geometry.bounds
+            new_bounds = box(
+                bounds[0] - bounds_buffer,
+                bounds[1] - bounds_buffer,
+                bounds[2] + bounds_buffer,
+                bounds[3] + bounds_buffer,
+            )
+            # Clip to bounds
+            da_hull = (
+                da.rio.clip([new_bounds])
+                # resample to much higher resolution
+                .rio.reproject(
+                    da.rio.crs,
+                    resolution=resolution,
+                    resampling=Resampling.nearest,
+                    nodata=np.nan,
+                )
+                # Then clip again to the hull
+                .rio.clip([row.geometry])
+                # Take the mean along lat / lon
+                .mean(axis=(1, 2))
+            )
+            df_results = pd.concat(
+                (
+                    df_results,
+                    pd.DataFrame(
+                        {
+                            "time": run_date,
+                            "leadtime": leadtime,
+                            "value": da_hull.values,
+                            "gov": row.gvrnrt_,
+                        }
+                    ),
+                ),
+                ignore_index=True,
+            )
+        return df_results

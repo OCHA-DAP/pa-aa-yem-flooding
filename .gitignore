@@ -161,9 +161,8 @@ dmypy.json
 *.tar.gz
 *.Rcheck/
 
-
 # notebooks
 *.ipynb
 
-in_prog/
-
+*.rds
+.httr-oauth
