@@ -23,10 +23,11 @@ def run_pipeline(clobber: bool = False):
     # utils.download_and_process_chirps(clobber=clobber)
     # Chirps-Gefs
     # utils.download_chirps_gefs(clobber=clobber)
-    # ECMWF
-    # utils.download_era5(clobber=clobber)
-    # utils.process_era5(clobber=clobber)
-    utils.process_chirps_gefs(clobber=clobber)
+    # utils.process_chirps_gefs(clobber=clobber)
+    # ECMWF - ERA5
+    utils.download_era5(clobber=clobber)
+    utils.process_era5(clobber=clobber)
+    # ECMWF - HRES
     return
 
 

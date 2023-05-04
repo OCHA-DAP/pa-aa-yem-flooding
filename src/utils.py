@@ -65,11 +65,18 @@ def download_and_process_chirps(clobber=False):
     chirps.process(clobber=clobber)
 
 
-def process_era5(clobber=False):
-    chirps = Era5(
+def download_era5(clobber=False):
+    era5 = Era5(
         country_config=constants.country_config,
     )
-    chirps.process(high_risk_hulls=load_high_risk_hulls())
+    era5.download(clobber=clobber)
+
+
+def process_era5(clobber=False):
+    era5 = Era5(
+        country_config=constants.country_config,
+    )
+    era5.process(high_risk_hulls=load_high_risk_hulls(), clobber=clobber)
 
 
 def process_chirps_gefs(clobber=False):

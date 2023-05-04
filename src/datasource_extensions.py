@@ -193,7 +193,7 @@ class Era5(_DataSourceExtension):
                 self._raw_base_dir / "yem_era5_tp_{forecast_date_string}.grib2"
             )
             if output_filepath.exists() and not clobber:
-                print(f"{forecast_date_string} exists, skipping")
+                logger.info(f"{forecast_date_string} exists, skipping")
                 continue
             c.retrieve("reanalysis-era5-land", req, str(output_filepath))
 
@@ -202,7 +202,14 @@ class Era5(_DataSourceExtension):
         high_risk_hulls: gpd.GeoDataFrame,
         bounds_buffer: float = 0.5,
         resolution=0.01,
+        clobber: bool = False,
     ):
+        processed_filepath = (
+            self._processed_base_dir / self._PROCESSED_FILENAME
+        )
+        if processed_filepath.exists() and not clobber:
+            logger.info(f"{processed_filepath} exists, exiting")
+            return
         # Load all the raw netcdf files
         era5_files = list(self._raw_base_dir.glob("*.grib2"))
         da = (
@@ -250,9 +257,6 @@ class Era5(_DataSourceExtension):
                 ignore_index=True,
             )
 
-        processed_filepath = (
-            self._processed_base_dir / self._PROCESSED_FILENAME
-        )
         processed_filepath.parent.mkdir(parents=True, exist_ok=True)
         df_results.to_csv(processed_filepath, index=False)
 
