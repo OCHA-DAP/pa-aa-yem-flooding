@@ -22,6 +22,7 @@ from src import constants, utils
 # Governorate names
 GOVS = ["Hajjah", "Marib"]
 RP = 2
+TARGET_MONTHS = [5, 6, 7, 8, 9]
 ```
 
 ```python
@@ -47,12 +48,21 @@ df_era5_dict = {
     for gov in GOVS
 }
 
-# df_hres["mean"] = df_hres["mean"]
 df_hres["mean"] = df_hres["mean"] * 1000
 df_hres_dict = {
     gov: df_hres.loc[df_hres["governorate_name"] == gov][["date", "mean"]]
     for gov in GOVS
 }
+```
+
+```python
+# For ERA5, select only target months.
+# Do it later for HRES once dates are shifted.
+
+for gov in GOVS:
+    df = df_era5_dict[gov]
+    df.index = pd.to_datetime(df.index).to_period("D")
+    df[~df.index.month.isin(TARGET_MONTHS)] = np.NaN
 ```
 
 ## ERA5 return period
@@ -61,7 +71,6 @@ df_hres_dict = {
 # For era5 need to conver tot 3 day rolling
 for gov in GOVS:
     df = df_era5_dict[gov]
-    df.index = pd.to_datetime(df.index).to_period("D")
     df = df.rolling(3).sum().shift(-1).dropna()
     df_era5_dict[gov] = df
 ```
@@ -118,14 +127,6 @@ df
 ```
 
 ```python
-# Make sure the stats make sense
-df.describe()
-```
-
-The increasing means are a bit concerning, but not sure what else to do.
-Waiting to hear back from ECMWF.
-
-```python
 # Next do the rolling 3-day sum, but across columns
 # Doing by hand because I don't know how to apply rolling
 df = df.rolling(3, axis=1).sum().drop(columns=[0, 1, 2])
@@ -163,6 +164,9 @@ for gov in GOVS:
     # Finally, shift the leadtimes
     for n in range(8):
         df[n + 1] = df[n + 1].shift(n)
+    # Set all dates we don't want to NaN
+    df.index = pd.to_datetime(df.index).to_period("D")
+    df[~df.index.month.isin(TARGET_MONTHS)] = np.NaN
     df_hres_proc_dict[gov] = df
 ```
 
@@ -185,7 +189,6 @@ for gov in GOVS:
     )
     rp_dict_hres_leadtime["era5"] = float(rp_func(RP))
     # Now do HRES
-    df.index = pd.to_datetime(df.index).to_period("D")
     df = df.resample(rule="A", kind="period").max()  # .sort_values(by="era5")
     for leadtime in range(1, 9):
         rp_func = utils.get_return_period_function_analytical(
@@ -206,7 +209,6 @@ df_comb_dict = {}
 for gov in GOVS:
     obs = df_era5_dict[gov].copy()
     fc = df_hres_proc_dict[gov].copy()
-    fc.index = pd.to_datetime(fc.index).to_period("D")
     df_comb = pd.merge(obs, fc, left_index=True, right_index=True)
     df_comb.index = df_comb.index.to_timestamp()
     df_comb_dict[gov] = df_comb
@@ -237,7 +239,7 @@ df_results = pd.DataFrame(
 leadtimes = np.arange(1, 9)
 for gov in GOVS:
     df = df_comb_dict[gov].copy()
-    for minval in [1, rp_dict[gov] / 10]:
+    for minval in [1, rp_dict[gov]]:
         df = df[df["era5"] > minval]
         for quantity in ["mae", "bias"]:
             df_results = pd.concat(

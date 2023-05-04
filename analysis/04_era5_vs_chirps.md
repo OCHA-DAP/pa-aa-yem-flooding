@@ -11,6 +11,7 @@ Using csv that were crated by hand from the R targets:
 ```
 
 ```python
+import numpy as np
 import pandas as pd
 
 from src import constants, utils
@@ -20,11 +21,10 @@ from src import constants, utils
 # Governorate namess
 GOVS = ["Hajjah", "Marib"]
 RP = 2
+TARGET_MONTHS = [5, 6, 7, 8, 9]
 ```
 
 ```python
-# Read in the data
-
 # Read in the data
 era5_data_dir = constants.oap_data_dir / "public/processed/yem/ecmwf/"
 df_era5 = pd.read_csv(era5_data_dir / "era5_high_risk_hulls.csv")
@@ -54,6 +54,15 @@ df_chirps_dict = {
 }
 ```
 
+```python
+# Select only target months
+for df_dict in df_era5_dict, df_chirps_dict:
+    for gov in GOVS:
+        df = df_dict[gov]
+        df.index = pd.to_datetime(df.index).to_period("D")
+        df[~df.index.month.isin(TARGET_MONTHS)] = np.NaN
+```
+
 ## Return periods
 
 ### ERA5
@@ -62,13 +71,8 @@ df_chirps_dict = {
 # For era5 need to conver tot 3 day rolling
 for gov in GOVS:
     df = df_era5_dict[gov]
-    df.index = pd.to_datetime(df.index).to_period("D")
     df = df.rolling(3).sum().shift(1).dropna()
     df_era5_dict[gov] = df
-```
-
-```python
-df_era5_dict
 ```
 
 ```python
@@ -94,7 +98,6 @@ show_plots = True
 rp_chirps_dict = {}
 for gov in GOVS:
     df = df_chirps_dict[gov].copy()
-    df.index = pd.to_datetime(df.index).to_period()
     df = df.resample(rule="A", kind="period").max().sort_values(by="mean")
     rp_func = utils.get_return_period_function_analytical(
         df_rp=df, rp_var="mean", show_plots=show_plots
@@ -112,11 +115,10 @@ df_comb_dict = {}
 for gov in GOVS:
     obs = df_chirps_dict[gov].copy().rename(columns={"mean": "chirps"})
     fc = df_era5_dict[gov].copy().rename(columns={"era_roll3": "era5"})
-    obs.index = pd.to_datetime(obs.index)
-    fc.index = fc.index.to_timestamp()
-    df_comb_dict[gov] = pd.merge(
-        obs, fc, left_index=True, right_index=True
-    ).dropna()
+    df_comb = pd.merge(obs, fc, left_index=True, right_index=True).dropna()
+    df_comb.index = df_comb.index.to_timestamp()
+    df_comb_dict[gov] = df_comb
+
 df_comb_dict
 ```
 
