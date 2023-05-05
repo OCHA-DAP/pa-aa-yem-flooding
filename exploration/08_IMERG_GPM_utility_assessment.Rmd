@@ -1,0 +1,218 @@
+---
+title: "08_IMERG_GPM_Utility_Assessment"
+output: 
+    bookdown::html_document2:
+        toc: true
+        toc_float: true
+        toc_depth: 4
+date: "2023-03-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE, eval = TRUE
+)
+```
+
+
+```{r libsImerge}
+# run Near Real Time? if true it will pull data to make notebook, if FALSE we 
+run_nrt <-  c(T,F)
+library(rgee)
+library(tidyrgee)
+library(tidyverse)
+library(lubridate)
+library(sf)
+library(leaflet)
+library(targets)
+library(sysfonts)
+library(gghdx)
+library(here)
+ee_Initialize(quiet = T)
+
+font_add_google("Source Sans Pro")
+showtext::showtext_auto()
+
+tar_load(adm_sf)
+```
+
+```{r}
+# load EE data
+imerg_ic <- ee$ImageCollection("NASA/GPM_L3/IMERG_V06")
+
+latest_img <- imerg_ic$limit(1, "system:time_start", FALSE)$first()
+latest_img_date <- ee_get_date_img(latest_img)
+```
+
+## IMERG - GPM for Near Real Time (NRT) Precipitation Monitoring
+
+The goal of this notebook is to explore the viability of IMERG GPM for NRT rainfall monitoring in YEM. While we have been using CHIRPS as our main historial rainfall data set, the latency at which it is realeased seems problematic for NRT monitoring. **Takeaway:** it seems like IMERG GPM could be a good option.
+ 
+Global Precipitation Measurement (GPM) provides global precipitation data with half hour time steps via The Integrated Multi-satellitE Retrievals for GPM (IMERG) algorithm (Huffman et al., 2019: GPM IMERG Final Precipitation L3 Half Hourly 0.1 degree x 0.1 degree V06, DOI: 10.5067/GPM/IMERG /3B-HH/06)
+
+In this doc we assess the utility of IMERG data for NRT precipitation monitoring our area of interest (AOI) in Yemen.
+
+```{r calcLatency}
+current_time_gmt <- with_tz(Sys.time(), tzone = "GMT")
+time_diff_hours <- difftime(current_time_gmt, latest_img_date$time_start, units = "hours")
+```
+
+### Latency 
+
+This notebook is being run at `r current_time_gmt` and the latest image available is from `r latest_img_date$time_start` - time difference: `r time_diff_hours` hours.
+
+Seems pretty good!
+    
+### Viz data 
+
+```{r temporalAgg}
+end_date <- as_date(latest_img_date$time_start)
+start_date <- end_date - 7
+
+# filter to all data from previous week
+imerg_prev_week <- imerg_ic$filterDate(as.character(start_date), as.character(end_date + 1))
+
+
+
+# since the rate is in mm/hr, but we get 2 records per  hour we have to divide by 2 for
+# proper aggregation
+imerg_prev_week_units_converted <- imerg_prev_week$select("precipitationCal")$map(
+  function(img) {
+    img$divide(2)$copyProperties(img, list("system:time_start", "system:id"))
+  }
+)
+
+# save some thinking and use tidyrgee - wooohooo
+imerg_prev_week_tidy <- as_tidyee(imerg_prev_week_units_converted)
+
+# for past week calculate total rainfall per day
+imerg_daily_mm <- imerg_prev_week_tidy %>%
+  group_by(doy) %>%
+  summarise(
+    stat = "sum"
+  )
+
+# convert back to native rgee class
+imerg_daily_mm_ic <- imerg_daily_mm %>%
+  as_ee()
+```
+
+
+```{r, zonalstats}
+# I'll probably make these outputs a target object so that I don't have to download the data in the notebook
+# for now it's ok.
+
+# bring in adm1 and filter to AOI -  simplify the feature a bit
+adm1_marib_hajjah <- adm_sf$yem_admbnda_adm1_govyem_cso_20191002 %>%
+  filter(adm1_en %in% c("Ma'rib", "Hajjah")) %>%
+  st_simplify(dTolerance = 0.1) %>%
+  rename(geometry = geom) %>%
+  select(adm1_en)
+
+# convert to ee feature collection
+adm1_marib_hajjah_ee <- adm1_marib_hajjah %>%
+  sf_as_ee()
+
+# extract mean total precip each day
+avg_daily_precip_aoi <- ee_extract_tidy(
+  x = imerg_daily_mm_ic,
+  y = adm1_marib_hajjah_ee,
+  stat = "mean",
+  scale = 11132,
+  quiet = T
+)
+# extract max total precip each day -- just curious
+max_daily_precip_aoi <- ee_extract_tidy(
+  x = imerg_daily_mm_ic,
+  y = adm1_marib_hajjah_ee,
+  stat = "max",
+  scale = 11132, quiet = T
+)
+```
+
+### Weekly Time Series
+
+We could set up/process to easily plot the previous 7 days of rain like so:
+
+```{r plotLastWeek,out.width="100%", fig.align="center"}
+# plot  daily precip for the past week for hajjah and Marib
+avg_daily_precip_aoi %>%
+  arrange(adm1_en, desc(value)) %>%
+  ggplot(aes(x = date, y = value, group = adm1_en, color = adm1_en)) +
+  geom_line() +
+  labs(y = "mm", title = "GPM IMERG Daily Rainfall for the past week") +
+  theme_hdx() +
+  scale_x_date(date_breaks = "day", date_labels = "%b %d") +
+  theme(
+    legend.title = element_blank(),
+    axis.text.x = element_text(angle = 90)
+  )
+```
+
+
+We can also rainfall data spatially, but need to choose a date. Since GEE `leaflet()` maps expire every 4 hours I just used a screenshot of one from March 28, however this could be continuously updated in NRT.
+
+```{r,eval=F}
+# GEE Interactive Maps expire after ~4 hours so I will make it a screenshot. This is why eval=F
+approx_coord_aoi <- data.frame(x = 43.80196, y = 15.6783)
+approx_aoi_sf <- st_as_sf(approx_coord_aoi, coords = c("x", "y"), crs = 4326)
+approx_aoi_ee <- sf_as_ee(approx_aoi_sf)
+
+# can use the max zonal stat aggregation to find the day where there was the most rain in
+# any location -- probably decent for a viz
+max_max_date <- max_daily_precip_aoi %>%
+  filter(value == max(value)) %>%
+  pull(date)
+
+range <- ee$Date(as.character(max_max_date))$getRange("day")
+imerg_max_max_daily_img <- imerg_daily_mm_ic$filter(ee$Filter$date(range))$first()
+
+imerg_low_mask <- imerg_max_max_daily_img$gt(0)
+imerg_max_max_daily_img_masked <- imerg_max_max_daily_img$updateMask(imerg_low_mask)
+
+
+precip_cal_palette <- c(
+  "#000096", "#0064ff", "#00b4ff", "#33db80", "#9beb4a",
+  "#ffeb00", "#ffb300", "#ff6400", "#eb1e00", "#af0000"
+)
+Map$centerObject(approx_aoi_ee, 6)
+precip_viz <- list(
+  min = 0,
+  max = 50, opacity = 0.5,
+  palette = precip_cal_palette
+)
+
+
+
+m1 <- leaflet() |>
+  addProviderTiles(providers$CartoDB.DarkMatter) |>
+  addPolygons(
+    data = adm1_marib_hajjah,
+    fillOpacity = 0,
+    color = "purple"
+  )
+
+
+m_legend <- Map$addLegend(precip_viz, name = "Mar 28 precip (mm)")
+m_precip <- Map$addLayer(
+  imerg_max_max_daily_img_masked,
+  precip_viz,
+  "Precipitation"
+)
+
+map_precip <- m_precip + m_legend
+
+# dir.create("exploration/figs")
+# mapview::mapshot(map_precip,file="exploration/figs/imerg_precip_plot.png")
+```
+
+```{r precipMap,fig.align='center', out.width='100%',eval=TRUE}
+knitr::include_graphics(here::here("exploration/figs/imerg_precip_plot.PNG"), rel_path = F)
+```
+
+
+
+
+
