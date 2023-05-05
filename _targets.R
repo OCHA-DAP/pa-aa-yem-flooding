@@ -353,6 +353,29 @@ list(
                                                 zonal_boundary = high_risk_hulls,
                                                 roll_windows=c(3,5,10,15,20,25,30))
     ),
+    tar_target(
+        name = era_chirps_long,
+        command= bind_rows(era5_rolling_zonal_local %>% 
+                               pivot_longer(roll3:precip_daily,names_to = "precip_regime") %>% 
+                               mutate(
+                                   source= "ERA",
+                                   value = value*1000
+                               ),
+                           
+                           zonal_stats_high_risk_hull %>% 
+                               imap_dfr(\(df,nm){
+                                   df %>% 
+                                       mutate(
+                                           precip_regime = nm,
+                                           source= "CHIRPS"
+                                       ) }
+                               ) %>% 
+                               select(governorate_name, date,precip_regime,value=mean,source)
+        ) %>% 
+            mutate(
+                date= as_date(date)
+            )
+    ),
     
     # Rainfall + Impact -------------------------------------------------------
     
@@ -853,6 +876,7 @@ list(
             ) %>% 
             group_by(governorate_name, date_forecast_made) %>% 
             arrange(governorate_name,date_forecast_made,leadtime) %>%
+            # hres values are cumulative so this subtract prev values to make daily.
             mutate(
                 mean=ifelse(leadtime==1,mean,mean-lag(mean)),
                 median=ifelse(leadtime==1,median,median-lag(median))
