@@ -1,0 +1,443 @@
+---
+title: "Performance Testing"
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        toc_depth: 4
+date: "2023-03-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+
+
+```{r echo=F, include=F}
+library(tidyverse)
+library(targets)
+library(gghdx)
+library(lubridate)
+library(sysfonts)
+tar_source()
+
+font_add_google("Source Sans Pro")
+showtext::showtext_auto()
+
+
+tar_load(p_all_sites_events_pred_classifications)
+# tar_load(thresh_class_freq_b7f3)
+
+# overall site level classifications
+tar_load(tbl_performance_overall) # aggregated for all sites
+tar_load(tbl_performance_overall_gov) # aggregagated by gov (Marib & Hajjah)
+
+# area level classification (Marib, Hajjah)
+tar_load(tbl_performance_area_marib_hajjah)
+
+# clustered area level perormance classification stats (Marib, Hajjah)
+tar_load(tbl_performance_area_clustered5_b7f7)
+```
+
+**CHECK IT OUT:** Is it just me or does the performance for Hajjah - Approach 2 look relatively decent with potentially reasonable thresholds?
+
+## Intro/Description
+
+In this document will explore the performance of  historical rainfall thresholds against the CCCM flood impact data. CHIRPS daily historical rainfall data was extracted to each site location for the entire date range of the CCCM flood reporting. Daily rainfall was aggregated in 3, 5, 10, 15, 20, 25, and 30 day windows. These were calculated using both a "right" and "center" aligned rolling sum calculation.
+
+### Classification - Approach 1
+
+True Positives (TP), False Positives (FP), and False Negatives (FN) were classified based on the CCCM flood report date and precipitation quantity according to the following criteria:
+
+- For all recorded events we applied both a pre and post-date buffer. Initially the pre-buffer was set to 7 days and post-buffer set to 3 days. Therefore, the event is labelled as a `TP` if rainfall crosses the specified anytime between `7` days before and `3` days after the event was reported. Later we adjusted the post-buffer to 7 days as well.
+- If the rainfall does not cross the threshold within the above time period it is a `FN`
+- No consecutive dates greater than the threshold after a TP are labelled/classified
+- For the rest of the dates greater than the threshold the first date of when the threshold is crossed is labelled as a `FP`. After the labelled FP, consecutive days above the threshold are not labelled.
+
+The TPs, FPs, FNs were calculated according to the above criteria and then aggregated to the overall (all site) and Governorate (admin 1) level by summing the counts.
+
+### Classification - Approach 2
+
+A more area based (Governorate-level) approach was also explored. This was achieved this both the rainfall and events needed to be consolidated/aggregated at the governorate/area level. this was done by:
+
+- rainfall: calculating the `max()` and `mean()` daily rainfall value (at each window) for all sites within the Governorate. 
+- events: if any event was recorded on a given dates within the governorate that day was marked `TRUE` for an eent.
+
+The same classification as described in Approach 1 was then applied to these area-based rainfall-impact tables.
+
+
+## Performance Results
+
+### Approach 1
+
+#### All Sites (all govs)
+
+first look at all sites
+
+```{r calc-overall-site-level, echo=F}
+p_approach1 <- tbl_performance_overall %>%
+  imap(\(tbl_plot, regime_name){
+    plot_performance_metrics(
+      df = tbl_plot,
+      governorate = NULL,
+      pseudo_log = F,
+      x_axis_title = regime_name
+    )
+  })
+
+
+p_approach1_pseudolog <- tbl_performance_overall %>%
+  imap(\(tbl_plot, regime_name){
+    plot_performance_metrics(
+      df = tbl_plot,
+      governorate = NULL,
+      pseudo_log = T,
+      x_axis_title = regime_name
+    )
+  })
+
+p_approach1_marib <- tbl_performance_overall_gov %>%
+  imap(\(tbl_plot, regime_name){
+    plot_performance_metrics(
+      df = tbl_plot,
+      governorate = "Marib",
+      pseudo_log = F,
+      x_axis_title = regime_name
+    )
+  })
+
+
+p_approach1_marib_pseudolog <- tbl_performance_overall_gov %>%
+  imap(\(tbl_plot, regime_name){
+    plot_performance_metrics(
+      df = tbl_plot,
+      governorate = "Marib",
+      pseudo_log = T,
+      x_axis_title = regime_name
+    )
+  })
+
+p_approach1_hajjah <- tbl_performance_overall_gov %>%
+  imap(\(tbl_plot, regime_name){
+    plot_performance_metrics(
+      df = tbl_plot,
+      governorate = "Hajjah",
+      pseudo_log = F,
+      x_axis_title = regime_name
+    )
+  })
+
+
+p_approach1_hajjah_pseudolog <- tbl_performance_overall_gov %>%
+  imap(\(tbl_plot, regime_name){
+    plot_performance_metrics(
+      df = tbl_plot,
+      governorate = "Hajjah",
+      pseudo_log = T,
+      x_axis_title = regime_name
+    )
+  })
+
+# p_approach1$precip_roll10
+# p_approach1_pseudolog$precip_roll10
+```
+
+
+**Perfomance Plots - No scaling**
+
+The number of `FPs` are so high in the early threshold values that I just cut the y axis at 500 so that the curves in the lower values could be visualized. The `pseudolog` transform shown below is another way to deal with this. Both are shown below.
+
+```{r plot-overall-site-level,out.width="100%"}
+walk(p_approach1, ~ print(.x))
+```
+
+**Perfomance Plots - No scaling**
+```{r plot-overall-site-level-pseudo,out.width="100%"}
+walk(p_approach1_pseudolog, ~ print(.x))
+```
+
+#### All Sites (Marib & Hajjah)
+
+```{r plot-overall-site-level-marib,out.width="100%"}
+walk(p_approach1_marib, ~ print(.x))
+```
+
+```{r plot-overall-site-level-hajjah,out.width="100%"}
+walk(p_approach1_hajjah, ~ print(.x))
+```
+
+
+### Approach 2 (Area Based)
+
+Under approach 2 daily rainfall values and events are aggregated prior to performance classification. The performane for for Marib & Hajjah under the different rainfall regimes are shown below
+
+
+
+```{r make-area-level}
+p_marib_approach2 <- tbl_performance_area_marib_hajjah %>%
+  imap(\(tbl_plot, regime_name){
+    plot_performance_metrics(
+      df = tbl_plot,
+      governorate = "Marib",
+      pseudo_log = F,
+      x_axis_title = regime_name
+    )
+  })
+p_hajjah_approach2 <- tbl_performance_area_marib_hajjah %>%
+  imap(\(tbl_plot, regime_name){
+    plot_performance_metrics(
+      df = tbl_plot,
+      governorate = "Hajjah",
+      pseudo_log = F,
+      x_axis_title = regime_name
+    )
+  })
+```
+
+
+```{r make-area-level-pseudo}
+p_marib_approach2_pseudolog <- tbl_performance_area_marib_hajjah %>%
+  imap(\(tbl_plot, regime_name){
+    plot_performance_metrics(
+      df = tbl_plot,
+      governorate = "Marib",
+      pseudo_log = T,
+      x_axis_title = regime_name
+    )
+  })
+
+p_hajjah_approach2_pseudolog <- tbl_performance_area_marib_hajjah %>%
+  imap(\(tbl_plot, regime_name){
+    plot_performance_metrics(
+      df = tbl_plot,
+      governorate = "Hajjah",
+      pseudo_log = T,
+      x_axis_title = regime_name
+    )
+  })
+```
+
+
+
+**Approach 2 Perfomance Plots - No scaling - Marib**
+
+```{r plot-marib-areal-level, out.width="100%"}
+walk(p_marib_approach2, ~ print(.x))
+```
+
+**Approach 2 Performance Plots - No scaling - Hajjah**
+
+```{r plot-hajjah-area-level, out.width="100%"}
+walk(p_hajjah_approach2, ~ print(.x))
+```
+
+#### Area-level Clustered
+
+Prior to FP/FN/TP classifications the CCCM Flood report events were clustered into `5 groups/waves` per governorate based reported`date of event` and `coordinates`. The plots below show the same performance plots when these clusters are considered.
+
+```{r clustered_area_level_unscaledl}
+p_marib_approach3_clustered <- tbl_performance_area_clustered5_b7f7 %>%
+  imap(\(tbl_plot, regime_name){
+    plot_performance_metrics(
+      df = tbl_plot,
+      governorate = "Marib",
+      pseudo_log = F,
+      x_axis_title = regime_name
+    )
+  })
+p_hajjah_approach3_clustered <- tbl_performance_area_clustered5_b7f7 %>%
+  imap(\(tbl_plot, regime_name){
+    plot_performance_metrics(
+      df = tbl_plot,
+      governorate = "Hajjah",
+      pseudo_log = F,
+      x_axis_title = regime_name
+    )
+  })
+```
+
+
+```{r make-clusted_area_level_pseudo}
+p_marib_approach3_clustered_pseudo <- tbl_performance_area_clustered5_b7f7 %>%
+  imap(\(tbl_plot, regime_name){
+    plot_performance_metrics(
+      df = tbl_plot,
+      governorate = "Marib",
+      pseudo_log = T,
+      x_axis_title = regime_name
+    )
+  })
+p_hajjah_approach3_clustered <- tbl_performance_area_clustered5_b7f7 %>%
+  imap(\(tbl_plot, regime_name){
+    plot_performance_metrics(
+      df = tbl_plot,
+      governorate = "Hajjah",
+      pseudo_log = T,
+      x_axis_title = regime_name
+    )
+  })
+```
+
+**Approach 3 Clustered Perfomance Plots - No scaling - Marib**
+
+```{r plot-marib-performance-clustered, out.width="100%"}
+walk(p_marib_approach3_clustered, ~ print(.x))
+```
+
+**Approach 3 Clustered Performance Plots - No scaling - Hajjah**
+
+```{r plot-hajjah-performance-clusterd, out.width="100%"}
+walk(p_hajjah_approach3_clustered, ~ print(.x))
+```
+
+
+## Rainfall Distributions around events
+
+In the below plots we look at all rainfall events and map the distribution of rainfall values 3,5,10, and 15 days around the date the event was reported.
+
+First we have the distributions of the rainfall regimes aligned right
+
+```{r,eval=T}
+library(ggridges)
+tar_load(rainfall_impact_tbl)
+rainfall_impact_marib_hajjah <- rainfall_impact_tbl %>%
+  filter(governorate_name %in% c("Marib", "Hajjah"))
+
+event_rainfall_distributions <- function(df, day_window) {
+  df_w_event_uid <- df %>%
+    mutate(event_uid = paste0(site_id, "_", date))
+
+  event_uid <- df_w_event_uid %>%
+    filter(fevent) %>%
+    pull(event_uid)
+
+  event_uid %>%
+    map_dfr(\(uid){
+      df_event <- df_w_event_uid %>%
+        filter(event_uid == uid)
+      event_date <- df_event$date
+
+      start_date <- event_date - day_window
+      end_date <- event_date + day_window
+
+      dates_incl <- seq(ymd(start_date), ymd(end_date), 1)
+
+      start_minus_3mo <- start_date - 90
+      end_plus_3mo <- end_date + 90
+
+      all_dates <- seq(ymd(start_minus_3mo), ymd(end_plus_3mo), 1)
+
+      dates_excl <- all_dates[!all_dates %in% dates_incl]
+
+
+      site_dates_centered <- df_w_event_uid %>%
+        filter(
+          site_id == df_event$site_id,
+          date %in% dates_incl
+        ) %>%
+        select(date, fevent, governorate_name, site_id, starts_with("precip_")) %>%
+        arrange(site_id, date) %>%
+        mutate(when = "dates around event")
+
+      site_dates_non_dates <- df_w_event_uid %>%
+        filter(
+          site_id == df_event$site_id,
+          date %in% dates_excl,
+        ) %>%
+        select(date, fevent, governorate_name, site_id, starts_with("precip_")) %>%
+        arrange(site_id, date) %>%
+        mutate(when = "dates not aroud event")
+      bind_rows(site_dates_centered, site_dates_non_dates)
+    })
+}
+
+
+distributions_centered <- c(3, 5, 10, 15) %>%
+  map(\(day){
+    event_rainfall_distributions(
+      df = rainfall_impact_marib_hajjah,
+      day_window = day
+    )
+  }) %>%
+  set_names(c(3, 5, 10, 15))
+
+
+
+plot_regime_distribution_ridges <- function(df, regime_rgx = "^precip_.+\\d$") {
+  df_regime_long <- df %>%
+    pivot_longer(
+      cols = matches(regime_rgx),
+      names_to = "precip_regime", values_to = "mm"
+    )
+
+  regime_level_order <- df_regime_long %>%
+    mutate(
+      regime_num = parse_number(precip_regime),
+    ) %>%
+    distinct(precip_regime, regime_num) %>%
+    arrange(regime_num) %>%
+    pull(precip_regime)
+
+  p_event_rainfall_distributions <- df_regime_long %>%
+    mutate(precip_regime = fct_relevel(precip_regime, regime_level_order)) %>%
+    ggplot(aes(
+      x = mm,
+      y = precip_regime,
+      fill = when
+      # fill =stat(x))
+    ), alpha = 0.3) +
+    geom_density_ridges(alpha = 0.3) +
+
+    # geom_density_ridges_gradient()+
+    # scale_fill_gradient_hdx_sapphire()+
+    # scale_fill_viridis_c(option = "C") +
+    facet_wrap(~governorate_name) +
+    theme_hdx() +
+    theme(
+      # legend.position ="none",
+      axis.title.y = element_blank()
+    )
+  return(p_event_rainfall_distributions)
+}
+
+
+ridge_plot_subtitle_1 <- glue::glue("+/- {names(distributions_centered)} days around event (regime aligned right)")
+p_rainfall_distributions_right <- distributions_centered %>%
+  map2(ridge_plot_subtitle_1, \(rainfall_df, plot_subtitle){
+    plot_regime_distribution_ridges(df = rainfall_df, regime_rgx = "^precip_.+\\d$") +
+      labs(title = "Rainfall regime distributions", subtitle = plot_subtitle)
+  })
+ridge_plot_subtitle_2 <- glue::glue("+/- {names(distributions_centered)} days around event (regime aligned center)")
+
+p_rainfall_distributions_centered <- distributions_centered %>%
+  map2(ridge_plot_subtitle_2, \(rainfall_df, plot_subtitle){
+    plot_regime_distribution_ridges(df = rainfall_df, regime_rgx = "^precip_.+_c$") +
+      labs(title = "Rainfall regime distributions", subtitle = plot_subtitle)
+  })
+```
+
+```{r, out.width="100%"}
+walk(p_rainfall_distributions_right, ~ print(.x))
+```
+
+and next center aligned:
+
+```{r, out.width="100%"}
+walk(p_rainfall_distributions_centered, ~ print(.x))
+```
+
+
+
+## Appendix - Site Level Plots
+
+Site level plots showing rainfall and reported flood events at each site. The dates extend 60 days in each direction (where possible) around the reported flood events.**Note:** while the date range window for plotting was set to 60 days around the reported flood events for illustrative purposes, `FP`s outside of the 60-day window are included in performance calculations
+
+In these examples a threshold of `25 mm` on a `10 day` precipitation accumulation window was set. These are both arbitrary values, but were chosen for illustrative purposes to make sure the dates & events were being properly classified/labelled
+
+
+```{r site-plots ,eval = F, echo=FALSE,out.width="100%"}
+walk(p_all_sites_events_pred_classifications, ~ print(.x))
+```
+
+

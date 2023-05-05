@@ -5,5 +5,8 @@
 library(targets)
 library(sf)
 tar_load(high_risk_flood_stats_by_cod)
+
+
 st_write(high_risk_flood_stats_by_cod$adm1,dsn = "../../qgis_projects/aa_yem_flood.gpkg","yem_adm1_rev",append = T)
 st_write(high_risk_flood_stats_by_cod$adm2,dsn = "../../qgis_projects/aa_yem_flood.gpkg","yem_adm2_rev",append = T)
+

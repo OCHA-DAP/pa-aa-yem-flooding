@@ -1,0 +1,314 @@
+---
+title: "07_CHECKPOINT_1A"
+output: 
+    bookdown::html_document2:
+        toc: true
+        toc_float: true
+        toc_depth: 4
+date: "2023-03-22"
+---
+
+```{r setup, include=FALSE}
+# knitr::opts_chunk$set(echo = FALSE,
+#                       include =T,
+#                       warning=F,
+#                       message = F,comment = F)
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+# Intro
+
+This document is created to serve as a check point for work up until week of March 27 and guide the next stages of research.
+
+- Rainfall characterization
+- Approach
+- Performance testing
+    + site level
+    + area level
+    + area level with events clustered
+- Rainfall return periods
+- CCCM Flood DB Impact Data
+    + Grouped/clusters events/waves
+    + Impact data compared with historical rainfall and return periods
+    + % Impact by different thresholds - an approach using daily rainfall
+- Next Steps:
+    + ECMWF Forecasting
+
+
+```{r, echo=F,include=T}
+# source libs & funcs
+library(here)
+library(targets)
+library(sf)
+library(tidyverse)
+library(leaflet)
+library(glue)
+library(gghdx)
+library(lubridate)
+library(sysfonts)
+library(extRemes)
+library(ggiraph)
+tar_source() # source all functions in "R/"
+
+# for gghdx
+font_add_google("Source Sans Pro")
+showtext::showtext_auto()
+
+# source targets needed for notebook.
+tar_load(gov_area_rainfall_impact_tbl)
+tar_load(zonal_stats_high_risk_hull)
+tar_load(p_rainfall_rp_impact_num_shelters)
+tar_load(p_rainfall_rp_impact_num_shelters_agg)
+tar_load(p_rainfall_rp_impact_num_events_agg)
+tar_load(cccm_flood_marib_hajjah_impact)
+```
+
+
+# Rainfall Characterization
+
+The main point is that rainfall in `21'` and `22'` was very high \@ref(fig:plot-historicalChirpsMonthly), \@ref(fig:plot-historicalChirpsAnnual). Unfortunately, CCCM Flood reporting was only available for these 2 years. 
+ 
+**Monthly Historical Rainfalls**
+
+```{r  plot-historicalChirpsMonthly, eval = T, fig.cap="CHIRPS Historical Rainfall (Monthly)", results="asis"}
+zonal_stats_high_risk_hull$precip_daily %>%
+  mutate(date = as_date(date)) %>%
+  group_by(year = year(date), month = month(date), governorate_name) %>%
+  summarise(
+    monthly_rainfall = sum(mean), .groups = "drop"
+  ) %>%
+  mutate(
+    date = paste0(year, "-", formatC(month, width = 2, flag = "0"), "-01")
+  ) %>%
+  ggplot(aes(x = as_date(date), y = monthly_rainfall, color = governorate_name)) +
+  geom_line(alpha = 0.6) +
+  labs(x = "date", y = "Monthly total (mm)") +
+  scale_x_date(breaks = "year", date_labels = "%b-%y") +
+  theme_hdx() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+**Yearly Historical Rainfall**
+
+```{r plot-historicalChirpsAnnual,fig.cap="CHIRPS Historical precipitation (annual)", results ="asis"}
+zonal_stats_high_risk_hull$precip_daily %>%
+  mutate(date = as_date(date)) %>%
+  group_by(year = year(date), governorate_name) %>%
+  summarise(
+    yearly_rainfall = sum(mean), .groups = "drop"
+  ) %>%
+  ggplot(aes(
+    x = year,
+    y = yearly_rainfall, color = governorate_name
+  )) +
+  geom_line(alpha = 1) +
+  scale_x_continuous(breaks = seq(1981, 2022, by = 1)) +
+  labs(x = "year", y = "yearly total ( mm)") +
+  theme_hdx() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+# Approach
+
+## Overview
+
+As it will not be possible to predict exactly where and when flooding occurs a flexible area level approach seems best. Country partners agree. We want to find thresholds/triggers where flooding is likely to occur across the areas. Exact target locations still not totally clear, but Marib and Hajjah are the target governorates.
+
+Plots below show rainfall and events at the area level for Hajjah and Marib.
+
+```{r}
+p_rainfall_events_gov <- c("Hajjah", "Marib") %>%
+  map(
+    \(gov){
+      plot_site_events_classified(
+        df = gov_area_rainfall_impact_tbl %>%
+          filter(governorate_name == gov),
+        x = "precip_roll10_mean",
+        event = "fevent",
+        thresh = 25,
+        day_window = 60,
+        plot_title = gov
+      )
+    }
+  )
+```
+
+```{r, out.width="100%"}
+walk(p_rainfall_events_gov, ~ print(.x))
+```
+
+## Impact & Thresholds
+
+In doc `06_Performance_Testing_Rainfall_Thresholds` we do variety of classifications to test the performance and try to opptimize threshold. However, as all events in the flood reporting database are not equivalent, it could make sense to incorporate magnitude of events when considering threshold and designing trigger.
+
+The graphs below group events based on location and timing and incorporate event magnitude (i.e # shelters affected, # of events reported, etc), and put them on a timeseries which also shows the rainfall that occurred (under different accumulation window). On top of this we overlay return period rainfall levels incorporating all historical chirps data for the areas.
+
+### Hajjah Grouped By Event
+
+- number shelters affected
+
+```{r, out.width="100%"}
+# use modify_depth to pluck out plots by name
+hajjah_event_plots <- modify_depth(p_rainfall_rp_impact_num_shelters, 1, "Hajjah")
+marib_event_plots <- modify_depth(p_rainfall_rp_impact_num_shelters, 1, "Marib")
+```
+
+
+```{r, out.width="100%"}
+htmltools::tagList(hajjah_event_plots) # since they are made with ggiraph we use tagList
+```
+
+### Marib Grouped By Event
+
+- number shelters affected
+
+```{r, out.width="100%"}
+htmltools::tagList(marib_event_plots)
+# walk(marib_event_plots,~print(.x))
+```
+
+### Hajjah Grouped By Cluster
+
+- Number of shelters affected aggregated by cluster
+```{r, out.width="100%"}
+hajjah_cluster_shelter_plots <- modify_depth(p_rainfall_rp_impact_num_shelters_agg, 1, "Hajjah")
+hajjah_cluster_event_plots <- modify_depth(p_rainfall_rp_impact_num_events_agg, 1, "Hajjah")
+marib_cluster_event_plots <- modify_depth(p_rainfall_rp_impact_num_events_agg, 1, "Marib")
+marib_cluster_shelter_plots <- modify_depth(p_rainfall_rp_impact_num_shelters_agg, 1, "Marib")
+walk(hajjah_cluster_shelter_plots, ~ print(.x))
+```
+
+- Number events aggregated by cluster
+```{r, out.width="100%"}
+# walk(hajjah_cluster_event_plots,~print(.x))
+htmltools::tagList(hajjah_cluster_event_plots)
+```
+
+### Marib Grouped By Cluster
+
+- Number of shelters affected aggregated by cluster
+```{r, out.width="100%"}
+# walk(marib_cluster_shelter_plots,~print(.x))
+htmltools::tagList(marib_cluster_shelter_plots)
+```
+
+- Number events aggregated by cluster
+
+```{r, out.width="100%"}
+htmltools::tagList(marib_cluster_event_plots)
+```
+
+
+## Another View of Impact vs Rainfall 
+
+It would be nice to have some statistics/ 1 liners like: `x %` HHs were affected by events of `y mm` or greater. Making some plots below that might lead to this kind of understanding and perhaps help in thinking about thresholds. For the plots I do the following manipulations/analysis (for each rainfall regime):
+
+1. At each event date I find the max rainfall value within 5 days of the event (`window` argument in function below)
+2. I then iterate through rainfall values `0:max rainfall` and determine if the event occurred when the max rainfall (calculated step above) was greater than or equal to the rainfall value.
+3. Aggregate that occurred with rainfall values for each step of the rainfall value iteration. They are aggregated by summing the impact i.e number HHs affected, number shelter affected, etc. (`impact_val` parameter below). From the aggregated number I calculate the percentage of impact that occurred at each threshold and above compared to all impact that occurred in the flood db.
+
+
+```{r, eval = T}
+p_pct_impacted_shelters_by_thresh_gov <- zonal_stats_high_risk_hull %>%
+  map(
+    \(precip_regime_df){
+      plot_impact_by_threshold(
+        impact = cccm_flood_marib_hajjah_impact,
+        rainfall = precip_regime_df,
+        window = 5,
+        by = "governorate_name",
+        rainfall_val = "mean",
+        impact_val = "num_shelters_affected"
+      )
+    }
+  ) %>%
+  set_names(names(zonal_stats_high_risk_hull)) %>%
+  imap(\(p, nm){
+    p +
+      labs(subtitle = glue("Rainfall regime: {nm}"))
+  })
+
+p_pct_impacted_shelters_by_thresh_total <- zonal_stats_high_risk_hull %>%
+  map(
+    \(precip_regime_df){
+      plot_impact_by_threshold(
+        impact = cccm_flood_marib_hajjah_impact,
+        rainfall = precip_regime_df,
+        window = 5,
+        by = NULL, # do it overall
+        rainfall_val = "mean",
+        impact_val = "num_shelters_affected"
+      )
+    }
+  ) %>%
+  set_names(names(zonal_stats_high_risk_hull)) %>%
+  imap(\(p, nm){
+    p + labs(subtitle = glue("Rainfall regime: {nm}"))
+  })
+```
+
+This analysis is **most** interesting when just looking at daily rainfall. The 5 day window max value step pushed the values way to high in the other rainfall regimes.
+
+Looking at daily rainfall value for all Marib & Hajjah data together we see a large drop in % shelter affected after 17 mm \@ref(fig:plot-pctImpactVsThreshTotal). We see that  over 80% of shelters affected were affected when there was a daily rainfall event of over >= 17 mm within 5 days of the incident being reported. 
+
+```{r plot-pctImpactVsThreshTotal, fig.cap="Over 80% of shelters affected were affected when there was a daily rainfall event of over >= 17 mm within 5 days of the incident being reported.", out.width="100%"}
+p_pct_impacted_shelters_by_thresh_total$precip_daily +
+  geom_vline(xintercept = c(17), linetype = "dashed", color = "#F2645A", lwd = 1) +
+  geom_hline(yintercept = 0.815, color = "#F2645A", linetype = "dashed", lwd = 1) +
+  labs(
+    title = "% shelters affected at and above each rainfall threshold",
+    subtitle = "maximum daily rainfall within 5 days of incident being reported"
+  ) +
+  theme(
+    legend.title = element_blank(),
+    plot.caption = element_text(hjust = 0)
+  )
+```
+
+We can look at this type of relationship for each Governorate as well. We see that in Hajjah ~75 % of shelters affected were affected when there was a daily rainfall event of over >= 17 mm within 5 days of the incident being reported. Whereas in Marib >= 90 % of shelters affected were affected when there was a daily rainfall event of over >= 19 mm (\@ref(fig:plot-pctImpactVsThreshGov)). 
+
+The steep drop in values near 0 mm observed most strikingly in Hajjah is must be largely due to the odd cluster ("Hajjah_3") of reported events on June 16 & 17. If this could be properly dealt with perhaps the Hajjah curve would more closely resemble the Marib curve.
+
+```{r plot-pctImpactVsThreshGov,fig.cap="75 % of shelters affected in Hajjah & > 90 % in Marib were affected when there was a daily rainfall event of over >= 17 and >=19 mm, respectively, within 5 days of the incident being reported.", out.width="100%"}
+p_pct_impacted_shelters_by_thresh_gov$precip_daily +
+  geom_vline(xintercept = c(17), linetype = "dashed", color = "#F2645A", lwd = 0.5) +
+  geom_vline(xintercept = c(19), linetype = "dashed", color = "#1EBFB3", lwd = 0.5) +
+  geom_hline(yintercept = 0.75, color = "#F2645A", linetype = "dashed", lwd = 0.5) +
+  geom_hline(yintercept = 0.91, color = "#1EBFB3", linetype = "dashed", lwd = 0.5) +
+  labs(
+    x = "threshold (mm)",
+    title = "% shelters affected at and above each rainfall threshold",
+    subtitle = "maximum daily rainfall within 5 days of incident being reported"
+  ) +
+  theme(
+    legend.title = element_blank(),
+    plot.caption = element_text(hjust = 0)
+  )
+```
+
+## Next Steps 
+
+- Forecast data - ECMWF.
+- Compare rainfall, and impact to forecast data
+
+```{r,eval=F}
+# if we want to print the rest of rainfall regimes into html doc we can - but don't think it's worth it for now
+walk(p_pct_impacted_shelters_by_thresh_gov %>%
+  discard_at("precip_daily"), ~ print(.x))
+```
+
+```{r,eval=F}
+# if we want to print the rest of rainfall regimes into html doc we can - but don't think it's worth it for now
+walk(p_pct_impacted_shelters_by_thresh_total %>%
+  discard_at("precip_daily"), ~ print(.x))
+```
+
+```{r,eval=F}
+# are any of them the same sites in july/aug? -- no
+df_clusters5$Hajjah %>%
+  st_drop_geometry() %>%
+  filter(month(date) %in% c(7, 8)) %>%
+  group_by(site_id) %>%
+  filter(n() > 1)
+```
