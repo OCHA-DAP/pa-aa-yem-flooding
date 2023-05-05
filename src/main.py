@@ -28,6 +28,7 @@ def run_pipeline(clobber: bool = False):
     utils.download_era5(clobber=clobber)
     utils.process_era5(clobber=clobber)
     # ECMWF - HRES
+    utils.download_hres(clobber=clobber)
     return
 
 

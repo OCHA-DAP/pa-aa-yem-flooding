@@ -9,6 +9,7 @@ import pandas as pd
 import rasterio
 import xarray as xr
 from dateutil import rrule
+from ecmwfapi import ECMWFService
 from ochanticipy import CountryConfig
 from ochanticipy.datasources.datasource import DataSource
 from rasterio.crs import CRS
@@ -18,6 +19,7 @@ from shapely.geometry import box
 
 logger = logging.getLogger(__name__)
 c = cdsapi.Client()
+server = ECMWFService("mars")
 
 
 # TODO: Fix this -- either make a separate ABC or make it work
@@ -127,65 +129,8 @@ class Era5(_DataSourceExtension):
                 "variable": "total_precipitation",
                 "year": forecast_date.strftime("%Y"),
                 "month": forecast_date.strftime("%m"),
-                "day": [
-                    "01",
-                    "02",
-                    "03",
-                    "04",
-                    "05",
-                    "06",
-                    "07",
-                    "08",
-                    "09",
-                    "10",
-                    "11",
-                    "12",
-                    "13",
-                    "14",
-                    "15",
-                    "16",
-                    "17",
-                    "18",
-                    "19",
-                    "20",
-                    "21",
-                    "22",
-                    "23",
-                    "24",
-                    "25",
-                    "26",
-                    "27",
-                    "28",
-                    "29",
-                    "30",
-                    "31",
-                ],
-                "time": [
-                    "00:00",
-                    "01:00",
-                    "02:00",
-                    "03:00",
-                    "04:00",
-                    "05:00",
-                    "06:00",
-                    "07:00",
-                    "08:00",
-                    "09:00",
-                    "10:00",
-                    "11:00",
-                    "12:00",
-                    "13:00",
-                    "14:00",
-                    "15:00",
-                    "16:00",
-                    "17:00",
-                    "18:00",
-                    "19:00",
-                    "20:00",
-                    "21:00",
-                    "22:00",
-                    "23:00",
-                ],
+                "day": [f"{str(x).zfill(2)}" for x in range(1, 32)],
+                "time": ["00:00"],
                 "format": "grib",
                 "area": [19, 42, 12, 55],
             }
@@ -259,6 +204,52 @@ class Era5(_DataSourceExtension):
 
         processed_filepath.parent.mkdir(parents=True, exist_ok=True)
         df_results.to_csv(processed_filepath, index=False)
+
+
+class Hres(_DataSourceExtension):
+    _DATASOURCE_BASENAME = "ecmwf"
+    _IS_PUBLIC = False
+    _IS_GLOBAL_RAW = False
+
+    def __init__(
+        self,
+        country_config: CountryConfig,
+        start_date: date = date(2007, 1, 1),
+        end_date: date = date(2022, 12, 31),
+    ):
+        self._start_date = start_date
+        self._end_date = end_date
+        self._date_range = rrule.rrule(
+            freq=rrule.DAILY,
+            dtstart=self._start_date,
+            until=self._end_date,
+        )
+        super().__init__(country_config)
+
+    def download(self, clobber: bool = False):
+        for forecast_date in self._date_range:
+            forecast_date_string = forecast_date.strftime("%Y-%m-%d")
+            req = {
+                "class": "od",
+                "date": forecast_date_string,
+                "expver": 1,
+                "levtype": "sfc",
+                "area": "19.0/42.0/12.0/55.0",
+                "grid": "0.1/0.1",
+                "param": "228.128",
+                "step": "0/24/48/72/96/120/144/168/192/216/240",
+                "stream": "oper",
+                "time": "00:00:00",
+                "type": "fc",
+                "use": "infrequent",
+            }
+            output_filename = (
+                self._raw_base_dir / "yem_fc_tp_{forecast_date_string}.grib2"
+            )
+            if output_filename.exists() and not clobber:
+                print(f"{forecast_date_string} exists, skipping")
+                continue
+            server.execute(req, output_filename)
 
 
 class ChirpsGefs(_DataSourceExtension):
