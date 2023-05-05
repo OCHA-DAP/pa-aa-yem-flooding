@@ -4,19 +4,15 @@ format: html
 editor: visual
 ---
 
-
 **Note:** This notebook contains some exploratory analysis to better understand the data sets. It is not currently being used in the pipeline or for any outputs, but we may return to it and adopt some code later on.
 
 # Flood Scan vs Chirps
 
-
 The notebook offers a first look at/exploration of:
 
-1. chirps vs floodscan. However, both dataset are aggregated to admin zones which we realized later is not ideal.
-2. cccm data - some exploration to understand how the data is structured and what variables might be important
-3. looking into a way to load and use floodscan in R - so far unsuccessful
-
-
+1.  chirps vs floodscan. However, both dataset are aggregated to admin zones which we realized later is not ideal.
+2.  cccm data - some exploration to understand how the data is structured and what variables might be important
+3.  looking into a way to load and use floodscan in R - so far unsuccessful
 
 ```{r}
 library(tidyverse)
@@ -109,8 +105,6 @@ fs_ts$floodscan_stats_ADM1_PCODE.csv %>%
 # I can tell from the pic of flood scan coverage that theese are not covered...
 ```
 
-
-
 plot some flood scan vs chirps. This data is aggregated at the national level in both floodscan and chirps. This is probably not ideal
 
 interesting... are the very low values noise in the floodscan?
@@ -144,7 +138,6 @@ fs_chirps_adm0 %>%
   scale_y_log10(labels = scales::percent) +
   labs(x = "10-day rolling sum max (mm)", y = "Sum flood fraction")
 ```
-
 
 Now at the admin 1 level
 
@@ -278,8 +271,6 @@ plot(fit_chirps_daily)
 plot(fit_chirps_10d)
 ```
 
-
-
 # Rainfall vs affected
 
 ```{r}
@@ -342,25 +333,4 @@ fs_chirps_cm %>%
   geom_point() +
   scale_y_log10() +
   scale_x_log10()
-```
-
-
-```{r}
-fsrp <- file.path(
-  Sys.getenv("AA_DATA_DIR"),
-  "private/raw/glb/floodscan/floodscan_flooded_fraction_africa_19980112-20221231_p00/aer_sfed_area_300s_19980112_20221231_v05r01.nc"
-)
-
-fsr <- terra::sds(fsrp)
-
-
-fsr <- terra:::rast(raster::stack(fsrp))
-fsr <- terra::rast(fsrp)
-raster::raster(fsr)
-plot(fsr[[1]])
-
-fsr %>% summary()
-plot(fsr)
-name(fsr)
-terra::subset(fsr)
 ```
