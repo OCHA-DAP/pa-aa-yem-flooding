@@ -60,7 +60,8 @@ for df_dict in df_era5_dict, df_chirps_dict:
     for gov in GOVS:
         df = df_dict[gov]
         df.index = pd.to_datetime(df.index).to_period("D")
-        df[~df.index.month.isin(TARGET_MONTHS)] = np.NaN
+        # Take out for now
+        # df[~df.index.month.isin(TARGET_MONTHS)] = np.NaN
 ```
 
 ## Return periods

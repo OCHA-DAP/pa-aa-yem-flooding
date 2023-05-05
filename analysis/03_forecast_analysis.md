@@ -22,7 +22,6 @@ from src import constants, utils
 # Governorate names
 GOVS = ["Hajjah", "Marib"]
 RP = 2
-TARGET_MONTHS = [5, 6, 7, 8, 9]
 ```
 
 ```python
@@ -39,7 +38,6 @@ df_hres = pd.read_csv(hres_data_dir / "hres.csv")
 ```python
 # Clean the dataframes a bit
 # In both cases convert m to mm (x by 1000)
-
 df_era5_dict = {
     gov: df_era5.loc[df_era5["gov"] == gov][["time", "value"]]
     .rename(columns={"value": "era5"})
@@ -55,22 +53,13 @@ df_hres_dict = {
 }
 ```
 
-```python
-# For ERA5, select only target months.
-# Do it later for HRES once dates are shifted.
-
-for gov in GOVS:
-    df = df_era5_dict[gov]
-    df.index = pd.to_datetime(df.index).to_period("D")
-    df[~df.index.month.isin(TARGET_MONTHS)] = np.NaN
-```
-
 ## ERA5 return period
 
 ```python
 # For era5 need to conver tot 3 day rolling
 for gov in GOVS:
     df = df_era5_dict[gov]
+    df.index = pd.to_datetime(df.index).to_period("D")
     df = df.rolling(3).sum().shift(-1).dropna()
     df_era5_dict[gov] = df
 ```
@@ -164,9 +153,7 @@ for gov in GOVS:
     # Finally, shift the leadtimes
     for n in range(8):
         df[n + 1] = df[n + 1].shift(n)
-    # Set all dates we don't want to NaN
     df.index = pd.to_datetime(df.index).to_period("D")
-    df[~df.index.month.isin(TARGET_MONTHS)] = np.NaN
     df_hres_proc_dict[gov] = df
 ```
 
@@ -236,46 +223,52 @@ df_results = pd.DataFrame(
     columns=["gov", "leadtime", "values", "quantity", "minval"]
 )
 
+target_months = [5, 6, 7, 8, 9]
+
 leadtimes = np.arange(1, 9)
 for gov in GOVS:
-    df = df_comb_dict[gov].copy()
     for minval in [1, rp_dict[gov]]:
-        df = df[df["era5"] > minval]
-        for quantity in ["mae", "bias"]:
-            df_results = pd.concat(
-                (
-                    df_results,
-                    pd.DataFrame(
-                        dict(
-                            values=[
-                                func_dict[quantity](
-                                    df["era5"], df[leadtime]
-                                ).mean()
-                                for leadtime in leadtimes
-                            ],
-                            gov=gov,
-                            leadtime=leadtimes,
-                            quantity=quantity,
-                            minval=minval,
-                        )
+        for limit_months in [True, False]:
+            df = df_comb_dict[gov].copy()
+            if limit_months:
+                df[~df.index.month.isin(TARGET_MONTHS)] = np.NaN
+            df = df[df["era5"] > minval]
+            for quantity in ["mae", "bias"]:
+                df_results = pd.concat(
+                    (
+                        df_results,
+                        pd.DataFrame(
+                            dict(
+                                values=[
+                                    func_dict[quantity](
+                                        df["era5"], df[leadtime]
+                                    ).mean()
+                                    for leadtime in leadtimes
+                                ],
+                                gov=gov,
+                                leadtime=leadtimes,
+                                quantity=quantity,
+                                minval=minval,
+                                limit_months=limit_months,
+                            )
+                        ),
                     ),
-                ),
-                ignore_index=True,
-            )
+                    ignore_index=True,
+                )
 ```
 
 ```python
 # Make some plots
-
 for quantity in ["mae", "bias"]:
     fig, ax = plt.subplots()
     df = df_results[df_results["quantity"] == quantity]
-    for (gov, minval), group in df.groupby(["gov", "minval"]):
-        ax.plot(
-            group["leadtime"],
-            group["values"],
-            label=f"{gov}, tp > {minval:.1f} mm",
-        )
+    for (gov, minval, limit_months), group in df.groupby(
+        ["gov", "minval", "limit_months"]
+    ):
+        label = f"{gov}, tp > {minval:.1f} mm"
+        if limit_months:
+            label += ", May-Sep"
+        ax.plot(group["leadtime"], group["values"], label=label)
     ax.legend()
     ax.set_title(quantity)
     ax.set_xlabel("lead time (days)")
@@ -393,4 +386,8 @@ for gov in GOVS:
             df[[1, 2, 3, 4, 5, 6, 7, 8]].plot(ax=ax, lw=0.5)
             ax.set_title(f"{gov}, event from {title}")
             plt.show()
+```
+
+```python
+
 ```
