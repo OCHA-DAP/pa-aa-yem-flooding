@@ -1,7 +1,8 @@
 ---
-title: "Explore Forecast"
+title: "Explore Rainfall & Trigger"
 output:
     flexdashboard::flex_dashboard:
+            orientation: rows
 date: "2023-05-03"
 runtime: shiny
 ---
@@ -165,7 +166,7 @@ alert_phase_lines_y_pos <- reactive({
 })
 ```
 
-Realtime Simulation {data-orientation=rows}
+Realtime Simulation {data-orientation=columns}
 =====================================  
     
 ```{r page1UI, echo=FALSE}
@@ -175,7 +176,7 @@ fluidRow(
                 dateInput(inputId="date",label = "Date",value = "2022-07-13")
                 ),
          column(width=3,
-                selectInput(inputId="cumulation_window",choices = c("Daily"="precip_daily",
+                selectInput(inputId="cumu_window",choices = c("Daily"="precip_daily",
                                                     "3 Day"="roll3",
                                                     "5 Day"="roll5",
                                                     "10 Day"= "roll10"),label = "Rainfall accumulation",selected = "roll3")),
@@ -186,16 +187,14 @@ fluidRow(
 )
 ```
 
-Row {data-height=300}
+Column {data-width=650}
 -------------------------------------
 
 ```{r page1Plot, echo=FALSE}
- 
-
 renderPlot({
     
     forecast_filt <- hres_forecast %>%
-        filter(name == input$cumulation_window,
+        filter(name == input$cumu_window,
                date_forecast_made==as_date(input$date)) %>%
         mutate(
             activation = case_when(
@@ -206,7 +205,7 @@ renderPlot({
                 fct_expand("Action","Readiness","No Activation"),
             txt_label=glue("{activation} predicted {format(date_forecast_predict,'%m-%d')} ({leadtime})")
         )
-    y_axis_label <- convert_window_numeric(input$cumulation_window) %>%
+    y_axis_label <- convert_window_numeric(input$cumu_window) %>%
         paste0("Rainfall Accumulation (mm)")
     
     readiness_dates <-  forecast_filt %>% 
@@ -248,45 +247,13 @@ renderPlot({
         )
     return(p)
 
-}, height=750, width=500)
+}, height =1000)
 
 
 
 ```
 
-
-Triggers & Historical {data-orientation=rows}
-=====================================
-   
-
-```{r historicalUI, echo=FALSE, out.width="100%", height="500px"}
-fluidRow(
-         column(width=2,
-                selectInput(inputId="cum_window3",choices = c("Daily"="precip_daily",
-                                                    "3 Day"="roll3",
-                                                    "5 Day"="roll5",
-                                                    "10 Day"= "roll10"),label = "Rainfall accumulation",selected = "roll3")),
-         column(width=2,
-                numericInput(inputId = "thresh3",label = "Threshold",value = 19.8,min = 0,step = 0.1)
-                ),
-         column(width=3,
-                dateRangeInput("daterange", "Date range:",
-                 start  = as_date("2021-01-01"),
-                 end    = as_date("2021-12-31"),
-                 min    = as_date("1981-01-01"),
-                 max    = as_date("2022-12-31"),
-                 format ="yyyy-mm-dd"
-                 )),
-         column(width=2,
-                selectInput(inputId="trig_freq",label="Trigger can be activaed 1x per",choices=c("Season"="season","10 Days","30 Days"),selected="season")
-         ),
-         column(width=2,
-                selectInput(inputId="forecast_type",label="Forecast:",choices=c("CHIRPS-GEFS"="chirps_gefs","ECMWF - HRES"="hres"),selected="hres")
-         )
-)
-```
-
-Row {data-height=1000}
+Column {data-width=350}
 -------------------------------------
 
 ```{r}
@@ -322,11 +289,43 @@ renderDataTable({
         pivot_wider(names_from = governorate_name,values_from = RP_level)
     
     tables_merged %>% 
-        filter(precip_regime==input$cum_window3,RP==2)
+        filter(precip_regime==input$cumu_window)
     
 })
 
 
+```
+
+
+Triggers & Historical {data-orientation=rows}
+=====================================
+   
+
+```{r historicalUI, echo=FALSE, out.width="100%", height="500px"}
+fluidRow(
+         column(width=2,
+                selectInput(inputId="cum_window3",choices = c("Daily"="precip_daily",
+                                                    "3 Day"="roll3",
+                                                    "5 Day"="roll5",
+                                                    "10 Day"= "roll10"),label = "Rainfall accumulation",selected = "roll3")),
+         column(width=2,
+                numericInput(inputId = "thresh3",label = "Threshold",value = 19.8,min = 0,step = 0.1)
+                ),
+         column(width=3,
+                dateRangeInput("daterange", "Date range:",
+                 start  = as_date("2021-01-01"),
+                 end    = as_date("2021-12-31"),
+                 min    = as_date("1981-01-01"),
+                 max    = as_date("2022-12-31"),
+                 format ="yyyy-mm-dd"
+                 )),
+         column(width=2,
+                selectInput(inputId="trig_freq",label="Trigger can be activaed 1x per",choices=c("Season"="season","10 Days","30 Days"),selected="season")
+         ),
+         column(width=2,
+                selectInput(inputId="forecast_type",label="Forecast:",choices=c("CHIRPS-GEFS"="chirps_gefs","ECMWF - HRES"="hres"),selected="hres")
+         )
+)
 ```
 
 
@@ -441,9 +440,9 @@ renderPlot({
 # ggiraph::renderGirafe()
 ```
 
-Row {data-height=1000}
--------------------------------------
-```{r, eval=T}
+<!-- Row {data-height=1000} -->
+<!-- ------------------------------------- -->
+```{r, eval=F}
 renderDataTable({
     start_date <-as.character(input$daterange[1])
     end_date <-as.character(input$daterange[2])
