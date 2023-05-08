@@ -19,33 +19,19 @@ options(tidyverse.quiet = TRUE,
 library(tidyverse)
 library(lubridate)
 library(glue)
-# library(sf)
-# library(leaflet)
-# library(targets)
-library(sysfonts)
-library(gghdx)
-library(glue)
-library(here)
-# library(zoo)
-library(extRemes)
+library(sysfonts) # req for gghdx
+library(gghdx) 
+library(extRemes) # req for RP calcs
 library(shiny)
-# library(flexdashboard)
-# library(data.table)
-# tar_source()
 
-source(here::here("R/tar_return_periods.R"))
+source("rp_calcs.R")
 
 font_add_google("Source Sans Pro")
 showtext::showtext_auto()
-# tar_load(hres_rolled_per_date_gen)
 
-hres_forecast <- read_rds(here::here("shinydata/hres_rolled_per_date_gen.rds"))
-era_chirps <- read_rds(here::here("shinydata/era_chirps_long.rds"))
-chirps_gefs_forecast <- read_rds(here::here("shinydata/chirps_gefs.rds"))
-
-
-
-    
+hres_forecast <- read_rds("shinydata/hres_rolled_per_date_gen.rds")
+era_chirps <- read_rds("shinydata/era_chirps_long.rds")
+chirps_gefs_forecast <- read_rds("shinydata/chirps_gefs.rds")
 
 ```
 
