@@ -168,15 +168,9 @@ alert_phase_lines_y_pos <- reactive({
 Realtime Simulation {data-orientation=rows}
 =====================================  
     
-Row {data-height=500}
--------------------------------------
+```{r page1UI, echo=FALSE}
 
-    
-### Chart 1
-
-```{r}
-
-fluidRow("select params" ,
+fluidRow( 
          column(width=3,
                 dateInput(inputId="date",label = "Date",value = "2022-07-13")
                 ),
@@ -190,6 +184,12 @@ fluidRow("select params" ,
          column(width=3,
                 numericInput(inputId = "thresh",label = "Threshold",value = 19.8,min = 0,step = 0.1))
 )
+```
+
+Row {data-height=300}
+-------------------------------------
+
+```{r page1Plot, echo=FALSE}
  
 
 renderPlot({
@@ -248,96 +248,18 @@ renderPlot({
         )
     return(p)
 
-}, height=1000)
+}, height=750, width=500)
 
-theme_bw()
 
-```
-
-Lead Time {data-orientation=rows}
-=====================================     
-   
-
-### Lead Times
-
-```{r test2, echo=FALSE, out.width="100%", height="500px"}
-fluidRow(
-         column(width=4,
-                selectInput(inputId="cumulation_window2",choices = c("Daily"="precip_daily",
-                                                    "3 Day"="roll3",
-                                                    "5 Day"="roll5",
-                                                    "10 Day"= "roll10"),label = "Rainfall accumulation",selected = "roll3")),
-         column(width=4,
-                selectInput(inputId="gov2",choices = c("Hajjah","Marib"),label = "Governorate",selected = "Hajjah")),
-         column(width=4,
-                numericInput(inputId = "thresh2",label = "Threshold",value = 19.8,min = 0,step = 0.1)
-                )
-         
-         
-)
-```
-
-Row {data-height=1000}
--------------------------------------
-```{r test3, echo=F}
-
-convert_window_numeric_r2 <- reactive({
-    convert_window_numeric(input$cumulation_window2)
-})
-
-renderPlot({
-    roll_number<- as.numeric(trimws(convert_window_numeric(input$cumulation_window2)))
-    rm_leads <- seq(0,(roll_number-1))
-
-    forecast_temp_filt <- forecast_filt2() %>% 
-        filter(year(date_forecast_predict)>=2017) %>% 
-        filter(!leadtime %in% rm_leads)
-    
-    hres_gte_thresh_max_lead <- forecast_temp_filt %>% 
-        group_by(activation,date_forecast_predict) %>% 
-        filter(value>=input$thresh) %>% 
-        arrange(activation,date_forecast_predict,leadtime) %>% 
-        filter( leadtime==max(leadtime)) %>%
-        ungroup()
-    
-    
-    
-    p <- forecast_temp_filt %>% 
-        
-        
-        ggplot(aes(x=date_forecast_predict,y=value))+
-        geom_line()+
-        geom_point(data=hres_gte_thresh_max_lead,
-                    aes(x= date_forecast_predict, y= value, color=activation)) +
-        
-        scale_color_manual(values = c("Action"="red","Readiness"="orange"),na.translate=F,drop=F)+
-        geom_hline(yintercept = input$thresh2)+
-        scale_x_date(
-            # breaks = "1 day",date_labels = "%m-%d"
-            )+
-        # scale_y_continuous(limits = c(-2,top_plot),breaks = seq(0,100,10))+
-        labs(y=y_axis_label(),
-             title  = "Activations per leadtime"
-             )+
-        facet_grid(rows = vars(leadtime), scales = "free_y")+
-        theme_hdx()+
-        theme(
-            axis.text.x = element_text(angle=90),
-        )
-    return(p)
-
-}, height=1000)
 
 ```
 
 
 Triggers & Historical {data-orientation=rows}
-=====================================     
+=====================================
    
 
-### Trig
-
-```{r uiEraChirpHres, echo=FALSE, out.width="100%", height="500px"}
+```{r historicalUI, echo=FALSE, out.width="100%", height="500px"}
 fluidRow(
          column(width=2,
                 selectInput(inputId="cum_window3",choices = c("Daily"="precip_daily",
@@ -410,7 +332,7 @@ renderDataTable({
 
 Row {data-height=1000}
 -------------------------------------
-```{r eraChirpshres,echo=F}
+```{r historicalPlot,echo=F}
 
 renderPlot({
     y_axis_tite <- convert_window_numeric(input$cum_window3) %>% 
