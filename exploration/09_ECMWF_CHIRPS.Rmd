@@ -23,16 +23,16 @@ library(lubridate)
 library(glue)
 library(targets)
 library(gghdx)
-library(sysfonts)           # req for gghdx
+library(sysfonts) # req for gghdx
 library(here)
 library(zoo)
-library(extRemes)           # RP calcs
+library(extRemes) # RP calcs
 library(data.table)
-library(ggridges)           # ridge plot
-library(ggiraph)            # interactive ggplot 
-library(exactextractr)      # fast weighted zonal stats
-library(sf)                 # needed on backend for clustering points in last plots (impact w Rps)
-library(terra)              # raster
+library(ggridges) # ridge plot
+library(ggiraph) # interactive ggplot
+library(exactextractr) # fast weighted zonal stats
+library(sf) # needed on backend for clustering points in last plots (impact w Rps)
+library(terra) # raster
 tar_source() # source funcs
 
 font_add_google("Source Sans Pro")
@@ -47,14 +47,12 @@ tar_load(ecmwf_mars_leads_split_rolled)
 
 # CHIRPS
 tar_load(zonal_stats_high_risk_hull)
-chirps <- zonal_stats_high_risk_hull %>% 
-    map(~.x %>% 
-            mutate(date=as_date(date)))
+chirps <- zonal_stats_high_risk_hull %>%
+  map(~ .x %>%
+    mutate(date = as_date(date)))
 
 
 tar_load(era_chirps_long) # for plotting chirps era together
-    
-
 ```
 
 
@@ -74,14 +72,13 @@ Daily ERA5 historical precipitation was obtained from the `total_precipitation_s
 ERA 5 historical precipitation data (1981-2022) were extracted to the area surrounding the high risk sites in Marib and Hajjah. The daily values in each were aggregated by weighted "mean" based on cell overlap with boundaries. Rolling 3, 5, and 10 day accumulation values were also calculated. The result is in the `era5_w_rolling` target. We a;sp performed weighted mean stats using local ERA rasters stored on the drive. Here we merge them to show tht the results are the same - minimal variations could be due to a variety of factors including how the weighted stats were calculated. 
 
 ```{r}
-era5_w_rolling %>% 
-    left_join(era5_rolling_zonal_local %>% 
-                  mutate(
-                      date= as_date(date),
-                      across(matches("^roll|^precip_"),~.x*1000)
-                      )
-              ) %>% 
-    select(governorate_name, date, GEE_ERA = era_precip_daily,local_ERA = precip_daily)
+era5_w_rolling %>%
+  left_join(era5_rolling_zonal_local %>%
+    mutate(
+      date = as_date(date),
+      across(matches("^roll|^precip_"), ~ .x * 1000)
+    )) %>%
+  select(governorate_name, date, GEE_ERA = era_precip_daily, local_ERA = precip_daily)
 ```
 
 ### ECMWF HRES Forecast/Hindcast (MARS)
@@ -101,38 +98,40 @@ I also generated a forecast rolling statistics data.frame more in line with how 
 as you can see below the ERA5 & ECMWF MARS data can now easily be combined for skill analysis at different lead times as well as different accumulation windows
 
 ```{r}
-mars_era5_combined <- ecmwf_mars_leads_split_rolled %>% 
-    left_join(era5_w_rolling, 
-              by =c("governorate_name","date_forecast_predict"="date")
-              )
+mars_era5_combined <- ecmwf_mars_leads_split_rolled %>%
+  left_join(era5_w_rolling,
+    by = c("governorate_name", "date_forecast_predict" = "date")
+  )
 ```
 
 Here is single day accumulation with lead-time =1 
 ```{r}
-mars_era5_combined %>% 
-    ggplot(aes(x=lead_1_daily,y=era_precip_daily))+
-    geom_point()+
-    labs(x="ECMWF Forecast - Lead 1 (mm)",
-         y="ERA5 Precipitation (mm)",
-         title = "ECMWF Forecast vs ERA5 Historical",
-         subtitle = "Daily Precipitation Values. Forecast set to a lead-time of 1 day"
-         )+
-    facet_wrap(~governorate_name)+
-    theme_hdx()
+mars_era5_combined %>%
+  ggplot(aes(x = lead_1_daily, y = era_precip_daily)) +
+  geom_point() +
+  labs(
+    x = "ECMWF Forecast - Lead 1 (mm)",
+    y = "ERA5 Precipitation (mm)",
+    title = "ECMWF Forecast vs ERA5 Historical",
+    subtitle = "Daily Precipitation Values. Forecast set to a lead-time of 1 day"
+  ) +
+  facet_wrap(~governorate_name) +
+  theme_hdx()
 ```
 
 We see that the correlation looks better when we aggregate to 3 day accumulation windows:
 ```{r}
-mars_era5_combined %>% 
-    ggplot(aes(x=lead_1_roll3,y=era_roll3))+
-    geom_point()+
-    facet_wrap(~governorate_name)+
-    labs(x="ECMWF Forecast(mm) - Lead time = 1 day" ,
-         y="ERA5 Precipitation (mm)",
-         title = "ECMWF - HRES (Forecast) vs ECMWSF - ERA5 (Historical)",
-         subtitle = "3 day rainfall acccumulation values. Forecast set to a lead-time of 1 day"
-         )+
-    theme_hdx()
+mars_era5_combined %>%
+  ggplot(aes(x = lead_1_roll3, y = era_roll3)) +
+  geom_point() +
+  facet_wrap(~governorate_name) +
+  labs(
+    x = "ECMWF Forecast(mm) - Lead time = 1 day",
+    y = "ERA5 Precipitation (mm)",
+    title = "ECMWF - HRES (Forecast) vs ECMWSF - ERA5 (Historical)",
+    subtitle = "3 day rainfall acccumulation values. Forecast set to a lead-time of 1 day"
+  ) +
+  theme_hdx()
 ```
 
 
@@ -143,44 +142,47 @@ Below we look at predicted rainfall as a function of lead time for both 1 day an
 ```{r plot-HRESdailyRidge, fig.cap="Forecasted daily rainfall (mm) as function of lead time (days). Values < 1 mm removed for visualization, pseudolog scaling applied to x axis",results = "asis"}
 # rm < 1 - looks a bit noisy!
 tar_load(hres_rolled_per_date_gen)
-hres_rolled_per_date_gen %>% 
-    filter(value>1) %>% 
-    filter(str_detect(name,"precip_daily")) %>% 
-    ggplot(aes(x= value,y= as_factor(leadtime)))+
-    geom_density_ridges()+
-    scale_x_continuous(breaks = c(0,2,4,6,8,10,20,30,40,50,100,200,500,1000,1500),
-                       trans = scales::pseudo_log_trans()
-                       )+
-    labs(x="Forecasted Daily Rainfall (mm)",
-         y= "lead time (days)",
-         title = "Forecasted rainfall as function of lead time")+
-    theme_hdx()+
-     theme(
-        axis.text.x = element_text(angle = 90)
-    )+
-    facet_wrap(~governorate_name)
+hres_rolled_per_date_gen %>%
+  filter(value > 1) %>%
+  filter(str_detect(name, "precip_daily")) %>%
+  ggplot(aes(x = value, y = as_factor(leadtime))) +
+  geom_density_ridges() +
+  scale_x_continuous(
+    breaks = c(0, 2, 4, 6, 8, 10, 20, 30, 40, 50, 100, 200, 500, 1000, 1500),
+    trans = scales::pseudo_log_trans()
+  ) +
+  labs(
+    x = "Forecasted Daily Rainfall (mm)",
+    y = "lead time (days)",
+    title = "Forecasted rainfall as function of lead time"
+  ) +
+  theme_hdx() +
+  theme(
+    axis.text.x = element_text(angle = 90)
+  ) +
+  facet_wrap(~governorate_name)
 ```
 
 ```{r plot-HRES3dRidge, fig.cap="Forecasted 3 day rainfall accumulationn (mm) as function of lead time (days). Values < 1 mm removed for visualization, pseudolog scaling applied to x axis",results = "asis"}
-hres_rolled_per_date_gen %>% 
-    filter(value>1) %>% 
-    filter(str_detect(name,"roll3")) %>% 
-    ggplot(aes(x= value,y= as_factor(leadtime)))+
-    geom_density_ridges()+
-    scale_x_continuous(breaks = c(0,1,2,4,6,8,10,15,20,30,40,50,100,200,500,1000,1500),
-                       trans = scales::pseudo_log_trans()
-                       )+
-    labs(x="Forecasted 3-Day Rainfall (mm)",
-         y= "lead time (days)",
-         title = "Forecasted rainfall as function of lead time")+
-    theme_hdx()+
-    theme(
-        axis.text.x = element_text(angle = 90)
-    )+ 
-    facet_wrap(~governorate_name)
-
-
-
+hres_rolled_per_date_gen %>%
+  filter(value > 1) %>%
+  filter(str_detect(name, "roll3")) %>%
+  ggplot(aes(x = value, y = as_factor(leadtime))) +
+  geom_density_ridges() +
+  scale_x_continuous(
+    breaks = c(0, 1, 2, 4, 6, 8, 10, 15, 20, 30, 40, 50, 100, 200, 500, 1000, 1500),
+    trans = scales::pseudo_log_trans()
+  ) +
+  labs(
+    x = "Forecasted 3-Day Rainfall (mm)",
+    y = "lead time (days)",
+    title = "Forecasted rainfall as function of lead time"
+  ) +
+  theme_hdx() +
+  theme(
+    axis.text.x = element_text(angle = 90)
+  ) +
+  facet_wrap(~governorate_name)
 ```
 
 
@@ -189,47 +191,46 @@ hres_rolled_per_date_gen %>%
 ### Timeseries Plots
 ```{r}
 era_chirps_long %>%
-    filter(str_detect(precip_regime,"_daily$")) %>% 
-    ggplot(aes(x= date, y= value, color= source, group=source))+
-    # ggplot(aes(x= chirps_roll10,y=era_roll10))+
-    geom_line(alpha=0.5)+
-    facet_wrap(~governorate_name)+
-    theme_hdx()+
-        labs(
-        title= "Daily rain accumuation"
-    )
+  filter(str_detect(precip_regime, "_daily$")) %>%
+  ggplot(aes(x = date, y = value, color = source, group = source)) +
+  # ggplot(aes(x= chirps_roll10,y=era_roll10))+
+  geom_line(alpha = 0.5) +
+  facet_wrap(~governorate_name) +
+  theme_hdx() +
+  labs(
+    title = "Daily rain accumuation"
+  )
 
 
 era_chirps_long %>%
-    filter(str_detect(precip_regime,"roll3$")) %>% 
-    ggplot(aes(x= date, y= value, color= source, group=source))+
-    geom_line(alpha=0.5)+
-    facet_wrap(~governorate_name)+
-    theme_hdx()+
-        labs(
-        title= "3-day rain accumuation"
-    )
+  filter(str_detect(precip_regime, "roll3$")) %>%
+  ggplot(aes(x = date, y = value, color = source, group = source)) +
+  geom_line(alpha = 0.5) +
+  facet_wrap(~governorate_name) +
+  theme_hdx() +
+  labs(
+    title = "3-day rain accumuation"
+  )
 
 era_chirps_long %>%
-    filter(str_detect(precip_regime,"roll5$")) %>% 
-    ggplot(aes(x= date, y= value, color= source, group=source))+
-    geom_line(alpha=0.5)+
-    facet_wrap(~governorate_name)+
-    theme_hdx()+
-        labs(
-        title= "5-day rain accumuation"
-    )
+  filter(str_detect(precip_regime, "roll5$")) %>%
+  ggplot(aes(x = date, y = value, color = source, group = source)) +
+  geom_line(alpha = 0.5) +
+  facet_wrap(~governorate_name) +
+  theme_hdx() +
+  labs(
+    title = "5-day rain accumuation"
+  )
 
 era_chirps_long %>%
-    filter(str_detect(precip_regime,"roll10$")) %>% 
-    ggplot(aes(x= date, y= value, color= source, group=source))+
-    
-    geom_line(alpha=0.5)+
-    facet_wrap(~governorate_name)+
-    theme_hdx()+
-        labs(
-        title= "10-day rain accumuation"
-    )
+  filter(str_detect(precip_regime, "roll10$")) %>%
+  ggplot(aes(x = date, y = value, color = source, group = source)) +
+  geom_line(alpha = 0.5) +
+  facet_wrap(~governorate_name) +
+  theme_hdx() +
+  labs(
+    title = "10-day rain accumuation"
+  )
 ```
 
 ### Rainfall scatter plots
@@ -238,49 +239,47 @@ I want to plot ERA vs CHIR
 None of these are particularly compelling?
 
 ```{r}
+p_marib_era_vs_chirps_pct_diff <- era_chirps_long %>%
+  filter(!is.nan(value)) %>%
+  mutate(value = value + 1) %>%
+  group_by(source, governorate_name, precip_regime) %>%
+  arrange(date) %>%
+  mutate(
+    diff = value - lag(value),
+    pct_diff = diff / lag(value)
+  ) %>%
+  select(-diff, -value) %>%
+  filter(governorate_name == "Marib") %>%
+  pivot_wider(values_from = "pct_diff", names_from = "source") %>%
+  ggplot(aes(x = ERA, y = CHIRPS)) +
+  geom_point() +
+  facet_wrap(~precip_regime) +
+  labs(title = "ERA vs Chirps", subtitle = "Marib: pct difference") +
+  theme_hdx()
 
-p_marib_era_vs_chirps_pct_diff <- era_chirps_long %>% 
-    filter(!is.nan(value)) %>% 
-    mutate(value = value +1) %>% 
-    group_by(source,governorate_name,precip_regime) %>% 
-    arrange(date) %>% 
-    mutate(
-        diff= value-lag(value),
-        pct_diff= diff/lag(value)
-    ) %>% 
-    select(-diff,-value) %>% 
-    filter(governorate_name=="Marib") %>% 
-    pivot_wider(values_from = "pct_diff",names_from="source") %>% 
-    ggplot(aes(x= ERA,y=CHIRPS))+
-    geom_point()+
-    facet_wrap(~precip_regime)+
-    labs(title= "ERA vs Chirps",subtitle = "Marib: pct difference")+
-    theme_hdx()
 
-
-p_hajjah_era_vs_chirps_pct_diff <- era_chirps_long %>% 
-    filter(!is.nan(value)) %>% 
-    mutate(value = value +1) %>% 
-    group_by(source,governorate_name,precip_regime) %>% 
-    arrange(date) %>% 
-    mutate(
-        diff= value-lag(value),
-        pct_diff= diff/lag(value)
-    ) %>% 
-    select(-diff,-value) %>% 
-    filter(governorate_name=="Hajjah") %>% 
-    pivot_wider(values_from = "pct_diff",names_from="source") %>% 
-    ggplot(aes(x= ERA,y=CHIRPS))+
-    geom_point()+
-    facet_wrap(~precip_regime)+
-    labs(title= "ERA vs Chirps",subtitle = "Hajjah")+
-    theme_hdx()
+p_hajjah_era_vs_chirps_pct_diff <- era_chirps_long %>%
+  filter(!is.nan(value)) %>%
+  mutate(value = value + 1) %>%
+  group_by(source, governorate_name, precip_regime) %>%
+  arrange(date) %>%
+  mutate(
+    diff = value - lag(value),
+    pct_diff = diff / lag(value)
+  ) %>%
+  select(-diff, -value) %>%
+  filter(governorate_name == "Hajjah") %>%
+  pivot_wider(values_from = "pct_diff", names_from = "source") %>%
+  ggplot(aes(x = ERA, y = CHIRPS)) +
+  geom_point() +
+  facet_wrap(~precip_regime) +
+  labs(title = "ERA vs Chirps", subtitle = "Hajjah") +
+  theme_hdx()
 
 
 p_marib_era_vs_chirps_pct_diff
 
 p_hajjah_era_vs_chirps_pct_diff
-
 ```
 
 
@@ -290,28 +289,28 @@ p_hajjah_era_vs_chirps_pct_diff
 ```{r}
 # some quick prep for the `plot_rainfall_rps_impact` function which is not super generalizeable
 tar_load(cccm_flood_marib_hajjah_impact)
-era5_long_split <- era5_w_rolling %>% 
-    pivot_longer(cols = matches(".*roll*|.*daily"),values_to = "mean") %>% 
-    mutate(name = str_remove(name,"era_")) %>% 
-    split(.$name)
+era5_long_split <- era5_w_rolling %>%
+  pivot_longer(cols = matches(".*roll*|.*daily"), values_to = "mean") %>%
+  mutate(name = str_remove(name, "era_")) %>%
+  split(.$name)
 
 
-p_era5_rps_impact <- era5_long_split %>% 
-    names() %>% 
-    map(\(precip_windows){
-        plot_rainfall_rps_impact(impact_data=cccm_flood_marib_hajjah_impact,
-                                 historical_rainfall=era5_long_split,
-                                 precip_regime= precip_windows, # map through each precip regime
-                                 impact_var = "num_shelters_affected",
-                                 rp_year= c(2,3,4,5, 10), # return period years
-                                 scale=F, # don't scale vars before kmeans
-                                 k=5, # 5 clusters 
-                                 aggregate_impact = NULL # plot individual event impact -not aggregated
-        )
-        
-    }) %>% 
-    set_names(era5_long_split %>%
-                  names() )
+p_era5_rps_impact <- era5_long_split %>%
+  names() %>%
+  map(\(precip_windows){
+    plot_rainfall_rps_impact(
+      impact_data = cccm_flood_marib_hajjah_impact,
+      historical_rainfall = era5_long_split,
+      precip_regime = precip_windows, # map through each precip regime
+      impact_var = "num_shelters_affected",
+      rp_year = c(2, 3, 4, 5, 10), # return period years
+      scale = F, # don't scale vars before kmeans
+      k = 5, # 5 clusters
+      aggregate_impact = NULL # plot individual event impact -not aggregated
+    )
+  }) %>%
+  set_names(era5_long_split %>%
+    names())
 
 p_era5_rps_impact$roll3$Hajjah
 p_era5_rps_impact$roll3$Marib
@@ -327,11 +326,11 @@ Just curious to make sure ERA5 precip from GEE is the same as our local rasters
 ```{r}
 tar_load(era5_w_rolling)
 # lets find the max rainfall date and look around that date as an example
-era5_w_rolling %>% 
-    filter(era_precip_daily==max(era_precip_daily))
+era5_w_rolling %>%
+  filter(era_precip_daily == max(era_precip_daily))
 
 # max precip occured in Sep 2001 - let's ppull the data from that month
-era5_dir <-  file.path(Sys.getenv("AA_DATA_DIR"),"public", "raw","yem","ecmwf")
+era5_dir <- file.path(Sys.getenv("AA_DATA_DIR"), "public", "raw", "yem", "ecmwf")
 era5_fp <- file.path(era5_dir, "yem_era5_tp_2001-09.grib2")
 
 # load month of data
@@ -339,49 +338,49 @@ era5_sep2001 <- terra::rast(era5_fp)
 
 # rename layers with date
 era5_times <- terra::time(era5_sep2001)
-terra::set.names(era5_sep2001,terra::time(era5_sep2001))
+terra::set.names(era5_sep2001, terra::time(era5_sep2001))
 
 
 # load convex hulls for extraction
 tar_load(high_risk_hulls)
 
 # extract data to hulls
-era5_sep01_extr <- exact_extract(x = era5_sep2001,
-              y=high_risk_hulls, 
-              append_cols = "governorate_name",
-    fun = c("mean"),
-    force_df = T,
-    full_colnames = T
-  ) %>%
-    pivot_longer(-matches("governorate_name")) %>%
-    separate(name, into = c("stat", "date"), sep = "\\.") %>%
-    pivot_wider(names_from = "stat", values_from = "value") %>% 
-    mutate(
-        mean = mean*1000 # m to mm
-    )
- 
+era5_sep01_extr <- exact_extract(
+  x = era5_sep2001,
+  y = high_risk_hulls,
+  append_cols = "governorate_name",
+  fun = c("mean"),
+  force_df = T,
+  full_colnames = T
+) %>%
+  pivot_longer(-matches("governorate_name")) %>%
+  separate(name, into = c("stat", "date"), sep = "\\.") %>%
+  pivot_wider(names_from = "stat", values_from = "value") %>%
+  mutate(
+    mean = mean * 1000 # m to mm
+  )
+
 
 
 # combine GEE version and local data and calculate difference in daily values
-era5_daily_gee_vs_local <- era5_sep01_extr %>% 
-    rename(
-        date_time = "date"
-    ) %>% 
-    mutate(
-        date= as_date(date_time)-1
-    ) %>% 
-    filter(str_detect(date_time,"00:00:00")) %>% 
-    left_join(era5_w_rolling %>% select(governorate_name, era_precip_daily,date)) %>% 
-    mutate(
-        diff_mm=  mean- era_precip_daily
-    )
+era5_daily_gee_vs_local <- era5_sep01_extr %>%
+  rename(
+    date_time = "date"
+  ) %>%
+  mutate(
+    date = as_date(date_time) - 1
+  ) %>%
+  filter(str_detect(date_time, "00:00:00")) %>%
+  left_join(era5_w_rolling %>% select(governorate_name, era_precip_daily, date)) %>%
+  mutate(
+    diff_mm = mean - era_precip_daily
+  )
 
-# view 
+# view
 era5_daily_gee_vs_local
 
 # very little difference.
 mean(era5_daily_gee_vs_local$diff_mm)
-
 ```
 
 GEE ERA 5 daily and local raster are essentially the same. Differences likely due to slight differences in how weighted calculations/simplifications of polygons are performed -- could compare pixels, but don't think it is worth it at this point
@@ -391,30 +390,26 @@ GEE ERA 5 daily and local raster are essentially the same. Differences likely du
 WHY SO MANY negative values in the ecmwf?
 
 ```{r}
-
-ecmwf_mars_dir <-  file.path(
-    Sys.getenv("AA_DATA_DIR"),
-    "private",
-    "processed",
-    "yem",
-    "ecmwf",
-    "strange_coords"
+ecmwf_mars_dir <- file.path(
+  Sys.getenv("AA_DATA_DIR"),
+  "private",
+  "processed",
+  "yem",
+  "ecmwf",
+  "strange_coords"
 )
 
 
-r_rand<- terra::rast(list.files(ecmwf_mars_dir,full.names = T)[2])
+r_rand <- terra::rast(list.files(ecmwf_mars_dir, full.names = T)[2])
 r_rand_sub <- r_rand["tp_step=24$"]
 hist(r_rand_sub)
-neg_value_counts <- data.frame(r_vals=terra::values(r_rand_sub) %>% 
-    as.numeric()
-) %>% 
-    filter(r_vals<0) %>% 
-    count(r_vals) # some weird R numeric float stuff?
+neg_value_counts <- data.frame(r_vals = terra::values(r_rand_sub) %>%
+  as.numeric()) %>%
+  filter(r_vals < 0) %>%
+  count(r_vals) # some weird R numeric float stuff?
 
 # some weird R float precision stuff?
-neg_value_counts$r_vals[1]-neg_value_counts$r_vals[2]
-
-
+neg_value_counts$r_vals[1] - neg_value_counts$r_vals[2]
 ```
 
 ### Order of Operations Experiment
@@ -433,17 +428,17 @@ below we compare:
 - `era5_w_rolling` - zonal mean performed on daily, mean point values rolled
 
 ```{r}
-
-era5_rolling_zonal_local %>% 
-    mutate(
-        date=as_date(date),
-        across(where(is.numeric),~.x*1000)   
-           )%>% 
-    left_join(
-        era5_w_rolling,
-        by =c("governorate_name","date")) %>% 
-    select(date, contains("precip"),matches(".*roll3$")) %>% 
-    print(n=100)
+era5_rolling_zonal_local %>%
+  mutate(
+    date = as_date(date),
+    across(where(is.numeric), ~ .x * 1000)
+  ) %>%
+  left_join(
+    era5_w_rolling,
+    by = c("governorate_name", "date")
+  ) %>%
+  select(date, contains("precip"), matches(".*roll3$")) %>%
+  print(n = 100)
 ```
 
 
