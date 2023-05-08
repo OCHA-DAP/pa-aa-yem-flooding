@@ -928,15 +928,6 @@ list(
                 name = str_replace(name, "mean","precip_daily"),
             ) %>% 
             rename(date_forecast_predict = "date_forecasted")
-    ),
-    
-    tar_target(
-        name = ecmwf_hres_zonal_rolling2,
-        command = ecmwf_hres_rolling_zonal(raster_dir = ecmwf_mars_dir,
-                                 zonal_boundary = high_risk_hulls,
-                                 roll_windows=c(3,5,10),
-                                 lead_times=c(1:10)
-        )
     )
 
     )
