@@ -311,7 +311,7 @@ fluidRow(
          column(width=2,
                 numericInput(inputId = "thresh3",label = "Threshold",value = 19.8,min = 0,step = 0.1)
                 ),
-         column(width=3,
+         column(width=2,
                 dateRangeInput("daterange", "Date range:",
                  start  = as_date("2021-01-01"),
                  end    = as_date("2021-12-31"),
@@ -320,11 +320,12 @@ fluidRow(
                  format ="yyyy-mm-dd"
                  )),
          column(width=2,
-                selectInput(inputId="trig_freq",label="Trigger can be activaed 1x per",choices=c("Season"="season","10 Days","30 Days"),selected="season")
+                selectInput(inputId="forecast_type",label="Forecast:",choices=c("ECMWF - HRES"="hres","CHIRPS-GEFS"="chirps_gefs"),selected="hres")
          ),
-         column(width=2,
-                selectInput(inputId="forecast_type",label="Forecast:",choices=c("CHIRPS-GEFS"="chirps_gefs","ECMWF - HRES"="hres"),selected="hres")
+         column(width=4,
+                selectInput(inputId="trig_freq",label="Trigger can be activaed 1x per (not functional)",choices=c("Season"="season","10 Days","30 Days"),selected="season")
          )
+         
 )
 ```
 
@@ -376,12 +377,7 @@ renderPlot({
                 leadtime %in% c(6:10)~ "readiness window"
             ) 
         )
-    # forecast_filt_ribbon_df <- forecast_filt_temp %>% 
-    # group_by(governorate_name,date_forecast_predict) %>% 
-    # summarise(
-    #     min_val= min(value,na.rm=T),
-    #     max_val = max(value,na.rm=T)
-    # )
+
     forecast_filt_ribbon_df <- forecast_filt_temp %>% 
       group_by(governorate_name,date_forecast_predict,.drop=F) %>% 
     summarise(
