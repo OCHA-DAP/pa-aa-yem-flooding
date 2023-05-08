@@ -24,6 +24,7 @@ library(sysfonts) # req for gghdx
 library(gghdx)
 library(extRemes) # req for RP calcs
 library(shiny)
+library(ggiraph) # interactive ggplot
 
 source("rp_calcs.R")
 
@@ -332,10 +333,11 @@ fluidRow(
 ```
 
 
-Row {data-height=1000}
+Row {data-height=2000}
 -------------------------------------
-```{r historicalPlot,echo=F}
-renderPlot(
+
+```{r historicalPlot,echo=F, out.width="100%"}
+ggiraph::renderggiraph(
   {
     y_axis_tite <- convert_window_numeric(input$cum_window3) %>%
       paste0(" Day Accumulation (mm)")
@@ -419,7 +421,14 @@ renderPlot(
       geom_line(aes(x = date, y = value, color = source, group = source), alpha = 1, size = 1) +
 
       # scale_color_manual(values = c("CHIRPS"="#253494","ERA"="#d95f0e"))
-      geom_point(data = max_vals_per_window_phase, aes(x = date_forecast_predict, y = value, color = trigger_window), alpha = 0.9, size = 5) +
+      geom_point_interactive(data = max_vals_per_window_phase,
+                             aes(x = date_forecast_predict,
+                                 y = value, 
+                                 color = trigger_window,
+                                 tooltip= glue::glue("Date threshold crossed: {date_forecast_predict}<br>
+                                                     Date Alert Raised: {date_forecast_made}<br>
+                                                     Leadtime: {leadtime}")
+                                 ), alpha = 0.9, size = 5) +
       scale_color_manual(values = c("CHIRPS" = "#253494", "ERA" = "#31a354", "action window" = "red", "readiness window" = "orange"), drop = F) +
       geom_text(
         data = max_vals_per_window_phase,
@@ -437,9 +446,9 @@ renderPlot(
       theme(
         axis.title.x = element_blank()
       )
-    p
-  },
-  height = 1000
+    ggiraph::girafe(ggobj = p,width_svg = 30, height_svg =16, options = list(opts_sizing(rescale = FALSE)))
+  }#,
+  #height = 1000
 )
 
 # ggiraph::renderGirafe()
