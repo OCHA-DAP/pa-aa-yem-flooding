@@ -103,13 +103,12 @@ p_rainfall_events_gov <- c("Hajjah", "Marib") %>%
         thresh = NULL,
         day_window = 60,
         plot_title = gov,
-        mark_first = F,just_events=T
+        mark_first = F, just_events = T
       )
     }
   )
 
 p_rainfall_events_gov[[1]]
-
 ```
 
 ```{r, out.width="100%"}
