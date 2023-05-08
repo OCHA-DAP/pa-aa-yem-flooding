@@ -1,6 +1,8 @@
-
-
 # ECMWF MARS DATA Wrangling
+
+**Note** This  document and the code within is **no longer being used.** It was created as a work-around to regrid oddly formatted HRES data from the MARS API. However,a simpler solution was found to re-grid data which was used and as the inputs into target.
+
+We preserve the code and documentation as it could serve as a potential guide in the future for similar problems
 
 ## Background
 
