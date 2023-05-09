@@ -25,15 +25,15 @@ library(gghdx)
 library(extRemes) # req for RP calcs
 library(shiny)
 library(ggiraph) # interactive ggplot
-
-source("rp_calcs.R")
+library(here)
+source(here("app/rp_calcs.R"))
 
 font_add_google("Source Sans Pro")
 showtext::showtext_auto()
 
-hres_forecast <- read_rds("shinydata/hres_rolled_per_date_gen.rds")
-era_chirps <- read_rds("shinydata/era_chirps_long.rds")
-chirps_gefs_forecast <- read_rds("shinydata/chirps_gefs.rds")
+hres_forecast <- read_rds(here("app/shinydata/hres_rolled_per_date_gen.rds"))
+era_chirps <- read_rds(here("app/shinydata/era_chirps_long.rds"))
+chirps_gefs_forecast <- read_rds(here("app/shinydata/chirps_gefs.rds"))
 ```
 
 
@@ -418,7 +418,17 @@ ggiraph::renderggiraph(
         aes(date_forecast_predict, ymin = min_val, ymax = max_val), fill = ribbon_color, alpha = 0.7
       ) +
       geom_hline(yintercept = input$thresh3, color = "red", linetype = "dashed") +
-      geom_line(aes(x = date, y = value, color = source, group = source), alpha = 1, size = 1) +
+      geom_line(aes(x = date,
+                                y = value, 
+                                color = source,
+                                group = source), alpha = 1, size = 1) +
+      geom_point_interactive(aes(x = date,
+                                y = value, 
+                                color = source,
+                                # group = source,
+                                tooltip= glue("Data source: {source}<br>
+                                              Date observed: {date}<br>
+                                              Rainfall: {round(value,1)} mm")), alpha = 1, size = 1) +
 
       # scale_color_manual(values = c("CHIRPS"="#253494","ERA"="#d95f0e"))
       geom_point_interactive(data = max_vals_per_window_phase,
@@ -427,7 +437,8 @@ ggiraph::renderggiraph(
                                  color = trigger_window,
                                  tooltip= glue::glue("Date threshold crossed: {date_forecast_predict}<br>
                                                      Date Alert Raised: {date_forecast_made}<br>
-                                                     Leadtime: {leadtime}")
+                                                     Leadtime: {leadtime}<br>
+                                                     Predicted rainfall: {round(value,1)} mm")
                                  ), alpha = 0.9, size = 5) +
       scale_color_manual(values = c("CHIRPS" = "#253494", "ERA" = "#31a354", "action window" = "red", "readiness window" = "orange"), drop = F) +
       geom_text(
@@ -453,6 +464,49 @@ ggiraph::renderggiraph(
 
 # ggiraph::renderGirafe()
 ```
+
+
+# False Starts
+
+
+```{r falseStartUI, echo=FALSE, out.width="100%", height="500px"}
+fluidRow(
+  column(
+    width = 2,
+    selectInput(inputId = "cum_window4", choices = c(
+      "Daily" = "precip_daily",
+      "3 Day" = "roll3",
+      "5 Day" = "roll5",
+      "10 Day" = "roll10"
+    ), label = "Rainfall accumulation", selected = "roll3")
+  ),
+  column(
+    width = 2,
+    numericInput(inputId = "thresh4", label = "Threshold", value = 19.8, min = 0, step = 0.1)
+  ),
+  column(
+    width = 2,
+    dateRangeInput("daterange2", "Date range:",
+      start = as_date("2021-01-01"),
+      end = as_date("2021-12-31"),
+      min = as_date("1981-01-01"),
+      max = as_date("2022-12-31"),
+      format = "yyyy-mm-dd"
+    )
+  ),
+  column(
+    width = 2,
+    selectInput(inputId = "forecast_type2", label = "Forecast:", choices = c("ECMWF - HRES" = "hres", "CHIRPS-GEFS" = "chirps_gefs"), selected = "hres")
+  ),
+  column(
+    width = 4,
+    selectInput(inputId = "trig_freq2", label = "Trigger can be activaed 1x per (not functional)", choices = c("Season" = "season", "10 Days", "30 Days"), selected = "season")
+  )
+)
+
+```
+
+
 
 <!-- Row {data-height=1000} -->
 <!-- ------------------------------------- -->
@@ -527,280 +581,53 @@ renderDataTable({
 })
 ```
 
-
-
+# Performance
 
 ```{r asdf, eval = F}
-# non-reactive testing
 
+start_date_temp <-  "2021-01-01"
+end_date_temp <-  "2021-12-31"
+input_source <-  "CHIRPS"
+precip_regime_temp <- "roll3"
+thresh_temp <-  19.8
 
-era_chirps_tfilt <- era_chirps %>%
-  filter(year(date) >= 1981) %>%
-  mutate(
-    splitter = glue("{source}_{governorate_name}_{precip_regime}")
-  )
-
-
-era_chirps_tfilt %>%
-  split(.$splitter) %>%
-  map(\(df_temp){
-    return_period_level_tibble(
-      df = df_temp,
-      value = "value",
-      date = "date",
-      rp_year = c(2, 3, 4, 5)
+chirps_forecast_tfilt <- chirps_gefs_forecast %>% 
+    filter(date_forecast_made>=start_date_temp,
+           date_forecast_made<=end_date_temp, 
+           name==precip_regime_temp) %>% 
+    mutate(
+      season = case_when(
+        month(date_forecast_predict) %in% c(3, 4, 5, 6) ~ "March-April-May-June",
+        month(date_forecast_predict) %in% c(7, 8, 9, 10) ~ "July-August-September-October",
+        TRUE ~ "dry season"
+      ),
+      trigger_window = case_when(
+        leadtime %in% c(1:5) ~ "action window",
+        leadtime %in% c(6:10) ~ "readiness window"
+      )
     )
-  })
 
-era_chirps_tfilt %>%
-  mutate(
-    value = ifelse(is.nan(value), NA, value)
-  ) %>%
-  split(.$source) %>%
-  map(
-    \(df_source){
-      df_source %>%
-        split(.$governorate_name) %>%
-        map(\(df_source_gov){
-          df_source_gov
-          split(.$precip_regime) %>%
-            map(\(df_source_regime){
-              return_period_level_tibble(
-                df = df_source_regime,
-                value = "value",
-                date = "date",
-                rp_year = c(2, 3, 4, 5)
-              )
-            })
-        })
-    }
-  )
-
-era_return_periods_df <- chirps_era_wide %>%
-  split(.$governorate_name) %>%
-  imap_dfr(
-    \(df_temp, nm){
-      c("era_precip_daily", "era_roll3", "era_roll5", "era_roll10") %>%
-        map(\(precip_temp){
-          return_period_level_tibble(
-            df = df_temp,
-            value = precip_temp,
-            date = "date", rp_year = c(2, 3, 4, 5)
-          ) %>%
-            mutate(
-              precip_regime = precip_temp,
-              governorate_name = nm
-            )
-        })
-    }
-  )
-```
+forecast <-  chirps_forecast_tfilt
+historical_obs <- era_chirps %>% 
+    filter(source==input_source) %>% 
+    filter(date>=start_date_temp,date<=end_date_temp) %>% 
+    filter(precip_regime==precip_regime_temp) 
 
 
-```{r, eval=F}
-# non-reactive testing
-tar_load(era_chirps_long)
-thresh_temp
-hres_filt_temp <- hres_forecast %>%
-  filter(year(date_forecast_predict) == 2021) %>%
-  filter(governorate_name == "Hajjah", name == "roll3") %>%
-  mutate(
-    season = case_when(
-      month(date_forecast_predict) %in% c(3, 4, 5, 6) ~ "March-April-May-June",
-      month(date_forecast_predict) %in% c(7, 8, 9, 10) ~ "July-August-September-October",
-      TRUE ~ "dry season"
-    ),
-    trigger_window = case_when(
-      leadtime %in% c(1:5) ~ "action window",
-      leadtime %in% c(6:10) ~ "readiness window"
-    )
-  )
-hres_filt_ribbon_df <- hres_filt_temp %>%
-  group_by(date_forecast_predict) %>%
-  summarise(
-    min_val = min(value, na.rm = T),
-    max_val = max(value, na.rm = T)
-  )
-max_vals_per_window_phase <- hres_filt_temp %>%
-  # filter(year(date_forecast_predict)==2021) %>%
-  filter(value >= thresh_temp) %>%
-  group_by(year = year(date_forecast_predict), season, trigger_window) %>%
-  # filter(leadtime==max(leadtime)) %>%
-  filter(date_forecast_made == min(date_forecast_made), leadtime == max(leadtime)) %>%
-  arrange(season, trigger_window) %>%
-  ungroup() %>%
-  mutate(
-    txt_label = glue("{str_remove(trigger_window,' window')} alert on {format(date_forecast_made,'%m-%d')}\ndue to {round(value,1)} mm rainfall predicted on {format(date_forecast_predict,'%m-%d')}"),
-    txt_label = glue("predicted {format(date_forecast_made,'%m-%d')} ({leadtime})"),
-    txt_label_x = if_else(trigger_window == "action window", date_forecast_predict + 10, date_forecast_predict - 10)
-  )
-
-
-library(glue)
-
-era_chirps %>%
-  filter(year(date) == 2021) %>%
-  filter(
-    precip_regime == "roll3",
-    governorate_name == "Hajjah"
-  ) %>%
-  ggplot() +
-  geom_ribbon(data = hres_filt_ribbon_df, aes(date_forecast_predict, ymin = min_val, ymax = max_val)) +
-  # geom_vline(data=max_vals_per_window_phase,aes(xintercept=date_forecast_made,color=trigger_window),alpha=0.4)+
-  geom_point(data = max_vals_per_window_phase, aes(x = date_forecast_predict, y = value, color = trigger_window), alpha = 0.4, size = 5) +
-  # ggrepel::geom_text_repel(data=max_vals_per_window_phase,
-  #                           aes(x=date_forecast_predict,y=50,
-  #                               color=trigger_window,
-  #                               label = txt_label),angle=90,segment.curvature=0.5)+
-  geom_text(
-    data = max_vals_per_window_phase,
-    aes(
-      x = txt_label_x, y = 50,
-      color = trigger_window,
-      label = txt_label
-    ), angle = 90
-  ) +
-  geom_line(aes(x = date, y = value, color = source, group = source), alpha = 0.6) +
-
-
-  # geom_text(data=max_vals_per_window_phase %>%
-  #               filter(trigger_window=="readiness window"),
-  #           aes(x= date_forecast_made-10,
-  #               y=0,
-  #               color =trigger_window,
-  #               label=txt_label),hjust="bottom",angle=90)+
-  # geom_text(data=max_vals_per_window_phase %>%
-  #               filter(trigger_window=="action window"),
-  #           aes(x= date_forecast_made+10,
-  #               y=0,
-  #               color =trigger_window,
-  #               label=txt_label),hjust="bottom",angle=90)+
-  theme_hdx()
-```
-
-
-```{r,eval=F}
-chirps_gefs_long %>%
-  group_by(governorate_name, date_forecast_predict, .drop = F) %>%
-  summarise(
-    min_val = min(value, na.rm = T),
-    max_val = max(value, na.rm = T), .groups = "drop"
-  ) %>%
-  mutate(
-    min_val = ifelse(is.infinite(min_val), NA, min_val),
-    max_val = ifelse(is.infinite(max_val), NA, max_val)
-  )
-
-
-
-library(tidyverse)
-thresh_temp <- 19.8
-hres_filt_temp <- hres_forecast %>%
-  filter(year(date_forecast_predict) >= 2017) %>%
-  filter(governorate_name == "Hajjah", name == "roll3") %>%
-  mutate(
-    season = case_when(
-      month(date_forecast_predict) %in% c(3, 4, 5, 6) ~ "March-April-May-June",
-      month(date_forecast_predict) %in% c(7, 8, 9, 10) ~ "July-August-September-October",
-      TRUE ~ "dry season"
-    ),
-    trigger_window = case_when(
-      leadtime %in% c(1:5) ~ "action window",
-      leadtime %in% c(6:10) ~ "readiness window"
-    )
-  )
-
-max_vals_per_window_phase <- hres_filt_temp %>%
-  filter(year(date_forecast_predict) == 2021) %>%
-  filter(value >= thresh_temp) %>%
-  group_by(date_forecast_predict, trigger_window) %>%
-  filter(leadtime == max(leadtime))
-
-max_vals_per_window_phase <- hres_filt_temp %>%
-  filter(year(date_forecast_predict) == 2021) %>%
-  filter(value >= thresh_temp) %>%
-  group_by(season, trigger_window) %>%
-  filter(
-    date_forecast_predict == min(date_forecast_predict)
-  ) %>%
-  # filter(leadtime==min(leadtime)) %>%
-  arrange(season, trigger_window)
-filter(
-  date_forecast_predict == min(date_forecast_predict),
-  leadtime == min(leadtime)
-)
-group_by(date_forecast_predict, trigger_window) %>%
-  filter(leadtime == max(leadtime))
-
-hres_filt_temp %>%
-  filter(year(date_forecast_predict) == 2021) %>%
-  group_by(date_forecast_predict, trigger_window) %>%
-  filter(value == max(value, na.rm = T)) %>%
-  arrange(trigger_window) %>%
-  ggplot(aes(x = date_forecast_predict, y = value, color = trigger_window, group = trigger_window)) +
-  geom_line(alpha = 0.4) +
-  geom_segment(
-    data = max_vals_per_window_phase,
-    aes(
-      x = date_forecast_made,
-      xend = date_forecast_predict,
-      y = value,
-      yend = value, color = trigger_window
-    )
-  ) +
-  geom_point(
-    data = max_vals_per_window_phase,
-    aes(
-      x = date_forecast_predict,
-      y = value,
-      color = trigger_window
-    )
-  ) +
-  theme_hdx()
-
-
-
-tigger_per <- "season"
-hres_filt_temp %>%
-  ggplot(aes(x = date_forecast_predict, y = value)) +
-  geom_line() +
-  geom_point(
-    data = hres_filt_temp %>%
+ max_vals_per_window_phase <- forecast %>%
       filter(value >= thresh_temp) %>%
-      mutate(activation = ifelse(leadtime %in% 1:5, "Activation", "Warning")),
-    aes(x = date_forecast_predict, y = value, color = activation)
-  ) +
-  facet_wrap(~leadtime)
-
-
-hres_gte_thresh_max_lead <- hres_filt_temp %>%
-  mutate(activation = ifelse(leadtime %in% 1:5, "Activation", "Warning")) %>%
-  group_by(activation, date_forecast_predict) %>%
-  filter(value >= thresh_temp) %>%
-  arrange(activation, date_forecast_predict, leadtime) %>%
-  filter(leadtime == max(leadtime)) %>%
-  ungroup()
-hres_gte_thresh_max_lead %>%
-  print(n = 30)
-
-hres_filt_temp %>%
-  # filter(leadtime==5) %>%
-  ggplot(aes(x = date_forecast_predict, y = value)) +
-  geom_line() +
-  geom_point(
-    data = hres_gte_thresh_max_lead,
-    aes(x = date_forecast_predict, y = value, color = activation)
-  ) +
-  facet_grid(rows = vars(leadtime))
-
-hres_filt_temp %>%
-  mutate(
-    season = case_when(
-      month(date_forecast_predict) %in% c(3, 4, 5, 6) ~ "March-April-May-June",
-      month(date_forecast_predict) %in% c(7, 8, 9, 10) ~ "July-August-September-October"
-    )
-  ) %>%
-  filter(month(date_forecast_predict) %in% c(3:10))
+      group_by(governorate_name, year = year(date_forecast_predict), season, trigger_window) %>%
+      filter(date_forecast_made == min(date_forecast_made), leadtime == max(leadtime)) %>%
+      arrange(season, trigger_window) %>%
+      ungroup() %>%
+      mutate(
+        txt_label = glue("{str_remove(trigger_window,' window')} alert on {format(date_forecast_made,'%m-%d')}\ndue to {round(value,1)} mm rainfall predicted on {format(date_forecast_predict,'%m-%d')}"),
+        txt_label = glue("predicted {format(date_forecast_made,'%m-%d')} ({leadtime})"),
+        txt_label_x = if_else(trigger_window == "action window", date_forecast_predict + 10, date_forecast_predict - 10)
+      )
+ 
+ max_vals_per_window_phase %>% 
+     arrange(governorate_name,date_forecast_predict) 
 ```
 
 
