@@ -26,14 +26,40 @@ library(extRemes) # req for RP calcs
 library(shiny)
 library(ggiraph) # interactive ggplot
 library(here)
+
+
 source(here("app/rp_calcs.R"))
+source(here("app/app_funcs.R"))
+hres_forecast <- read_rds(here("app/shinydata/hres_rolled_per_date_gen.rds"))
+era_chirps <- read_rds(here("app/shinydata/era_chirps_long.rds"))
+chirps_gefs_forecast <- read_rds(here("app/shinydata/chirps_gefs.rds"))
+# hres_forecast <- read_rds("shinydata/hres_rolled_per_date_gen.rds")
+# era_chirps <- read_rds("shinydata/era_chirps_long.rds")
+# chirps_gefs_forecast <- read_rds("shinydata/chirps_gefs.rds")
+
+
 
 font_add_google("Source Sans Pro")
 showtext::showtext_auto()
 
-hres_forecast <- read_rds(here("app/shinydata/hres_rolled_per_date_gen.rds"))
-era_chirps <- read_rds(here("app/shinydata/era_chirps_long.rds"))
-chirps_gefs_forecast <- read_rds(here("app/shinydata/chirps_gefs.rds"))
+
+
+hres_forecast <- hres_forecast %>%
+      mutate(
+        season = case_when(
+          month(date_forecast_predict) %in% c(3, 4, 5, 6) ~ "March-April-May-June",
+          month(date_forecast_predict) %in% c(7, 8, 9, 10) ~ "July-August-September-October",
+          TRUE ~ "dry season"
+        )
+      )
+chirps_gefs_forecast <- chirps_gefs_forecast %>%
+      mutate(
+        season = case_when(
+          month(date_forecast_predict) %in% c(3, 4, 5, 6) ~ "March-April-May-June",
+          month(date_forecast_predict) %in% c(7, 8, 9, 10) ~ "July-August-September-October",
+          TRUE ~ "dry season"
+        )
+      )
 ```
 
 
@@ -179,6 +205,10 @@ fluidRow(
   column(
     width = 3,
     numericInput(inputId = "thresh", label = "Threshold", value = 19.8, min = 0, step = 0.1)
+  ),
+  column(
+    width = 3,
+    sliderInput(inputId = "max_lead_rt_sim", label = "Max Lead Time for Activaton", value = 7, min = 3,max=10, step = 1)
   )
 )
 ```
@@ -194,25 +224,18 @@ renderPlot(
         name == input$cumu_window,
         date_forecast_made == as_date(input$date)
       ) %>%
-      mutate(
-        activation = case_when(
-          value >= input$thresh & leadtime %in% c(1:5) ~ "Action",
-          value >= input$thresh & leadtime %in% c(6:10) ~ "Readiness",
-          value < input$thresh ~ "No Activation",
-        ) %>%
-          fct_expand("Action", "Readiness", "No Activation"),
-        txt_label = glue("{activation} predicted {format(date_forecast_predict,'%m-%d')} ({leadtime})")
-      )
+        mutate_trigger_status(threshold = input$thresh,max_lead = input$max_lead_rt_sim)
+    
     y_axis_label <- convert_window_numeric(input$cumu_window) %>%
       paste0("Rainfall Accumulation (mm)")
 
     readiness_dates <- forecast_filt %>%
-      filter(leadtime %in% c(6:10)) %>%
+      filter(leadtime %in% c((input$max_lead_rt_sim+1):10)) %>%
       pull(date_forecast_predict) %>%
       unique()
 
     action_dates <- forecast_filt %>%
-      filter(leadtime %in% c(1:5)) %>%
+      filter(leadtime %in% c(1:input$max_lead_rt_sim)) %>%
       pull(date_forecast_predict) %>%
       unique()
     # top_plot<- max(max(forecast_filt()$value,na.rm = T),input$thresh)+10
@@ -232,8 +255,8 @@ renderPlot(
         y = y_axis_label
         # title  = plot_title_text(),
       ) +
-      geom_segment(x = readiness_dates[1], xend = readiness_dates[5], y = -1, yend = -1, alpha = 0.2, color = "orange") +
-      geom_segment(x = action_dates[1], xend = action_dates[5], y = -1, yend = -1, alpha = 0.2, color = "red") +
+      geom_segment(x = readiness_dates[1], xend = readiness_dates[length(readiness_dates)], y = -1, yend = -1, alpha = 0.2, color = "orange") +
+      geom_segment(x = action_dates[1], xend = action_dates[length(action_dates)], y = -1, yend = -1, alpha = 0.2, color = "red") +
       annotate("text", x = median(readiness_dates), y = -2, label = "readiness phase", color = "orange") +
       annotate("text", x = median(action_dates), y = -2, label = "action phase", color = "red") +
       facet_wrap(~governorate_name, nrow = 2, ncol = 1) +
@@ -322,11 +345,15 @@ fluidRow(
     )
   ),
   column(
+    width = 1,
+    sliderInput(inputId = "max_lead_hcast", label = "Max Lead Time", value = 7, min = 3, max=10,step = 1)
+  ),
+  column(
     width = 2,
     selectInput(inputId = "forecast_type", label = "Forecast:", choices = c("ECMWF - HRES" = "hres", "CHIRPS-GEFS" = "chirps_gefs"), selected = "hres")
   ),
   column(
-    width = 4,
+    width = 2,
     selectInput(inputId = "trig_freq", label = "Trigger can be activaed 1x per (not functional)", choices = c("Season" = "season", "10 Days", "30 Days"), selected = "season")
   )
 )
@@ -372,41 +399,29 @@ ggiraph::renderggiraph(
     }
     forecast_filt_temp <- forecast %>%
       filter(name == input$cum_window3) %>%
-      mutate(
-        season = case_when(
-          month(date_forecast_predict) %in% c(3, 4, 5, 6) ~ "March-April-May-June",
-          month(date_forecast_predict) %in% c(7, 8, 9, 10) ~ "July-August-September-October",
-          TRUE ~ "dry season"
-        ),
-        trigger_window = case_when(
-          leadtime %in% c(1:5) ~ "action window",
-          leadtime %in% c(6:10) ~ "readiness window"
-        )
-      )
+      mutate_trigger_status(threshold = input$thresh3,max_lead = input$max_lead_hcast)
 
     forecast_filt_ribbon_df <- forecast_filt_temp %>%
       group_by(governorate_name, date_forecast_predict, .drop = F) %>%
+        mutate(
+            value = ifelse(is.infinite(value)|is.nan(value),NA,value)
+        ) %>% 
       summarise(
         min_val = min(value, na.rm = T),
         max_val = max(value, na.rm = T), .groups = "drop"
-      ) %>%
-      mutate(
-        min_val = ifelse(is.infinite(min_val), NA, min_val),
-        max_val = ifelse(is.infinite(max_val), NA, max_val)
-      )
-
+      ) 
 
 
     max_vals_per_window_phase <- forecast_filt_temp %>%
       filter(value >= input$thresh3) %>%
-      group_by(governorate_name, year = year(date_forecast_predict), season, trigger_window) %>%
+      group_by(governorate_name, year = year(date_forecast_predict), season, activation) %>%
       filter(date_forecast_made == min(date_forecast_made), leadtime == max(leadtime)) %>%
-      arrange(season, trigger_window) %>%
+      arrange(season, activation) %>%
       ungroup() %>%
       mutate(
-        txt_label = glue("{str_remove(trigger_window,' window')} alert on {format(date_forecast_made,'%m-%d')}\ndue to {round(value,1)} mm rainfall predicted on {format(date_forecast_predict,'%m-%d')}"),
+        txt_label = glue("{str_remove(activation,' window')} alert on {format(date_forecast_made,'%m-%d')}\ndue to {round(value,1)} mm rainfall predicted on {format(date_forecast_predict,'%m-%d')}"),
         txt_label = glue("predicted {format(date_forecast_made,'%m-%d')} ({leadtime})"),
-        txt_label_x = if_else(trigger_window == "action window", date_forecast_predict + 10, date_forecast_predict - 10)
+        txt_label_x = if_else(activation == "Action", date_forecast_predict + 10, date_forecast_predict - 10)
       )
 
     p <- era_chirps %>%
@@ -434,18 +449,18 @@ ggiraph::renderggiraph(
       geom_point_interactive(data = max_vals_per_window_phase,
                              aes(x = date_forecast_predict,
                                  y = value, 
-                                 color = trigger_window,
+                                 color = activation,
                                  tooltip= glue::glue("Date threshold crossed: {date_forecast_predict}<br>
                                                      Date Alert Raised: {date_forecast_made}<br>
                                                      Leadtime: {leadtime}<br>
                                                      Predicted rainfall: {round(value,1)} mm")
                                  ), alpha = 0.9, size = 5) +
-      scale_color_manual(values = c("CHIRPS" = "#253494", "ERA" = "#31a354", "action window" = "red", "readiness window" = "orange"), drop = F) +
+      scale_color_manual(values = c("CHIRPS" = "#253494", "ERA" = "#31a354", "Action" = "red", "Readiness" = "orange"), drop = F) +
       geom_text(
         data = max_vals_per_window_phase,
         aes(
           x = txt_label_x, y = 50,
-          color = trigger_window,
+          color = activation,
           label = txt_label
         ), angle = 90
       ) +
@@ -493,6 +508,10 @@ fluidRow(
       max = as_date("2022-12-31"),
       format = "yyyy-mm-dd"
     )
+  ),
+  column(
+    width = 2,
+    sliderInput(inputId = "max_lead_fs", label = "Max Lead Time", value = 7, min = 3, max=10,step = 1)
   ),
   column(
     width = 2,
