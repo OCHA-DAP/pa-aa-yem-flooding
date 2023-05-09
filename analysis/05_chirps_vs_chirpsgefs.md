@@ -42,7 +42,7 @@ RP = 2
 
 ```python
 # setting code to run for entire year or for only the period from May to September
-may_to_sept = True  # set to False to analyse the full year of data
+may_to_sept = False  # set to False to analyse the full year of data or True for only specific months
 ```
 
 
