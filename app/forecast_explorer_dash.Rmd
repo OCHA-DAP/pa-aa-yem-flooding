@@ -1,8 +1,8 @@
 ---
 title: "Explore Rainfall & Trigger"
 output:
-    flexdashboard::flex_dashboard:
-            orientation: rows
+  flexdashboard::flex_dashboard:
+    orientation: rows
 date: "2023-05-03"
 runtime: shiny
 ---
@@ -25,24 +25,30 @@ library(gghdx)
 library(extRemes) # req for RP calcs
 library(shiny)
 library(ggiraph) # interactive ggplot
-library(here)
 
 
-source(here("app/rp_calcs.R"))
-source(here("app/app_funcs.R"))
-hres_forecast <- read_rds(here("app/shinydata/hres_rolled_per_date_gen.rds"))
-era_chirps <- read_rds(here("app/shinydata/era_chirps_long.rds"))
-chirps_gefs_forecast <- read_rds(here("app/shinydata/chirps_gefs.rds"))
-# hres_forecast <- read_rds("shinydata/hres_rolled_per_date_gen.rds")
-# era_chirps <- read_rds("shinydata/era_chirps_long.rds")
-# chirps_gefs_forecast <- read_rds("shinydata/chirps_gefs.rds")
+app_status <- c("dev","dep")[2]
 
+if(app_status=="dev"){
+    library(here)   
+    source(here("app/rp_calcs.R"))
+    source(here("app/app_funcs.R"))
+    hres_forecast <- read_rds(here("app/shinydata/hres_rolled_per_date_gen.rds"))
+    era_chirps <- read_rds(here("app/shinydata/era_chirps_long.rds"))
+    chirps_gefs_forecast <- read_rds(here("app/shinydata/chirps_gefs.rds"))
+}
+
+if(app_status=="dep"){
+    source("rp_calcs.R")
+    source("app_funcs.R")
+    hres_forecast <- read_rds("shinydata/hres_rolled_per_date_gen.rds")
+    era_chirps <- read_rds("shinydata/era_chirps_long.rds")
+    chirps_gefs_forecast <- read_rds("shinydata/chirps_gefs.rds")   
+}
 
 
 font_add_google("Source Sans Pro")
 showtext::showtext_auto()
-
-
 
 hres_forecast <- hres_forecast %>%
       mutate(
@@ -50,6 +56,11 @@ hres_forecast <- hres_forecast %>%
           month(date_forecast_predict) %in% c(3, 4, 5, 6) ~ "March-April-May-June",
           month(date_forecast_predict) %in% c(7, 8, 9, 10) ~ "July-August-September-October",
           TRUE ~ "dry season"
+        ),
+        season_short = case_when(
+          month(date_forecast_predict) %in% c(3, 4, 5, 6) ~ "mamj",
+          month(date_forecast_predict) %in% c(7, 8, 9, 10) ~ "jaso",
+          TRUE ~ "dy"
         )
       )
 chirps_gefs_forecast <- chirps_gefs_forecast %>%
@@ -58,6 +69,24 @@ chirps_gefs_forecast <- chirps_gefs_forecast %>%
           month(date_forecast_predict) %in% c(3, 4, 5, 6) ~ "March-April-May-June",
           month(date_forecast_predict) %in% c(7, 8, 9, 10) ~ "July-August-September-October",
           TRUE ~ "dry season"
+        ),
+           season_short = case_when(
+          month(date_forecast_predict) %in% c(3, 4, 5, 6) ~ "mamj",
+          month(date_forecast_predict) %in% c(7, 8, 9, 10) ~ "jaso",
+          TRUE ~ "dy"
+        )
+      )
+era_chirps <- era_chirps %>%
+      mutate(
+        season = case_when(
+          month(date) %in% c(3, 4, 5, 6) ~ "March-April-May-June",
+          month(date) %in% c(7, 8, 9, 10) ~ "July-August-September-October",
+          TRUE ~ "dry season"
+        ),
+           season_short = case_when(
+          month(date) %in% c(3, 4, 5, 6) ~ "mamj",
+          month(date) %in% c(7, 8, 9, 10) ~ "jaso",
+          TRUE ~ "dy"
         )
       )
 ```
@@ -188,11 +217,11 @@ Realtime Simulation {data-orientation=columns}
 ```{r page1UI, echo=FALSE}
 fluidRow(
   column(
-    width = 3,
+    width = 2,
     dateInput(inputId = "date", label = "Date", value = "2022-07-13")
   ),
   column(
-    width = 3,
+    width = 2,
     selectInput(inputId = "cumu_window", choices = c(
       "Daily" = "precip_daily",
       "3 Day" = "roll3",
@@ -203,12 +232,17 @@ fluidRow(
   # column(width=3,
   #        selectInput(inputId="gov",choices = c("Hajjah","Marib"),label = "Governorate",selected = "Hajjah")),
   column(
-    width = 3,
+    width = 2,
     numericInput(inputId = "thresh", label = "Threshold", value = 19.8, min = 0, step = 0.1)
   ),
   column(
-    width = 3,
+    width = 2,
     sliderInput(inputId = "max_lead_rt_sim", label = "Max Lead Time for Activaton", value = 7, min = 3,max=10, step = 1)
+  ),
+  column(
+    width = 3,
+    numericInput(inputId = "RP_baseline", label = "Calculate RP from:", 
+                 value = 1981, min = 1981,max=2022, step = 1)
   )
 )
 ```
@@ -281,7 +315,7 @@ Column {data-width=350}
 ```{r}
 renderDataTable({
   era_chirps_tfilt <- era_chirps %>%
-    filter(year(date) >= 1981) %>%
+    filter(year(date) >= input$RP_baseline) %>%
     mutate(
       splitter = glue("{source}_{governorate_name}_{precip_regime}")
     )
@@ -414,9 +448,13 @@ ggiraph::renderggiraph(
 
     max_vals_per_window_phase <- forecast_filt_temp %>%
       filter(value >= input$thresh3) %>%
-      group_by(governorate_name, year = year(date_forecast_predict), season, activation) %>%
-      filter(date_forecast_made == min(date_forecast_made), leadtime == max(leadtime)) %>%
-      arrange(season, activation) %>%
+        group_by(governorate_name, year = year(date_forecast_predict), season_short, activation) %>%
+      filter(date_forecast_made == min(date_forecast_made)) %>% 
+        group_by(date_forecast_made,.add=T) %>% 
+        filter(leadtime==max(leadtime)) %>% 
+      # group_by(governorate_name, year = year(date_forecast_predict), season, activation) %>%
+      # filter(date_forecast_made == min(date_forecast_made), leadtime == max(leadtime)) %>%
+      arrange(season_short, activation) %>%
       ungroup() %>%
       mutate(
         txt_label = glue("{str_remove(activation,' window')} alert on {format(date_forecast_made,'%m-%d')}\ndue to {round(value,1)} mm rainfall predicted on {format(date_forecast_predict,'%m-%d')}"),
@@ -481,10 +519,10 @@ ggiraph::renderggiraph(
 ```
 
 
-# False Starts
+# Trigger Grades
 
-
-```{r falseStartUI, echo=FALSE, out.width="100%", height="500px"}
+## table report
+```{r triggerGradeUI, echo=FALSE, out.width="100%", height="500px"}
 fluidRow(
   column(
     width = 2,
@@ -501,7 +539,7 @@ fluidRow(
   ),
   column(
     width = 2,
-    dateRangeInput("daterange2", "Date range:",
+    dateRangeInput("daterange3", "Date range:",
       start = as_date("2021-01-01"),
       end = as_date("2021-12-31"),
       min = as_date("1981-01-01"),
@@ -511,7 +549,7 @@ fluidRow(
   ),
   column(
     width = 2,
-    sliderInput(inputId = "max_lead_fs", label = "Max Lead Time", value = 7, min = 3, max=10,step = 1)
+    sliderInput(inputId = "max_lead_fst", label = "Max Lead Time", value = 7, min = 3, max=10,step = 1)
   ),
   column(
     width = 2,
@@ -525,83 +563,306 @@ fluidRow(
 
 ```
 
+## Grading Desc
+
+Row {data-height=1000}
+-------------------------------------
+
+```{r gradeDescTbl, eval=T}
+library(gt)
+
+gp <- c(`A+` = "#1A9850", `A` = "#66BD63", `A-` = "#A6D96A", `B` = "#D9EF8B", 
+`B-` = "#FEE08B", `C` = "#FDAE61", `D`= "#F46D43", `F` = "#D73027"
+)
 
 
-<!-- Row {data-height=1000} -->
-<!-- ------------------------------------- -->
-```{r, eval=F}
-renderDataTable({
-  start_date <- as.character(input$daterange[1])
-  end_date <- as.character(input$daterange[2])
+gp <- RColorBrewer::brewer.pal("RdYlGn",n=9) %>% 
+    rev()
+grade_desc <- trigger_grading_desc() %>% 
+    mutate(num = row_number(),.before="Grade")
+gt(grade_desc) %>% 
+    data_color(column=c("num"),colors=gp) %>%
+    cols_align("left") %>% 
+    gt::tab_options(table.font.size = 16,
+                    data_row.padding = gt::px(0),
+                    container.height = gt::px(300))
+    
 
-  chirps_gefs_tfilt <- chirps_gefs_forecast %>%
-    filter(
-      date_forecast_predict >= start_date,
-      date_forecast_predict <= end_date
-    )
-
-  hres_forecast_tfilt <- hres_forecast %>%
-    filter(
-      date_forecast_predict >= start_date,
-      date_forecast_predict <= end_date
-    )
-
-  y_top_limit <- max(max(chirps_gefs_tfilt$value, na.rm = T), max(hres_forecast_tfilt$value, na.rm = T)) + 10
-
-
-  if (input$forecast_type == "hres") {
-    forecast <- hres_forecast_tfilt
-    ribbon_color <- "#c2e699"
-  }
-  if (input$forecast_type == "chirps_gefs") {
-    forecast <- chirps_gefs_tfilt
-    ribbon_color <- "#41b6c4"
-  }
-  forecast_filt_temp <- forecast %>%
-    filter(name == input$cum_window3) %>%
-    mutate(
-      season = case_when(
-        month(date_forecast_predict) %in% c(3, 4, 5, 6) ~ "March-April-May-June",
-        month(date_forecast_predict) %in% c(7, 8, 9, 10) ~ "July-August-September-October",
-        TRUE ~ "dry season"
-      ),
-      trigger_window = case_when(
-        leadtime %in% c(1:5) ~ "action window",
-        leadtime %in% c(6:10) ~ "readiness window"
-      )
-    )
-
-  # hres_filt_temp <- hres_forecast %>%
-  #     filter(date_forecast_predict >=start_date,date_forecast_predict<=end_date) %>%
-  #     filter(name==input$cum_window3) %>%
-  #     mutate(
-  #         season = case_when(
-  #             month(date_forecast_predict) %in% c(3,4,5,6) ~ "March-April-May-June",
-  #             month(date_forecast_predict) %in% c(7,8,9,10) ~ "July-August-September-October",
-  #             TRUE~"dry season"
-  #         ),
-  #         trigger_window = case_when(
-  #             leadtime %in% c(1:5)~ "action window",
-  #             leadtime %in% c(6:10)~ "readiness window"
-  #         )
-  #     )
-  max_vals_per_window_phase <- forecast_filt_temp %>%
-    filter(value >= input$thresh3) %>%
-    group_by(year = year(date_forecast_predict), season, trigger_window) %>%
-    filter(date_forecast_made == min(date_forecast_made), leadtime == max(leadtime)) %>%
-    arrange(season, trigger_window) %>%
-    ungroup() %>%
-    mutate(
-      txt_label = glue("{str_remove(trigger_window,' window')} alert on {format(date_forecast_made,'%m-%d')}\ndue to {round(value,1)} mm rainfall predicted on {format(date_forecast_predict,'%m-%d')}"),
-      txt_label = glue("predicted {format(date_forecast_made,'%m-%d')} ({leadtime})"),
-      txt_label_x = if_else(trigger_window == "action window", date_forecast_predict + 10, date_forecast_predict - 10)
-    )
-  max_vals_per_window_phase
-})
+    
 ```
+
+
+Row {data-height=1000}
+-------------------------------------
+
+```{r triggerGradeServPlot,eval=T}
+ggiraph::renderggiraph(
+  {
+    y_axis_tite <- convert_window_numeric(input$cum_window4) %>%
+      paste0(" Day Accumulation (mm)")
+
+    # rm_leads <- seq(0,(roll_number-1))
+    start_date <- as.character(input$daterange3[1])
+    end_date <- as.character(input$daterange3[2])
+
+    chirps_gefs_tfilt <- chirps_gefs_forecast #%>%
+
+
+    hres_forecast_tfilt <- hres_forecast #%>%
+
+    
+    era_chirps_tfilt <- era_chirps %>%
+      filter(
+
+             precip_regime == input$cum_window4)
+    
+
+    y_top_limit <- max(max(chirps_gefs_tfilt$value, na.rm = T), max(hres_forecast_tfilt$value, na.rm = T)) + 10
+    
+    if (input$forecast_type2 == "hres") {
+        forecast <- hres_forecast_tfilt
+        observations <- era_chirps_tfilt %>% 
+            filter(source=="ERA")
+        
+        ribbon_color <- "#c2e699"
+    }
+    if (input$forecast_type2 == "chirps_gefs") {
+        forecast <- chirps_gefs_tfilt
+        ribbon_color <- "#41b6c4"
+        observations <- era_chirps_tfilt %>% 
+                filter(source=="CHIRPS")
+    }
+    
+    
+    forecast_filt_temp <- forecast %>%
+      filter(name == input$cum_window4)# %>%
+      # mutate_trigger_status(threshold = input$thresh4,max_lead = input$max_lead_fs)
+    
+    forecast_graded <- gta(alert_forecast = forecast_filt_temp,
+                           observed_historical = observations,
+                           thresh = input$thresh4,
+                           max_lead = input$max_lead_fst)
+    
+
+    forecast_filt_ribbon_df <- forecast_filt_temp %>%
+      group_by(governorate_name, date_forecast_predict, .drop = F) %>%
+        mutate(
+            value = ifelse(is.infinite(value)|is.nan(value),NA,value)
+        ) %>% 
+      summarise(
+        min_val = min(value, na.rm = T),
+        max_val = max(value, na.rm = T), .groups = "drop"
+      ) 
+    # RColorBrewer::brewer.pal(n = 9,name = "RdYlGn") %>% set_names(c("F","D","C","B-","B","B+","A-","A","A+")) %>% dput()
+    
+    grade_palette<-c(`F` = "#D73027", 
+                     D = "#F46D43",
+                     C = "#FDAE61",
+                     `B-` = "#FEE08B", 
+                     B = "#FFFFBF", 
+                     `B+` = "#D9EF8B", 
+                     `A-` = "#A6D96A",
+                     A = "#66BD63", 
+                     `A+` = "#1A9850")
+    
+
+    p <- era_chirps %>%
+      filter(date >= start_date, date <= end_date) %>%
+      filter(precip_regime == input$cum_window4) %>%
+      ggplot() +
+      geom_ribbon(
+        data = forecast_filt_ribbon_df,
+        aes(date_forecast_predict, ymin = min_val, ymax = max_val), fill = ribbon_color, alpha = 0.7
+      ) +
+      geom_hline(yintercept = input$thresh4, color = "red", linetype = "dashed") +
+      geom_line(aes(x = date,
+                                y = value,
+                                color = source,
+                                group = source), alpha = 1, size = 1) +
+      geom_point_interactive(aes(x = date,
+                                y = value,
+                                color = source,
+                                # group = source,
+                                tooltip= glue("Data source: {source}<br>
+                                              Date observed: {date}<br>
+                                              Rainfall: {round(value,1)} mm")), alpha = 1, size = 1) +
+
+      # scale_color_manual(values = c("CHIRPS"="#253494","ERA"="#d95f0e"))
+      geom_point_interactive(data = forecast_graded,
+                             aes(x = date_forecast_made,
+                                 y = value,
+                                 color = grade,
+                                 tooltip= glue::glue("Date Alert Raised: {date_forecast_made}<br>
+                                                     Date threshold crossed: {date_forecast_predict}<br>
+                                                     Leadtime: {leadtime}<br>
+                                                     Predicted rainfall: {round(value,1)} mm<br>
+                                                     Grade: {grade}",
+                                                     )
+                                 ), alpha = 0.9, size = 5) +
+      scale_color_manual(values = c("CHIRPS" = "#253494",
+                                    "ERA" = "#31a354",
+                                    # "Action" = "red", 
+                                    # "Readiness" = "orange",
+                                    grade_palette
+                                        ), drop = F) +
+
+      scale_x_date(date_breaks = "1 month", 
+                   date_minor_breaks = "10 days", 
+                   date_labels = "%y-%m-%d",
+                   limits = as_date(c(start_date,end_date))) +
+      scale_y_continuous(limits = c(0, y_top_limit)) +
+      labs(y = y_axis_tite) +
+      facet_wrap(~governorate_name, nrow = 2, ncol = 1) +
+      theme_hdx() +
+      theme(
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(angle=90)
+      )
+    ggiraph::girafe(ggobj = p,width_svg = 30, height_svg =16, options = list(opts_sizing(rescale = FALSE)))
+   }#,
+  #height = 1000
+)
+
+```
+
+Row {data-height=1000}
+-------------------------------------
+
+```{r triggerGradeServTbl,eval=T}
+
+grading_table <- reactive(
+  {
+    era_chirps_tfilt <- era_chirps %>%
+      filter(
+          # date >= start_date, 
+             # date <= end_date,
+             precip_regime == input$cum_window4
+          )
+    
+    if (input$forecast_type2 == "hres") {
+        forecast <- hres_forecast
+        observed_precip <- era_chirps_tfilt %>% 
+            filter(source=="ERA")
+    }
+    if (input$forecast_type2 == "chirps_gefs") {
+        forecast <- chirps_gefs_forecast 
+        
+        observed_precip <- era_chirps_tfilt %>% 
+                filter(source=="CHIRPS")
+    }
+    
+    forecast_filt <- forecast %>%
+      filter(name == input$cum_window4) #%>% 
+    
+    forecast_time_range <- range(forecast_filt$date_forecast_made,na.rm=T)
+    
+    observed_precip_tfilt <-  observed_precip %>% 
+        filter(
+            date>= forecast_time_range[1],date<=forecast_time_range[2]
+        )
+    
+    gta(alert_forecast = forecast_filt,
+        observed_historical = observed_precip_tfilt,
+        thresh = input$thresh4,
+        max_lead = input$max_lead_fst)
+
+  }
+)
+
+
+renderDataTable({
+    grading_table()
+})
+
+```
+Row {data-height=1000}
+-------------------------------------
+
+
+```{r triggerGradeYear,eval=F}
+
+
+renderTable(
+    grading_table() %>% 
+        ungroup() %>% 
+        group_by(governorate_name, year, season_short,grade) %>% 
+        summarise(
+            count_grade=n(),.groups="drop"
+        ) 
+        
+)
+
+```
+
+
 
 # Performance
 
+Row {data-height=1000}
+-------------------------------------
+
+```{r performanceGrade,eval=F}
+
+renderPlot(
+  {
+    era_chirps_tfilt <- era_chirps %>%
+      filter(
+          # date >= start_date, 
+             # date <= end_date,
+             precip_regime == input$cum_window4
+          )
+    
+    if (input$forecast_type2 == "hres") {
+        forecast <- hres_forecast
+        observed_precip <- era_chirps_tfilt %>% 
+            filter(source=="ERA")
+    }
+    if (input$forecast_type2 == "chirps_gefs") {
+        forecast <- chirps_gefs 
+            
+        
+        observed_precip <- era_chirps_tfilt %>% 
+                filter(source=="CHIRPS")
+    }
+    
+    forecast_filt <- forecast %>%
+      filter(name == input$cum_window4) #%>% 
+    
+    forecast_time_range <- range(forecast_filt$date_forecast_made,na.rm=T)
+    
+    observed_precip_tfilt <-  observed_precip %>% 
+        filter(
+            date>= forecast_time_range[1],date<=forecast_time_range[2]
+        )
+    grade_iter_df <- c(1:100) %>% 
+        map_dfr(
+           ~ gta(alert_forecast = forecast_filt,
+                observed_historical = observed_precip_tfilt,
+                thresh = .x,
+                max_lead = 7) %>% 
+               mutate(
+                   thresh=.x
+               )
+        )
+    grade_iter_df %>% 
+        group_by(governorate_name,thresh, grade) %>% 
+        summarise(
+            grade_n=n()
+        ) %>% 
+        ggplot(aes(x=thresh,y=grade_n,color=grade,group=grade))+
+        geom_line()+
+        facet_wrap(~governorate_name)
+    
+    
+
+  }
+)
+
+```
+
+
+
+#### Non reactive testing
 ```{r asdf, eval = F}
 
 start_date_temp <-  "2021-01-01"
@@ -609,28 +870,380 @@ end_date_temp <-  "2021-12-31"
 input_source <-  "CHIRPS"
 precip_regime_temp <- "roll3"
 thresh_temp <-  19.8
+max_lead <-  7
 
-chirps_forecast_tfilt <- chirps_gefs_forecast %>% 
-    filter(date_forecast_made>=start_date_temp,
-           date_forecast_made<=end_date_temp, 
+forecast_tfilt <- hres_forecast %>% 
+    filter(
+    # date_forecast_made>=start_date_temp,
+           # date_forecast_made<=end_date_temp, 
            name==precip_regime_temp) %>% 
-    mutate(
-      season = case_when(
-        month(date_forecast_predict) %in% c(3, 4, 5, 6) ~ "March-April-May-June",
-        month(date_forecast_predict) %in% c(7, 8, 9, 10) ~ "July-August-September-October",
-        TRUE ~ "dry season"
-      ),
-      trigger_window = case_when(
-        leadtime %in% c(1:5) ~ "action window",
-        leadtime %in% c(6:10) ~ "readiness window"
-      )
-    )
+    mutate_trigger_status(threshold = thresh_temp,max_lead = max_lead)
 
+forecast_tfilt %>% 
+    filter(governorate_name =="Hajjah",
+           date_forecast_made>="2022-07-01", 
+           date_forecast_made<="2022-08-30",
+           value>=19.8) %>% 
+    # glimpse()
+    group_by(governorate_name, year = year(date_forecast_predict), season_short, activation) %>%
+      filter(date_forecast_made == min(date_forecast_made)) %>% 
+    group_by(date_forecast_made,.add=T) %>% 
+    filter(leadtime==max(leadtime)) 
+# , leadtime == max(leadtime)) %>%
+      arrange(season, activation) %>%
+      ungroup() 
+forecast_tfilt %>%
+    filter(value >= thresh_temp) %>%
+    group_by(year = year(date_forecast_predict), season, activation) %>%
+    filter(date_forecast_made == min(date_forecast_made), leadtime == max(leadtime),activation=="Action") %>%
+    arrange(season, activation) %>%
+    ungroup()
+
+ max_vals_per_window_phase <- forecast_tfilt %>%
+      filter(value >= thresh_temp) %>%
+      group_by(governorate_name, year = year(date_forecast_predict), season, activation) %>%
+      filter(date_forecast_made == min(date_forecast_made), leadtime == max(leadtime)) %>%
+      arrange(season, activation) %>%
+      ungroup() 
+ forecast_grader <- max_vals_per_window_phase %>% 
+        filter(activation=="Action") %>% 
+        select(governorate_name, 
+               date_forecast_made,
+               leadtime, 
+               date_forecast_predict,
+               value,
+               activation,
+               season_short)
+ 
+ grade_trigger_alerts(alert_forecast = forecast_tfilt,
+                      observed_historical =historical_grader ,
+                      threshold)
+ 
+ 
+ 
+ gta(alert_forecast = forecast_tfilt,observed_historical =historical_obs ,thresh = 19.8) %>% 
+     print(n=nrow(.)) 
+ 
+
+ observed_historical %>% 
+     count(year(date)) %>% 
+     print(n=nrow(.))
+
+ observed_historical %>% 
+    filter(governorate_name=="Hajjah",
+           season_short=="jaso", 
+           year(date)==2008, month(date)%in% c(6,7,8)) %>% 
+     # filter(value>19.8) %>% 
+     pull(value)
+ 
+ all(bla<19.8)
+
+ gta <- function(alert_forecast,
+                 observed_historical,
+                 thresh= 19.8,max_lead){
+     
+    alerts <- alert_forecast %>%
+    filter(value >= thresh & leadtime %in% c(1:max_lead)) %>%
+        
+    group_by(governorate_name,year = year(date_forecast_predict), season_short, activation) %>%
+    filter(date_forecast_made == min(date_forecast_made),
+           leadtime == max(leadtime),
+           activation=="Action",
+           season_short!="dy") %>%
+    arrange(governorate_name,season, activation) %>%
+    ungroup()
+    
+    alerts %>% 
+        pmap_dfr(function(...){
+            current <- tibble(...)
+            alert_date <- current$date_forecast_made
+            predict_date <-  current$date_forecast_predict
+            scan_D <- seq((alert_date-56),(alert_date+28),"day") # if no true thresh cross -> FP : grade D
+            scan_F <- seq((alert_date-56),(alert_date-14), by="day") # if threshold crosses between 2 & 8 weeks before trigger its quite late: F
+            scan_C <- seq((alert_date-13),(alert_date-7), by="day") # if threshold crosses between 1 & 2 weeks like a bit late : C
+            scan_Bm <- seq((alert_date-6),(alert_date-4), by="day") # if threshold crosses between 4-6 days  before alert - B-
+            scan_B <- seq((alert_date-3),(alert_date-1), by="day")# if threshold crosses between 1-2 days before laert -- not to bad: B
+            scan_Am <- seq((alert_date),(alert_date+2), by="day") # if threshold crosses between alert date and 2 days after getting good - A-
+            scan_A <- seq((alert_date+3),(predict_date+14), by="day")
+            scan_Ap <- seq((predict_date-2),(predict_date+2), by="day") # nailed it.
+            
+            observed_pre_filt <- observed_historical %>% 
+                filter(
+                       governorate_name==current$governorate_name,
+                       season_short==current$season_short
+                       )
+            
+            observed_D_vals <-  observed_pre_filt %>% 
+                filter(date %in% scan_D) %>% 
+                pull(value)
+            # cat(observed_D_vals)
+            
+            observed_F_vals <-  observed_pre_filt %>% 
+                filter(date %in% scan_F) %>% 
+                pull(value)
+            cat(which(observed_F_vals>threshold))
+            
+            observed_C_vals <-  observed_pre_filt %>% 
+                filter(date %in% scan_C) %>% 
+                pull(value)
+            observed_Bm_vals <-  observed_pre_filt %>% 
+                filter(date %in% scan_Bm) %>% 
+                pull(value)
+            observed_B_vals <-  observed_pre_filt %>% 
+                filter(date %in% scan_B) %>% 
+                pull(value)
+            observed_Am_vals <-  observed_pre_filt %>% 
+                filter(date %in% scan_Am) %>% 
+                pull(value)
+            observed_A_vals <-  observed_pre_filt %>% 
+                filter(date %in% scan_A) %>% 
+                pull(value)
+            
+            observed_Ap_vals <-  observed_pre_filt %>% 
+                filter(date %in% scan_Ap) %>% 
+                pull(value)
+            
+            
+            if(all(observed_D_vals<threshold)){
+                ret <- "D"
+            }
+            else if(any(observed_F_vals>threshold)){
+                ret <- "F"
+            }
+            else if(any(observed_C_vals>threshold)){
+                ret <- "C"
+            }
+            else if(any(observed_Bm_vals>threshold)){
+                ret <- "B-"
+            }
+            else if(any(observed_B_vals>threshold)){
+                ret <- "B"
+            }
+            else if(any(observed_Am_vals>threshold)){
+                ret <- "A-"
+            }
+            else if(any(observed_A_vals>threshold)){
+                ret <- "A"
+            }
+            else if(any(observed_A_vals>threshold)){
+                ret <- "A"
+            }
+            else if(any(observed_Ap_vals>threshold)){
+                ret <- "A+"
+            }
+            else{
+                ret <- "ungraded"
+            }
+            current$grade <- ret
+            return(current)
+        })
+}
+
+historical_grader <- historical_obs %>% 
+    # filter(date>="2018-05-01",date<="2018-08-30") %>% 
+    filter(value>=19.8)
+
+    # alright let's first grade the triggers then decide what to do if no trigger
+    # jaso_dates <- seq(as_date("2022-07-01"),as_date("2022-10-31"), by ="day")
+    # mamj_doy <- lubridate::yday(seq(as_date("2022-03-01"),as_date("2022-06-30"), by ="day"))
+    
+# Convert yday + year to date
+
+    alert_forecast <- forecast_tfilt
+    activations_pred_df <- alert_forecast %>%
+        filter(value >= thresh_temp) %>%
+        group_by(governorate_name,year = year(date_forecast_predict), season_short, activation) %>%
+        filter(date_forecast_made == min(date_forecast_made), leadtime == max(leadtime),activation=="Action") %>%
+        arrange(season_short, activation) %>%
+        ungroup() %>%
+        split(.$governorate_name)
+    
+    historical_gte_thresh_split <- observed_historical %>% 
+        filter(value>=thresh_temp) %>% 
+        split(.$governorate_name)
+    
+    activations_pred_df %>% 
+        map2(historical_gte_thresh_split,
+            \(forecast_gov,historical_gov){
+                alert_date <- forecast_gov %>% 
+                    pull(date_forecast_made)
+                forecast_predict_date <- forecast_gov %>% 
+                    pull(date_forecast_predict)
+                
+                print(forecast_gov)
+                pre_alert_14 <- alert_date -14
+                
+                F_dates<- seq(pre_alert_14-60,pre_alert_14,"day")
+                F_n <- historical_gov %>% 
+                    filter(date %in% F_dates) %>% 
+                    nrow()
+                 F_criteria <- F_n>0
+                
+                D_dates <-  seq(pre_alert_14,pre_alert_14+24, by ="day")
+                D_n <- historical_gov %>% 
+                    filter(date %in% D_dates) %>% 
+                    nrow()
+                D_criteria <- D_n==0
+                
+                # 7-14 days late
+                C_dates <- seq(alert_date-14, alert_date-7,by="day")
+                C_n <- historical_gov %>% 
+                    filter(date %in% C_dates) %>% 
+                    nrow()
+                C_criteria <- C_n >0
+                
+                # 4-7 days late
+                B_minus_dates <- seq(alert_date-7, alert_date-4,by="day")
+                B_minus_n <- historical_gov %>% 
+                    filter(date %in% B_minus_dates) %>% 
+                    nrow()
+                B_minus_criteria <- B_minus_n > 0
+               
+                # 1-3 days late
+                B_dates <- seq(alert_date-3, alert_date-1,by="day")
+                B_n <- historical_gov %>% 
+                    filter(date %in% B_dates) %>% 
+                    nrow()
+                B_criteria <- B_n>0
+                
+                # 1-2 day leadtime
+                A_minus_dates <- seq(alert_date, alert_date+2,by="day")
+                A_minus_n <- historical_gov %>% 
+                    filter(date %in% A_minus_dates) %>% 
+                    nrow()
+                A_minus_criteria <- A_minus_n > 0
+                
+                # 1-2 day leadtime
+                A_plus_dates <- seq(forecast_predict_date-2, forecast_predict_date+2,by="day")
+                A_plus_n <- historical_gov %>% 
+                    filter(date %in% A_plus_dates) %>% 
+                    nrow()
+                A_plus_criteria <- A_plus_n>0
+                
+                # 1-2 day leadtime
+                A_dates <- seq(alert_date+2, forecast_predict_date+14,by="day")
+                A_n <- historical_gov %>% 
+                    filter(date %in% A_dates) %>% 
+                    nrow()
+                A_criteria <- A_n>0
+                
+               
+                if(F_criteria){
+                    ret <- "F"
+                }
+                # if threshold not crossed 14 days before or after (after 10 day leadtime)
+                if(D_criteria & ! F_criteria){
+                    ret <- "D"
+                }
+                if(C_criteria & !D_criteria & !F_criteria){
+                    ret <- "C"
+                }
+                if(B_minus_criteria & !C_criteria){
+                    ret <- "B-"
+                }
+                if(B_criteria & !B_minus_criteria){
+                    ret <- "B+"
+                }
+                if(A_minus_criteria){
+                    ret <- "A-"
+                }
+                if(A_plus_criteria){
+                    ret <- "A+"
+                }
+                if(A_criteria){
+                    ret <- "A"
+                }
+                else{
+                    ret <- historical_gov %>% 
+                    filter(date %in% seq(alert_date-14,alert_date+14,by="day")) 
+                }
+                return(ret)
+                
+                
+                    
+                    
+            }
+        )
+    
+    
+    
+        mutate(
+            pre_14= date_forecast_made-14,
+            pre_14_seq = map(.x=pre_14, ~ seq(as_date(jaso_dates[1]),as_date((.x)), by ="day"))
+        )
+        mutate(late_seq_14d = map(date_forecast_made,
+                                  \(dt) {seq(season_start_date,
+                                            (dt-20),by="day")}
+                                  )
+               )  
+        
+    
+    observed_historical %>% 
+        filter(season!="dry season",
+               value>=threshold) %>% 
+        mutate(
+            date_seq = map(date, \(dt) seq((dt-30),(dt+30),by="day"))
+        ) %>% 
+        split(.$season) %>% 
+        map(\(df_season)
+            df_season %>% 
+                pull(date_seq) %>% 
+        unlist() %>% 
+        unique() %>% 
+        as_date()
+        )
+        
+    
+    
+    predicted_dates <- alert_forecast %>% 
+        filter(trigger_win)
+    trigger_dates <- alert_forecast$date_forecast_made
+    
+    predicted_dates %>% 
+        map(\(dt){
+            pre_date <- dt-2
+            post_date <-  dt+2
+            
+             %>% 
+                filter(dt>=(dt-30))
+            
+            
+            
+
+        }
+            
+        )
+    
+    
+    
+    
+    # Calculate:
+    # 1. Predicted threshold crossing wrong by how many days?
+    
+    # 2. Alert: number of days lead time.
+    
+    
+    # Grade.
+    ################
+    
+    # Predicted forecast correct within +/- 2 days -- A+ : Forecast + trigger perform "perfectly" resources are mobilized to respond
+    
+    # if Action alert issued with at least 3 days lead time and threshold is crossed anytime in next 14 days -- A: resources are mobilized and ready to go - timing not exact
+    
+    # if Action alert issued 1-2 days leadtime -- B+ : resources mobilized a little some are on time some are late
+    
+    # if Action alert issues up to 3 days late (after threshold crossed) -- B : Alert helps partners get ready, but most services arrive just a little late
+    
+    # if Action alert issued up to 4-7 days late (after threshold crossed) -- C : Alert helps partners get ready, but most services arrive just a little late
+    # if Action alert issued more than  14 days late (after threshold crossed) -- C : Alert helps partners get ready, but most services arrive just a little late -- might merge with F
+    
+    # if Action alert issued and threshold not crossed -- D
+    
+    # if Action alert not issued and threshold is crossed in season - F
+    
+    
+}
 forecast <-  chirps_forecast_tfilt
-historical_obs <- era_chirps %>% 
-    filter(source==input_source) %>% 
-    filter(date>=start_date_temp,date<=end_date_temp) %>% 
-    filter(precip_regime==precip_regime_temp) 
 
 
  max_vals_per_window_phase <- forecast %>%
