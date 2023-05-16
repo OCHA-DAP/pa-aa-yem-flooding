@@ -35,10 +35,10 @@ jobs:
 ##*15          if (!requireNamespace("renv", quietly = TRUE)) install.packages("renv")
 ##*16          renv::restore()
 ##*17        shell: Rscript {0} # not sure if this is required now and also forgot what it does.
-      - name: install required packages #15
-        run: | #18
-          source(file.path("src", "install_req_packages.R")) #19
-        shell: Rscript {0} #20
+      - name: install required packages #18
+        run: | #19
+          source(file.path("src", "install_req_packages.R")) #20
+        shell: Rscript {0} #21
       - name: Create authorization JSON
         id: create-json
         uses: jsdaniell/create-json@v1.2.2
