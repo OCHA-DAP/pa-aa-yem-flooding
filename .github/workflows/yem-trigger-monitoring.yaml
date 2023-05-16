@@ -1,18 +1,19 @@
 # This workflow uses actions to automatically run the global monitoring
 # script.
 
-name: global-monitoring
+name: yem-trigger-monitoring # changed this from -global monitoring
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 11 * * 1-5"
+    - cron: "0 11 * * 1-5" # will have to change this to daily
 
 jobs:
   monitor:
     runs-on: macos-latest
-    env:
-      RENV_PATHS_ROOT: ~/Library/Caches/org.R-project.R/R/renv
+    # get rid of this `env` section ? 
+    env: 
+      RENV_PATHS_ROOT: ~/Library/Caches/org.R-project.R/R/renv # should get rid of this
 
     steps:
       - uses: actions/checkout@v3
@@ -24,31 +25,32 @@ jobs:
       - name: Cache packages
         uses: actions/cache@v3
         with:
-          path: ${{ env.RENV_PATHS_ROOT }}
-          key: ${{ runner.os }}-renv-${{ hashFiles('**/renv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-renv-
+          path: ${{ env.RENV_PATHS_ROOT }} # should remove - do i need to replace?
+          key: ${{ runner.os }}-renv-${{ hashFiles('**/renv.lock') }} # should remove do i need to replace?
+          restore-keys: | # should remove do i need to replace?
+            ${{ runner.os }}-renv-  # should remove do i need to replace?
       - name: Restore packages
+      # can remove `run` section? Rather just source one script which sources another to install req packages?
         run: |
           if (!requireNamespace("renv", quietly = TRUE)) install.packages("renv")
           renv::restore()
-        shell: Rscript {0}
+        shell: Rscript {0} # not sure if this is required now and also forgot what it does.
       - name: Create authorization JSON
         id: create-json
         uses: jsdaniell/create-json@v1.2.2
         with:
-          name: "auth.json"
+          name: "auth.json" # this is the name i want `create-json@v1.2.2` to generate right?
           json: ${{ secrets.GCP_CREDENTIALS }}
-      - name: Run global monitoring
+      - name: Run yem-trigger-monitoring # changed from: Run global monitoring
         run: |
-          source(file.path("src", "run.R"))
-        shell: Rscript {0}
+          source(file.path("src", "run.R")) # I'll create "src/run.R" which can source the package install and trigger monitoring.
+        shell: Rscript {0} # dont get this really
         env:
-          IDMC_API: ${{ secrets.IDMC_API }}
-          IPC_API_KEY: ${{ secrets.IPC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GLOBAL_MONITORING_JSON: "auth.json"
-          CHD_DS_EMAIL_USERNAME: ${{ secrets.CHD_DS_EMAIL_USERNAME }}
-          CHD_DS_EMAIL_PASSWORD: ${{ secrets.CHD_DS_EMAIL_PASSWORD }}
-          CHD_DS_HOST: ${{ secrets.CHD_DS_HOST }}
-          CHD_DS_PORT: ${{ secrets.CHD_DS_PORT }}
+          # IDMC_API: ${{ secrets.IDMC_API }} # dont need
+          # IPC_API_KEY: ${{ secrets.IPC_API_KEY }} # dont need
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }} # dont need
+          YEM_TRIG_MONITORNG: "auth.json" #change name from: `GLOBAL_MONITORING_JSON`, but forget where that name must link to
+          CHD_DS_EMAIL_USERNAME: ${{ secrets.CHD_DS_EMAIL_USERNAME }} # this is a key for emails right?
+          CHD_DS_EMAIL_PASSWORD: ${{ secrets.CHD_DS_EMAIL_PASSWORD }} # this is a key for emails right?
+          CHD_DS_HOST: ${{ secrets.CHD_DS_HOST }} # forgot what this is for
+          CHD_DS_PORT: ${{ secrets.CHD_DS_PORT }} # forgot what this is for
