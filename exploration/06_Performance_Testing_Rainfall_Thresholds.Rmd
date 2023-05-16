@@ -255,6 +255,24 @@ p_hajjah_approach3_clustered <- tbl_performance_area_clustered5_b7f7 %>%
       x_axis_title = regime_name
     )
   })
+p_marib_approach3_clustered <- tbl_performance_area_clustered5_b7f7_wind_rm %>%
+  imap(\(tbl_plot, regime_name){
+    plot_performance_metrics(
+      df = tbl_plot,
+      governorate = "Marib",
+      pseudo_log = F,
+      x_axis_title = regime_name
+    )
+  })
+p_hajjah_approach3_clustered <- tbl_performance_area_clustered5_b7f7_wind_rm %>%
+  imap(\(tbl_plot, regime_name){
+    plot_performance_metrics(
+      df = tbl_plot,
+      governorate = "Hajjah",
+      pseudo_log = F,
+      x_axis_title = regime_name
+    )
+  })
 ```
 
 
@@ -289,6 +307,10 @@ walk(p_marib_approach3_clustered, ~ print(.x))
 
 ```{r plot-hajjah-performance-clusterd, out.width="100%"}
 walk(p_hajjah_approach3_clustered, ~ print(.x))
+```
+
+```{r}
+p_hajjah_approach3_clustered$roll3
 ```
 
 

@@ -267,7 +267,7 @@ for file in grib_file_paths:
     out_file_path = os.path.join(data_dir, out_dir, out_file_name)
 
     # Open the dataset and write the raster
-    ds_temp = xarray.open_dataset(file)
+    ds_temp = xr.open_dataset(file)
     write_multiband_raster(ds=ds_temp, step_indices=step_indices, rRes=rRes, out_raster=out_file_path)
 ```
 

@@ -18,8 +18,8 @@ knitr::opts_chunk$set(
 
 
 ```{r libsImerge}
-# run Near Real Time? if true it will pull data to make notebook, if FALSE we 
-run_nrt <-  c(T,F)
+# run Near Real Time? if true it will pull data to make notebook, if FALSE we
+run_nrt <- c(T, F)
 library(rgee)
 library(tidyrgee)
 library(tidyverse)
