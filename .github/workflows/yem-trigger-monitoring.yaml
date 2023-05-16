@@ -6,8 +6,7 @@ name: yem-trigger-monitoring # changed this from -global monitoring
 on:
   workflow_dispatch:
   schedule:
-##*1    - cron: "0 11 * * 1-5" # will have to change this to daily
-    - cron:"0 2 * * *" # 2
+    - cron:"0 10 * * *" # 10 am UTC every morning
 
 jobs:
   monitor:
