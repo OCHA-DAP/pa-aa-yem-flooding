@@ -4,4 +4,5 @@ install.packages(c("dplyr",
                    "sf",
                    "terra",
                    "exactextractr",
-                   "zoo"))
+                   "zoo",
+                   "googledrive"))

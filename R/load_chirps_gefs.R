@@ -132,7 +132,7 @@ load_chirps_gefs_cropped <- function(run_date=Sys.Date(),
         r_cropped_list %>% 
             map2(gdrive_file_path,\(r,fname){
                 cat("writing ",fname,"\n")
-                writeRaster(x =r,filename = fname )
+                writeRaster(x =r,filename = fname,overwrite=T )
             })  
     }
     
