@@ -6,14 +6,15 @@ name: yem-trigger-monitoring # changed this from -global monitoring
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 11 * * 1-5" # will have to change this to daily
+    # - cron: "0 11 * * 1-5" # will have to change this to daily
+    - cron:"0 2 * * *"
 
 jobs:
   monitor:
     runs-on: macos-latest
     # get rid of this `env` section ? 
-    env: 
-      RENV_PATHS_ROOT: ~/Library/Caches/org.R-project.R/R/renv # should get rid of this
+##    env: 
+##      RENV_PATHS_ROOT: ~/Library/Caches/org.R-project.R/R/renv # should get rid of this
 
     steps:
       - uses: actions/checkout@v3
@@ -21,20 +22,24 @@ jobs:
         uses: r-lib/actions/setup-r@f57f1301a053485946083d7a45022b278929a78a
         with:
           r-version: 4.2.3
-      - uses: r-lib/actions/setup-pandoc@v2
-      - name: Cache packages
-        uses: actions/cache@v3
-        with:
-          path: ${{ env.RENV_PATHS_ROOT }} # should remove - do i need to replace?
-          key: ${{ runner.os }}-renv-${{ hashFiles('**/renv.lock') }} # should remove do i need to replace?
-          restore-keys: | # should remove do i need to replace?
-            ${{ runner.os }}-renv-  # should remove do i need to replace?
-      - name: Restore packages
-      # can remove `run` section? Rather just source one script which sources another to install req packages?
-        run: |
-          if (!requireNamespace("renv", quietly = TRUE)) install.packages("renv")
-          renv::restore()
-        shell: Rscript {0} # not sure if this is required now and also forgot what it does.
+##*1      - uses: r-lib/actions/setup-pandoc@v2
+##*2      - name: Cache packages
+##*3        uses: actions/cache@v3
+##*4        with:
+##*5          path: ${{ env.RENV_PATHS_ROOT }} # should remove - do i need to replace?
+##*6          key: ${{ runner.os }}-renv-${{ hashFiles('**/renv.lock') }} # should remove do i need to replace?
+##*7          restore-keys: | # should remove do i need to replace?
+##*8            ${{ runner.os }}-renv-  # should remove do i need to replace?
+##*9      - name: Restore packages
+##*10      # can remove `run` section? Rather just source one script which sources another to install req packages?
+##*11        run: |
+##*12          if (!requireNamespace("renv", quietly = TRUE)) install.packages("renv")
+##*13          renv::restore()
+##*14        shell: Rscript {0} # not sure if this is required now and also forgot what it does.
+      - name: install required packages #15
+        run: | #16
+          source(file.path("src", "install_req_packages.R")) #17
+        shell: Rscript {0} #18
       - name: Create authorization JSON
         id: create-json
         uses: jsdaniell/create-json@v1.2.2
