@@ -63,24 +63,25 @@ load_chirps_gefs_cropped <- function(run_date=Sys.Date(),
                              ){
     
     
+    gdrive_id_day <- cascade_ymd_directories(run_date = run_date,gdrive_id = Sys.getenv("AA_YEM_LIVE_MONITORING_DIR_ID"))
     # need to adjust all gdrive handling
-    gdrive_dir <- file.path(Sys.getenv("AA_DATA_DIR"),
-              "public",
-              "processed",
-              "yem",
-              "live_monitoring"
-              )
+    # gdrive_dir <- file.path(Sys.getenv("AA_DATA_DIR"),
+    #           "public",
+    #           "processed",
+    #           "yem",
+    #           "live_monitoring"
+    #           )
     
     base_url <- "https://data.chc.ucsb.edu/products/EWX/data/forecasts/CHIRPS-GEFS_precip_v12/daily_16day/"
     forecast_dir_url <- format(run_date,"%Y/%m/%d")
     
     # create folder for files if it does not exist
-    gdrive_raster_outdir <- file.path(gdrive_dir,"inputs","chirps_gefs",forecast_dir_url)
-    gdrive_processed_outdir <- file.path(gdrive_dir,"outputs","chirps_gefs")
-    
-    if(!dir.exists(gdrive_raster_outdir)){
-        dir.create(gdrive_raster_outdir,recursive = T)
-    }
+    # gdrive_raster_outdir <- file.path(gdrive_dir,"inputs","chirps_gefs",forecast_dir_url)
+    # gdrive_processed_outdir <- file.path(gdrive_dir,"outputs","chirps_gefs")
+    # 
+    # if(!dir.exists(gdrive_raster_outdir)){
+    #     dir.create(gdrive_raster_outdir,recursive = T)
+    # }
     
     url_dir <- paste0(base_url,forecast_dir_url) 
     
@@ -90,7 +91,7 @@ load_chirps_gefs_cropped <- function(run_date=Sys.Date(),
     
     lyr_names <- paste0(format(run_date,"%Y-%m-%d"),".",leadtime)
     gdrive_file_name <-   paste0(format(forecasted_dates,"%Y.%m%d"),'.tif')
-    gdrive_file_path <-  file.path(gdrive_raster_outdir, paste0(format(forecasted_dates,"%Y.%m%d"),'.tif'))
+    # gdrive_file_path <-  file.path(gdrive_raster_outdir, paste0(format(forecasted_dates,"%Y.%m%d"),'.tif'))
     
     url_file_names <- paste0("data.",gdrive_file_name)
     url_downloads <- paste0(url_dir,"/",url_file_names)
@@ -99,19 +100,34 @@ load_chirps_gefs_cropped <- function(run_date=Sys.Date(),
         map2(lyr_names,\(url,lyr_name){
             cat("downloading ",lyr_name," to memory\n")
             r <- rast(url)
-            cat("cropping ", lyr_name,"\n")
+            cat("cropping ", lyr_name," to mask\n")
             r_cropped <- crop(x=r,y=mask)
             terra::set.names(r_cropped,lyr_name)
             return(r_cropped)
         }
         )
+    
+    #### okay here is where i need to input fle
+    temp_r_paths <- file.path(tempdir(),gdrive_file_name)
     if(write_outputs){
         r_cropped_list %>% 
-            map2(gdrive_file_path,\(r,fname){
-                cat("writing ",fname,"\n")
-                writeRaster(x =r,filename = fname,overwrite=T )
-            })  
+            map2(temp_r_paths,\(r,fname){
+                cat("TEMP writing ",fname,"\n")
+                writeRaster(x =r,filename =fname, overwrite=T )
+            })
+        temp_r_paths %>% 
+            map2(gdrive_file_name,\(temp_path,fname){
+                cat("Uploading ",fname, " to GDRIVE")
+                drive_upload(media=temp_path,
+                             path=as_id(gdrive_id_day$id),
+                             name= fname)
+            }
+                
+            )
     }
+        
+    
+    
     
     cat("stacking raster collection \n")
     r_stack <- rast(r_cropped_list)
@@ -140,4 +156,3 @@ load_chirps_gefs_cropped <- function(run_date=Sys.Date(),
     }
     return(roi_means)
 }
-    

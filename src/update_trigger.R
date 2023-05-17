@@ -5,6 +5,7 @@ library(sf)
 library(terra)
 library(googledrive)
 source("R/load_chirps_gefs.R")
+source("R/googledrive.R")
 
 
 
@@ -19,5 +20,9 @@ roi_fp <- file.path(Sys.getenv("AA_DATA_DIR"),"public","processed","yem","live_m
 roi <- read_rds(roi_fp)
 
 
+
 # I don't get why terra::rast() sometimes takes so long to download urls
-boom <- load_chirps_gefs_cropped(run_date = Sys.Date()-1,leadtime=1:2, mask=roi,write_outputs = T)
+boom <- load_chirps_gefs_cropped(run_date = Sys.Date(),
+                                 leadtime=1,
+                                 mask=roi,
+                                 write_outputs = T)
