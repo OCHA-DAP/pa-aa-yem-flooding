@@ -133,3 +133,6 @@ dmypy.json
 # Shiny-specific
 app/shinydata/*
 app/rsconnect/*
+
+# creds
+*.json

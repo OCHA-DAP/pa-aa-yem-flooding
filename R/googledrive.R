@@ -11,7 +11,7 @@ chirps_gefs_gdrive_id <- function(gdrive_id=gdrive_id){
     base_dir <- drive_ls(
         path=as_id(gdrive_id)
     )
-    inputs_id<- base_dir_df %>% 
+    inputs_id<- base_dir %>% 
         filter(name=="inputs") %>% 
         pull(id)
     
@@ -23,6 +23,17 @@ chirps_gefs_gdrive_id <- function(gdrive_id=gdrive_id){
     
 }
 
+get_gdrive_shared_dir <-  function(gdrive_id=Sys.getenv("AA_YEM_LIVE_MONITORING_DIR_ID"),
+                                   which_dir="outputs"){
+    ret <- drive_ls(
+        path=as_id(gdrive_id)
+    )   %>% 
+        filter(name==which_dir)
+    return(ret)
+    
+    # can add further nesting as required
+}
+x
 #' Title
 #'
 #' @param gdrive_id 

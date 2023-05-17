@@ -4,7 +4,7 @@
 name: Trigger-update
 on:
   schedule:
-    - cron: '0 10 * * *'
+    - cron: '30 16 * * *'
     
 jobs:
   monitor:

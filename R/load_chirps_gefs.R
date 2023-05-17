@@ -63,7 +63,8 @@ load_chirps_gefs_cropped <- function(run_date=Sys.Date(),
                              ){
     
     
-    gdrive_id_day <- cascade_ymd_directories(run_date = run_date,gdrive_id = Sys.getenv("AA_YEM_LIVE_MONITORING_DIR_ID"))
+    monitoring_drive_id <- Sys.getenv("AA_YEM_LIVE_MONITORING_DIR_ID")
+    gdrive_id_day <- cascade_ymd_directories(run_date = run_date,gdrive_id = monitoring_drive_id)
     # need to adjust all gdrive handling
     # gdrive_dir <- file.path(Sys.getenv("AA_DATA_DIR"),
     #           "public",
@@ -149,10 +150,15 @@ load_chirps_gefs_cropped <- function(run_date=Sys.Date(),
             mean = as.numeric(mean)
         )
     
+    temp_csv_name <- paste0(format(run_date,"%y%m%d"),
+           "_chirps_gefs_zonal.csv")
+    temp_csv_file <- file.path(tempdir(),temp_csv_name)
+    
     if(write_outputs){
         write_csv(roi_means,
-                  file = file.path(gdrive_processed_outdir,paste0(format(run_date,"%y%m%d"),
-                                                                  "chirps_gefs_zonal.csv")))    
+                  file = temp_csv_file)
+        drive_upload(media= roi_means,path = as_id(get_gdrive_shared_dir(gdrive_id = monitoring_drive_id,which="outputs")$id),temp_csv_name)
+                  
     }
     return(roi_means)
 }
