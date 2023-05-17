@@ -4,8 +4,9 @@
 name: yem-trigger-monitoring 
 
 on:
+  workflow_dispatch:
   schedule:
-    - cron:'15 19 * * * '
+    - cron: "0 720 * * *"
 
 jobs:
   monitor:

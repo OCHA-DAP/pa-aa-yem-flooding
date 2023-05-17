@@ -1,10 +1,10 @@
 library(lubridate)
 library(tidyverse)
-library(exact_extractr)
+library(exactextractr)
 library(sf)
 library(terra)
 library(googledrive)
-source("R/load_chirps_gefs")
+source("R/load_chirps_gefs.R")
 
 
 
@@ -14,4 +14,10 @@ drive_auth(
 )
 
 
-load_chirps_gefs_cropped(leadtime=1:2, mask=roi,write_outputs = T)
+# need to change these to googledrive functions
+roi_fp <- file.path(Sys.getenv("AA_DATA_DIR"),"public","processed","yem","live_monitoring","inputs", "high_risk_hulls.rds")
+roi <- read_rds(roi_fp)
+
+
+# I don't get why terra::rast() sometimes takes so long to download urls
+boom <- load_chirps_gefs_cropped(run_date = Sys.Date()-1,leadtime=1:2, mask=roi,write_outputs = T)

@@ -48,38 +48,12 @@ set_chirps_gefs_download_path <-  function(run_date=Sys.Date()){
 #' library(terra)
 #' library(readr)
 #' library(sf)
-#' output_chirps_dir <- file.path(Sys.getenv("AA_DATA_DIR"),"public","processed","yem","live_monitoring","inputs","chirps_gefs")
+#' library(exactextractr)
+#' library(lubridate)
 #' roi_fp <- file.path(Sys.getenv("AA_DATA_DIR"),"public","processed","yem","live_monitoring","inputs", "high_risk_hulls.rds")
 #' roi <- read_rds(roi_fp)
-#' load_chirps_gefs(n_days=0,output_dir = output_chirps_dir) 
-#' 
+#' load_chirps_gefs_cropped(run_date = Sys.Date()-1,leadtime=1:2, mask=roi,write_outputs = T)
 
-#' load_chirps_gefs(n_days=0,output_dir = output_chirps_dir) 
-
-# system.time(
-# test_gefs_cropped<- load_chirps_gefs_cropped(leadtime=1:2, mask=roi,write_outputs = T)
-# )
-# 
-# library(exactextractr)
-# r_test <- rast(test_gefs_cropped)
-# terra::set.names(r_test,lyr_names[1:2])
-# library(lubridate)
-# exact_extract(
-#         x = r_test ,
-#         y = roi,
-#         append_cols = "governorate_name",
-#         fun = c("mean"),
-#         force_df = T,
-#         full_colnames = T
-#     ) %>%
-#     pivot_longer(-matches("governorate_name")) %>%
-#     separate(name, into = c("stat", "date","leadtime"), sep = "\\.") %>%
-#     pivot_wider(names_from = "stat", values_from = "value") %>% 
-#     mutate(
-#         date= as_date(date),
-#         leadtime= as.integer(leadtime),
-#         mean = as.numeric(mean)
-#     )
 
 
 load_chirps_gefs_cropped <- function(run_date=Sys.Date(),
@@ -87,6 +61,9 @@ load_chirps_gefs_cropped <- function(run_date=Sys.Date(),
                              mask=roi,
                              write_outputs=T
                              ){
+    
+    
+    # need to adjust all gdrive handling
     gdrive_dir <- file.path(Sys.getenv("AA_DATA_DIR"),
               "public",
               "processed",
@@ -98,11 +75,11 @@ load_chirps_gefs_cropped <- function(run_date=Sys.Date(),
     forecast_dir_url <- format(run_date,"%Y/%m/%d")
     
     # create folder for files if it does not exist
-    gdrive_raster_outdir <- file.path(output_dir,"inputs","chirps_gefs",forecast_dir_url)
-    gdrive_processed_outdir <- file.path(output_dir,"outputs","chirps_gefs")
+    gdrive_raster_outdir <- file.path(gdrive_dir,"inputs","chirps_gefs",forecast_dir_url)
+    gdrive_processed_outdir <- file.path(gdrive_dir,"outputs","chirps_gefs")
     
-    if(!dir.exists(gdrive_outdir)){
-        dir.create(gdrive_outdir,recursive = T)
+    if(!dir.exists(gdrive_raster_outdir)){
+        dir.create(gdrive_raster_outdir,recursive = T)
     }
     
     url_dir <- paste0(base_url,forecast_dir_url) 
@@ -113,16 +90,16 @@ load_chirps_gefs_cropped <- function(run_date=Sys.Date(),
     
     lyr_names <- paste0(format(run_date,"%Y-%m-%d"),".",leadtime)
     gdrive_file_name <-   paste0(format(forecasted_dates,"%Y.%m%d"),'.tif')
-    gdrive_file_path <-  file.path(gdrive_outdir, paste0(format(forecasted_dates,"%Y.%m%d"),'.tif'))
+    gdrive_file_path <-  file.path(gdrive_raster_outdir, paste0(format(forecasted_dates,"%Y.%m%d"),'.tif'))
     
     url_file_names <- paste0("data.",gdrive_file_name)
     url_downloads <- paste0(url_dir,"/",url_file_names)
     
     r_cropped_list <- url_downloads %>% 
         map2(lyr_names,\(url,lyr_name){
-            cat("loading global raster\n")
+            cat("downloading ",lyr_name," to memory\n")
             r <- rast(url)
-            cat("cropping raster\n")
+            cat("cropping ", lyr_name,"\n")
             r_cropped <- crop(x=r,y=mask)
             terra::set.names(r_cropped,lyr_name)
             return(r_cropped)
@@ -136,6 +113,7 @@ load_chirps_gefs_cropped <- function(run_date=Sys.Date(),
             })  
     }
     
+    cat("stacking raster collection \n")
     r_stack <- rast(r_cropped_list)
     
     roi_means <- exact_extract(
