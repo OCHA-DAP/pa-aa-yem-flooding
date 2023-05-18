@@ -129,3 +129,9 @@ dmypy.json
 *.Rcheck/
 *.rds
 .httr-oauth
+
+# internal dashboard files
+app/*
+
+# creds
+*.json
