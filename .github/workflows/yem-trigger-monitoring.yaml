@@ -1,11 +1,11 @@
 # This workflow uses actions to automatically run the aa-yemen-flooding trigger monitoring.
 # script.
 
-name: Trigger-update
+name: yem-trigger-monitoring
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 6 * * *'
+    - cron: '43 6 * * *'
     
 jobs:
   monitor:
