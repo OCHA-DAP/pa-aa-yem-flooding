@@ -1,5 +1,5 @@
 library(lubridate)
-library(tidyverse)
+library(dplyr)
 library(exactextractr)
 library(sf)
 library(terra)
