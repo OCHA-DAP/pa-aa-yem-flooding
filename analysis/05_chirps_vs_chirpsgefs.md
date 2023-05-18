@@ -343,7 +343,7 @@ for gov in GOVS:
     ax2.set_ylim(-0.03, 1.03)
     ax.set_ylabel("Number")
     ax.set_xlabel("Lead time [days]")
-    ax2.set_ylabel("POD / FAR")
+    ax2.set_ylabel("Fraction")
     ax.set_title(gov)
 ```
 
