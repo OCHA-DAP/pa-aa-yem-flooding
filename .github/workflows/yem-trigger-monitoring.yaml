@@ -10,7 +10,7 @@ on:
         
 jobs:
   monitor:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Set up R 4.2.3
