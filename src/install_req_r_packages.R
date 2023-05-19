@@ -6,6 +6,7 @@ install.packages(c("dplyr",
                    # "exactextractr",
                    "zoo",
                    "googledrive",
+                   "purrr",
                    "lubridate"))
 
 

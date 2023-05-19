@@ -4,6 +4,7 @@ library(readr)
 # library(exactextractr)
 library(sf)
 library(terra)
+library(purrr)
 library(googledrive)
 source("R/load_chirps_gefs.R")
 
