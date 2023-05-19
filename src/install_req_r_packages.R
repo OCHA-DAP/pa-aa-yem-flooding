@@ -3,7 +3,7 @@ install.packages(c("dplyr",
                    "readr",
                    "sf",
                    "terra",
-                   "exactextractr",
+                   # "exactextractr",
                    "zoo",
                    "googledrive",
                    "lubridate"))

@@ -60,37 +60,37 @@ load_chirps_gefs_cropped <- function(run_date=Sys.Date(),
     
     
     
-    cat("stacking raster collection \n")
-    r_stack <- rast(r_cropped_list)
-    
-    roi_means <- exact_extract(
-        x = r_stack,
-        y = mask,
-        append_cols = "governorate_name",
-        fun = c("mean"),
-        force_df = T,
-        full_colnames = T
-    ) %>% #wrangle
-        pivot_longer(-matches("governorate_name")) %>%
-        separate(name, into = c("stat", "date","leadtime"), sep = "\\.") %>%
-        pivot_wider(names_from = "stat", values_from = "value") %>% 
-        mutate(
-            date= as_date(date),
-            leadtime= as.integer(leadtime),
-            mean = as.numeric(mean)
-        )
-    
-    temp_csv_name <- paste0(format(run_date,"%y%m%d"),
-           "_chirps_gefs_zonal.csv")
-    temp_csv_file <- file.path(tempdir(),temp_csv_name)
-    
-    if(write_outputs){
-        write_csv(roi_means,
-                  file = temp_csv_file)
-        drive_upload(media= temp_csv_file,
-                     path = as_id(zonal_stats_dir$id),
-                     temp_csv_name)
-                  
-    }
-    return(roi_means)
+    # cat("stacking raster collection \n")
+    # r_stack <- rast(r_cropped_list)
+    # 
+    # roi_means <- exact_extract(
+    #     x = r_stack,
+    #     y = mask,
+    #     append_cols = "governorate_name",
+    #     fun = c("mean"),
+    #     force_df = T,
+    #     full_colnames = T
+    # ) %>% #wrangle
+    #     pivot_longer(-matches("governorate_name")) %>%
+    #     separate(name, into = c("stat", "date","leadtime"), sep = "\\.") %>%
+    #     pivot_wider(names_from = "stat", values_from = "value") %>% 
+    #     mutate(
+    #         date= as_date(date),
+    #         leadtime= as.integer(leadtime),
+    #         mean = as.numeric(mean)
+    #     )
+    # 
+    # temp_csv_name <- paste0(format(run_date,"%y%m%d"),
+    #        "_chirps_gefs_zonal.csv")
+    # temp_csv_file <- file.path(tempdir(),temp_csv_name)
+    # 
+    # if(write_outputs){
+    #     write_csv(roi_means,
+    #               file = temp_csv_file)
+    #     drive_upload(media= temp_csv_file,
+    #                  path = as_id(zonal_stats_dir$id),
+    #                  temp_csv_name)
+    #               
+    # }
+    # return(roi_means)
 }
