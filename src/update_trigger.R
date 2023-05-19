@@ -1,6 +1,6 @@
 library(lubridate)
 library(dplyr)
-library(exactextractr)
+# library(exactextractr)
 library(sf)
 library(terra)
 library(googledrive)
