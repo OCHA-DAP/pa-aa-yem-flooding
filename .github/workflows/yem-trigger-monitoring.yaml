@@ -24,16 +24,23 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get install -y libxml2-dev # Add any additional dependencies here
-      - name: install required packages
-        run: |
-          source(file.path("src", "install_req_r_packages.R"))
-        shell: Rscript {0}
       - name: Create authorization JSON
         id: create-json
         uses: jsdaniell/create-json@v1.2.2
         with:
           name: "auth.json" 
           json: ${{ secrets.GCP_CREDENTIALS }}
+      # from typhoon forecasting yaml
+      - name: Cache R dependencies
+        id: cache-r-deps
+        uses: actions/cache@v2
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: R-dependency-cache-${{ hashFiles('.github/depends.R') }}
+      - name: Install R dependencies
+        if: steps.cache-r-deps.outputs.cache-hit != 'true'
+        run: |
+          Rscript .github/depends.R
       - name: Run yem-trigger-monitoring 
         run: |
           source(file.path("src", "update_trigger.R")) 
