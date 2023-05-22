@@ -1,7 +1,7 @@
 library(lubridate)
 library(dplyr)
 library(readr)
-# library(exactextractr)
+library(exactextractr)
 library(sf)
 library(terra)
 library(purrr)
