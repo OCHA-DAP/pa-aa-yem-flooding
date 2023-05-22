@@ -2,9 +2,10 @@ install.packages(c("dplyr",
                    "ggplot2",
                    "readr",
                    "sf",
-                   "terra",
-                   "exactextractr",
-                   "zoo",
+                   "terra", # raster manipulation
+                   "exactextractr", # zonal stats
+                   "tidyr", # pivot_wider
+                   "zoo", # rolling stats
                    "googledrive",
                    "purrr",
                    "lubridate"))

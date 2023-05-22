@@ -1,12 +1,13 @@
 library(lubridate)
 library(dplyr)
 library(readr)
+library(tidyr)
 library(exactextractr)
 library(sf)
 library(terra)
 library(purrr)
 library(googledrive)
-source("R/load_chirps_gefs.R")
+
 
 
 # authorize drive access
