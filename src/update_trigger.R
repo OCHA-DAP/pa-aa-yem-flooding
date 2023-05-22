@@ -19,7 +19,7 @@ aoi_drive <- drive_get(id = "1-2JIxDekilSor0YoNySLUdfTfQ9JgQRH")
 drive_download(aoi_drive,path = f <- tempfile(fileext = ".rds"))
 aoi <- read_rds(f)
 
-boom <- load_chirps_gefs_cropped(run_date = Sys.Date(),
+boom <- load_chirps_gefs_cropped(run_date = Sys.Date()-1,
                                  leadtime=1,
                                  mask=aoi,
                                  write_outputs = T)
