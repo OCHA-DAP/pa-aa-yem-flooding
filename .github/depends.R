@@ -1,5 +1,5 @@
-install.packages("remotes") # moving this to the top to see if it will cause the GH action to fail faster
-remotes::install_github("OCHA-DAP/gghdx")
+# install.packages("remotes") # moving this to the top to see if it will cause the GH action to fail faster
+
 
 install.packages(c("dplyr",
                    "ggplot2",
@@ -15,9 +15,10 @@ install.packages(c("dplyr",
                    "here", # set paths in rmds without thinking.
                    "blastula", # rmd emails
                    "glue",  # mainly for pasting text in email.
-                   # "remotes", # needed to install gghdx
+                   "remotes", # needed to install gghdx
                    "showtext" # needed to set fonts in gghdx
                    ))
+remotes::install_github("OCHA-DAP/gghdx")
 
 
 
