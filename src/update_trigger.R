@@ -49,8 +49,8 @@ aoi <- read_rds(f)
 
 gefs_process_time <- system.time(
   gefs_processed <- load_chirps_gefs_cropped(
-  run_date = Sys.Date(),
-  leadtime = c(1:10),
+  run_date = Sys.Date()-1, # temp change
+  leadtime = c(1), #temp change
   mask = aoi,
   write_outputs = T,
   raster_drive = r_drib,
