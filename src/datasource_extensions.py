@@ -2,12 +2,14 @@ import logging
 from datetime import date, timedelta
 from pathlib import Path
 
+import cdsapi
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
 import xarray as xr
 from dateutil import rrule
+from ecmwfapi import ECMWFService
 from ochanticipy import CountryConfig
 from ochanticipy.datasources.datasource import DataSource
 from rasterio.crs import CRS
@@ -16,6 +18,8 @@ from rasterio.errors import RasterioIOError
 from shapely.geometry import box
 
 logger = logging.getLogger(__name__)
+c = cdsapi.Client()
+server = ECMWFService("mars")
 
 
 # TODO: Fix this -- either make a separate ABC or make it work
@@ -106,15 +110,51 @@ class Era5(_DataSourceExtension):
     def __init__(
         self,
         country_config: CountryConfig,
+        start_date: date = date(1981, 1, 1),
+        end_date: date = date(2022, 12, 31),
     ):
+        self._start_date = start_date
+        self._end_date = end_date
+        self._date_range = rrule.rrule(
+            freq=rrule.DAILY,
+            dtstart=self._start_date,
+            until=self._end_date,
+        )
         super().__init__(country_config)
+
+    def download(self, clobber: bool = False):
+        for forecast_date in self._date_range:
+            forecast_date_string = forecast_date.strftime("%Y-%m")
+            req = {
+                "variable": "total_precipitation",
+                "year": forecast_date.strftime("%Y"),
+                "month": forecast_date.strftime("%m"),
+                "day": [f"{str(x).zfill(2)}" for x in range(1, 32)],
+                "time": ["00:00"],
+                "format": "grib",
+                "area": [19, 42, 12, 55],
+            }
+            output_filepath = (
+                self._raw_base_dir / "yem_era5_tp_{forecast_date_string}.grib2"
+            )
+            if output_filepath.exists() and not clobber:
+                logger.info(f"{forecast_date_string} exists, skipping")
+                continue
+            c.retrieve("reanalysis-era5-land", req, str(output_filepath))
 
     def process(
         self,
         high_risk_hulls: gpd.GeoDataFrame,
         bounds_buffer: float = 0.5,
         resolution=0.01,
+        clobber: bool = False,
     ):
+        processed_filepath = (
+            self._processed_base_dir / self._PROCESSED_FILENAME
+        )
+        if processed_filepath.exists() and not clobber:
+            logger.info(f"{processed_filepath} exists, exiting")
+            return
         # Load all the raw netcdf files
         era5_files = list(self._raw_base_dir.glob("*.grib2"))
         da = (
@@ -162,11 +202,54 @@ class Era5(_DataSourceExtension):
                 ignore_index=True,
             )
 
-        processed_filepath = (
-            self._processed_base_dir / self._PROCESSED_FILENAME
-        )
         processed_filepath.parent.mkdir(parents=True, exist_ok=True)
         df_results.to_csv(processed_filepath, index=False)
+
+
+class Hres(_DataSourceExtension):
+    _DATASOURCE_BASENAME = "ecmwf"
+    _IS_PUBLIC = False
+    _IS_GLOBAL_RAW = False
+
+    def __init__(
+        self,
+        country_config: CountryConfig,
+        start_date: date = date(2007, 1, 1),
+        end_date: date = date(2022, 12, 31),
+    ):
+        self._start_date = start_date
+        self._end_date = end_date
+        self._date_range = rrule.rrule(
+            freq=rrule.DAILY,
+            dtstart=self._start_date,
+            until=self._end_date,
+        )
+        super().__init__(country_config)
+
+    def download(self, clobber: bool = False):
+        for forecast_date in self._date_range:
+            forecast_date_string = forecast_date.strftime("%Y-%m-%d")
+            req = {
+                "class": "od",
+                "date": forecast_date_string,
+                "expver": 1,
+                "levtype": "sfc",
+                "area": "19.0/42.0/12.0/55.0",
+                "grid": "0.1/0.1",
+                "param": "228.128",
+                "step": "0/24/48/72/96/120/144/168/192/216/240",
+                "stream": "oper",
+                "time": "00:00:00",
+                "type": "fc",
+                "use": "infrequent",
+            }
+            output_filename = (
+                self._raw_base_dir / "yem_fc_tp_{forecast_date_string}.grib2"
+            )
+            if output_filename.exists() and not clobber:
+                print(f"{forecast_date_string} exists, skipping")
+                continue
+            server.execute(req, output_filename)
 
 
 class ChirpsGefs(_DataSourceExtension):

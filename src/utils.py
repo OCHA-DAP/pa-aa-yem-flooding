@@ -65,21 +65,25 @@ def download_and_process_chirps(clobber=False):
     chirps.process(clobber=clobber)
 
 
+def download_era5(clobber=False):
+    era5 = Era5(
+        country_config=constants.country_config,
+    )
+    era5.download(clobber=clobber)
+
+
 def process_era5(clobber=False):
-    chirps = Era5(
+    era5 = Era5(
         country_config=constants.country_config,
     )
-    chirps.process(high_risk_hulls=load_high_risk_hulls())
+    era5.process(high_risk_hulls=load_high_risk_hulls(), clobber=clobber)
 
 
-def process_chirps_gefs(clobber=False):
-    adm0 = load_codab(admin_level=0)
-    chirps_gefs = ChirpsGefs(
+def download_hres(clobber=False):
+    hres = Era5(
         country_config=constants.country_config,
-        adm0=adm0,
-        leadtime_max=10,
     )
-    chirps_gefs.process(high_risk_hulls=load_high_risk_hulls())
+    hres.download(clobber=clobber)
 
 
 def download_chirps_gefs(year=None, clobber=False):
@@ -98,6 +102,16 @@ def download_chirps_gefs(year=None, clobber=False):
         leadtime_max=10,
     )
     chirps_gefs.download(clobber=clobber)
+
+
+def process_chirps_gefs(clobber=False):
+    adm0 = load_codab(admin_level=0)
+    chirps_gefs = ChirpsGefs(
+        country_config=constants.country_config,
+        adm0=adm0,
+        leadtime_max=10,
+    )
+    chirps_gefs.process(high_risk_hulls=load_high_risk_hulls())
 
 
 def get_return_period_function_analytical(
