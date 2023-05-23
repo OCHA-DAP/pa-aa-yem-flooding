@@ -80,8 +80,8 @@ receps_drive <- drive_get(id="10PkgaVJZhJIjoOd_31P55UWcRcZzS0Zo")
 drive_download(receps_drive, path = f <- tempfile(fileext = ".csv"))
 df_recipients <- read_csv(f)
 
-
-render_email(input = "src/email/email.rmd",
+cat("file exists: ", file.exists("src/email/email.rmd")
+render_email(input = ",
     envir = parent.frame()
     ) %>% 
     smtp_send(
