@@ -16,7 +16,7 @@ install.packages(c("dplyr",
                    "showtext" # needed to set fonts in gghdx
                    ))
 
-remotes::install_github("caldwellst/gghdx")
+remotes::install_github("OCHA-DAP/gghdx")
 
 
 # gdrive_2_0_url <- "https://cran.r-project.org/src/contrib/Archive/googledrive/googledrive_2.0.0.tar.gz"
