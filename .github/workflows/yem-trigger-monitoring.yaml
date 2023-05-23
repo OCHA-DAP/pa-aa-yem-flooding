@@ -6,7 +6,7 @@ name: yem-trigger-monitoring
 on:
   workflow_dispatch:
   schedule:
-    - cron: '10 09 * * *' # chirps-gefs should be updated 9AM UTC, let's give an extra 10 min
+    - cron: '10 08 * * *' # chirps-gefs should be updated 9AM UTC, let's give an extra 10 min
         
 jobs:
   monitor:
