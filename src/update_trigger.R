@@ -81,11 +81,7 @@ drive_download(receps_drive, path = f <- tempfile(fileext = ".csv"))
 df_recipients <- read_csv(f)
 
 
-render_email(input = here::here(file.path(
-    "src",
-    "email",
-    "email.rmd"
-    )),
+render_email(input = "src/email/email.rmd",
     envir = parent.frame()
     ) %>% 
     smtp_send(
