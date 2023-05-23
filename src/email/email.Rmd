@@ -1,0 +1,286 @@
+---
+title: "email"
+output: blastula::blastula_email
+---
+
+<style type ="text/css">
+h1 {
+  font-family: Arvo, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: normal
+}
+
+h2 {
+  font-family: Arvo, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: normal
+}
+
+h3 {
+  font-family: Arvo, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: normal
+}
+
+p {
+  font-family: "Source Sans Pro", "Helvetica Neue", Helvetica, Arial, sans-serif
+}
+
+.banner {
+  width: 100%;
+  max-width: 1000px
+}
+
+</style>
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fontfamily = "Sans Source Pro",
+  fig.cap = ""#,
+  # fig.path = file.path("figure", paste0(flag_source, "_", flag_type), "")
+)
+
+library(dplyr)
+library(ggplot2)
+library(glue)
+library(gghdx)
+library(readr)
+library(googledrive)
+library(blastula)
+library(here)
+gghdx()
+
+source(here::here("src/email/email_utils.R"))
+
+thresholds = list(Hajjah = 19.8, Marib=30.6)
+```
+
+```{r, class.output = "banner"}
+banner_drib <- drive_dribble %>% 
+    filter(name == "centre_banner.png")
+drive_download(banner_drib, path = banner_path <- tempfile(fileext = ".png"))
+
+add_image(
+  file = banner_path,
+  alt = "Centre for Humanitarian Data banner",
+  align = "center",
+  width = "100%"
+)
+
+```
+
+
+
+```{r}
+# shouldn't need to load in gdrive creds when using `envir= parent.frame()`
+# zonal_drive <- drive_get(id="1lBZfglOjARZTkVuqyP08O96iW8jimzLu")
+# drive_download(zonal_drive, path = f <- tempfile(fileext = ".csv"))
+# chirps_gefs_zonal <- read_csv(f)
+chirps_gefs_processed <- chirps_gefs_zonal %>% 
+    mutate(
+        date_predict = date + (leadtime-1)
+    ) %>% 
+    group_by(governorate_name) %>% 
+    arrange(governorate_name,date,leadtime) %>% 
+    rename(daily_mm="mean") %>% 
+    mutate(
+        cumu_3day_mm = zoo::rollsum(x=daily_mm,
+                                    k = 3,
+                                    fill = NA,
+                                    align = "right")
+    ) %>% 
+    ungroup()
+
+# ck <- chirps_gefs_processed %>% 
+#     mutate(
+#         cumu_3day_mm =ifelse(date_predict>="2023-05-25",14,cumu_3day_mm)
+#     )
+
+trig_status_df <- thresholds %>% 
+    imap_dfr(\(num,gov){
+        # by gov filter rows > thresh
+        df_gte <- chirps_gefs_processed %>% 
+            # for txt later
+            mutate(
+                gov_amt = glue("{governorate_name} ({cumu_3day_mm} mm)")
+                ) %>% 
+            filter(
+                governorate_name==gov &
+                    cumu_3day_mm>=num,
+            ) 
+        if(nrow(df_gte)>0){
+            # if any rows  make sure we get min leadtime
+          ret <- df_gte %>% 
+            filter(
+                leadtime ==min(leadtime)
+            )
+        } else{
+            ret <- df_gte
+        }
+    }
+    ) #%>% 
+    # rm record w/ out any vals gte thresh
+    # discard(.p = \(df_temp) nrow(df_temp)==0)
+
+
+both_txt <- "based on the 7-day forecast from CHIRPS-GEFS."
+
+if(nrow(trig_status_df)==0){
+    pre_txt <- "**has not been activated**"
+    where_txt <- ""
+    spec_txt <- ""
+}
+if(nrow(trig_status_df)>0){
+    pre_txt <- "**has been activated in**"
+    where_txt <-  glue_collapse(x = trig_status_df$governorate_name,sep = " & ")
+    when_txt <-  glue_collapse(x = trig_status_df$date_predict,sep = " & ") 
+    amt_txt <-  glue_collapse(x = trig_status_df$cumu_3day_mm,sep = " & ") 
+    gov_amt_txt <-  glue_collapse(x = trig_status_df$gov_amt,sep = " & ") 
+    spec_txt <- glue("The forecast predicts trigger thresholds to be crossed on {when_txt} for {gov_amt_txt}{ifelse(nrow(trig_status_df)>1,', respectively.', '.')}")
+    
+}
+
+desc_txt <- glue_collapse(c(pre_txt,where_txt,both_txt,spec_txt),sep=" ")
+
+```
+
+# Yemen Rainfall Forecast Monitoring
+
+## Anticipatory Action Flooding Trigger Status - `r format(Sys.Date(),"%d %B %Y")`
+
+The AA Flooding Trigger for Yemen `r desc_txt`
+
+The AA Flooding Trigger is based on 3-day cumulative rainfall thresholds for our Areas of Interest (AOI) withing Marib and Hajjah governorates in Yemen. The selected thresholds are based on a 2-year return period event and differ for each of the two locations. In Hajjah and Marib the current thresholds are set to **19.8 mm** and **30.6 mm**, respectively.
+
+
+
+```{r makeplot}
+forecast_date<- min(chirps_gefs_processed$date_predict)
+date_7day <-  chirps_gefs_processed %>% 
+    filter(leadtime ==7) %>% 
+    pull(date_predict) %>% 
+    unique()
+
+trigger_lines <- data.frame(
+    governorate_name=c("Hajjah","Marib"),
+    threshold = c(19.8,30.6),
+    label_place_x = forecast_date+1
+)
+
+subtitle <- glue("Forecast date: {forecast_date}\n")
+                 
+                 
+p <- chirps_gefs_processed %>% 
+    mutate(
+        status= ifelse(leadtime %in% c(1:7),"Trigger Window (7 days)","Pre-Alert"),
+        status=factor(status, levels=c("Trigger Window (7 days)","Pre-Alert"))
+    ) %>% 
+    ggplot(aes(x= date_predict,y = cumu_3day_mm))+
+    geom_line(aes(color=status))+
+    geom_point(aes(color=status))+
+    scale_color_manual(values = c("#347ad6ff","orange"))+
+    scale_x_date(date_breaks = "day",date_labels = "%y-%m-%d")+
+    geom_hline(data = trigger_lines,
+               aes(yintercept=threshold),color="red",
+               linetype="dashed"
+               )+
+    geom_text(data= trigger_lines,
+              aes(x=label_place_x, y=threshold+1.5,
+                  label=glue("{governorate_name} threshold: {threshold}")
+                  ),color="red",size=6)+
+    facet_wrap(~governorate_name,ncol=1,scales="free_y")+
+    labs(title = "Yemen 10 Day Forecast (CHIRPS-GEFS)",
+         subtitle = subtitle,
+         y= "3 Day Rainfall (mm)"
+         )+
+    theme_hdx()+
+    theme(
+        
+        title = element_text(size= 24),
+        axis.title = element_text(size=18),
+        axis.text.x = element_text(angle=90),
+        axis.title.x =element_blank(),
+        # panel.spacing = unit(5, "lines"),
+        panel.border = element_rect(color = "grey",fill = NA),
+        legend.title = element_blank()
+    )
+```
+
+```{r, results ="asis"}
+add_ggplot_custom(
+  plot_object = p,
+  alt = "Alert plot",
+  height = 6.5,
+  width = 6,
+  html_width = 1000
+)
+
+```
+
+
+
+----
+
+```{r, eval=F,results = "asis"}
+
+pwalk(
+  .l = flags_specific %>%
+    select(
+      iso3,
+      country,
+      start_date,
+      end_date,
+      message,
+      url,
+      summary_experimental
+    ),
+  .f = \(
+    iso3,
+    country,
+    start_date,
+    end_date,
+    message,
+    url,
+    summary_experimental
+  ) {
+    knitr::knit_child(
+      "alert_section.Rmd",
+      envir = environment(),
+      quiet = TRUE
+    ) |>
+      cat()
+  }
+)
+```
+
+## Methodology and contact
+
+Global monitoring is updated every day at 12PM UTC. The source code and documentation
+for the analysis is available on [GitHub](https://github.com/OCHA-DAP/pa-aa-yem-flooding/).
+
+
+Reach out to the Centre for Humanitarian Data's predictive analytics team at
+leonardo.milano@un.org if you have any questions or want to discuss the product.
+
+----
+
+```{r}
+logo_drib <- drive_dribble %>% 
+    filter(name == "ocha_logo_wide.png")
+drive_download(logo_drib, path = logo_path <- tempfile(fileext = ".png"))
+
+add_image(
+  file = logo_path,
+  align = "center",
+  width = "25%"
+)
+```
+
+<p>
+<center>
+
+<b> OCHA Centre For Humanitarian Data </b>
+
+Fluwelen Burgwal 58 | 2511 CJ The Hague | The Netherlands
+
+</center>
+</p>
