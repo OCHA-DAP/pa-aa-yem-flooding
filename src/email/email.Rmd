@@ -55,8 +55,10 @@ thresholds = list(Hajjah = 19.8, Marib=30.6)
 ```
 
 ```{r, class.output = "banner"}
+
 banner_drib <- drive_dribble %>% 
     filter(name == "centre_banner.png")
+
 drive_download(banner_drib, path = banner_path <- tempfile(fileext = ".png"))
 
 add_image(
