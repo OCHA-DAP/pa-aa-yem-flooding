@@ -18,19 +18,19 @@ drive_auth(
 
 # access necessary GDRIVE paths -------------------------------------------
 # get gdrive directories
-all_drib <- drive_ls(
+drive_dribble <- drive_ls(
     corpus = "user"
 )
 # will store tifs here.
-r_drib <- all_drib %>%
+r_drib <- drive_dribble %>%
     filter(name == "chirps_gefs_rasters")
 
 # will store zonal mean csvs here
-zonal_stats_drib <- all_drib %>%
+zonal_stats_drib <- drive_dribble %>%
     filter(name == "chirps_gefs_zonal")
 
 # where AOI file is (doesn't change)
-aoi_drib <- drib %>% 
+aoi_drib <- drive_dribble %>% 
     filter(name=="high_risk_hulls.rds")
 
 # load AOI rds as sf class
