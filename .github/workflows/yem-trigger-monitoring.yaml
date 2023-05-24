@@ -20,30 +20,36 @@ jobs:
         with:
           r-version: '4.x'
       - uses: r-lib/actions/setup-pandoc@v2
-        # https://github.com/r-spatial/sf/blob/main/.github/workflows/tic-db.yml
-      - name: Install Spatial Libs for Linux
+      
+      - name: Install System Dependencies
         run: |
-          sudo apt-get install libgdal-dev libproj-dev libgeos-dev libudunits2-dev
-      - name: Install dependencies
-        run: |
-          sudo apt-get install -y libxml2-dev # Add any additional dependencies here
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxml2-dev \
+            libgdal-dev \
+            libproj-dev \
+            libgeos-dev \
+            libudunits2-dev
+            
       - name: Create authorization JSON
         id: create-json
         uses: jsdaniell/create-json@v1.2.2
         with:
           name: "auth.json" 
           json: ${{ secrets.GCP_CREDENTIALS }}
-      # from typhoon forecasting yaml
+      
       - name: Cache R dependencies
         id: cache-r-deps
         uses: actions/cache@v2
         with:
           path: ${{ env.R_LIBS_USER }}
           key: R-dependency-cache-${{ hashFiles('.github/depends.R') }}
+      
       - name: Install R dependencies
         if: steps.cache-r-deps.outputs.cache-hit != 'true'
         run: |
           Rscript .github/depends.R
+      
       - name: Run yem-trigger-monitoring 
         run: |
           source(file.path("src", "update_trigger.R")) 
