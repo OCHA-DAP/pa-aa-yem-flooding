@@ -10,6 +10,8 @@
 #'   leadtime 1 = 24 hours.
 #' @param mask spatial file in wgs84 projection to use for cropping rasters and calculating zonal stats
 #' @param write_outputs \code{logical} if T (default) write outputs to gdrive.
+#' @param raster_drive dribble (`{googledrive}` class object) containing the location to store the rasters on the drive 
+#' @param zonal_drive dribble (`{googledrive}` class object) containing the location to store the zonal stats csvs.
 #' @return
 #' 1. CHIRPS-GEFS raster tifs clipped to mask bounding box.
 #' 2. Zonal mean by governorate for each raster as in memory object and csv.
@@ -44,18 +46,10 @@
 load_chirps_gefs_cropped <- function(run_date = Sys.Date(),
                                      leadtime = 1:10,
                                      mask = roi,
-                                     write_outputs = T) {
-  # get gdrive directories
-  drive_contents <- drive_ls(
-    corpus = "user"
-  )
-  # will store tifs here.
-  r_dir <- drive_contents %>%
-    filter(name == "chirps_gefs_rasters")
-  
-  # will store zonal mean csvs here
-  zonal_stats_dir <- drive_contents %>%
-    filter(name == "chirps_gefs_zonal")
+                                     write_outputs = T,
+                                     raster_drive=r_drib,
+                                     zonal_drive=zonal_stats_drib) {
+
 
   # get chirps gefs url paths
   base_url <- "https://data.chc.ucsb.edu/products/EWX/data/forecasts/CHIRPS-GEFS_precip_v12/daily_16day/"
@@ -96,7 +90,7 @@ load_chirps_gefs_cropped <- function(run_date = Sys.Date(),
         cat("Uploading ", fname, " to GDRIVE")
         drive_upload(
           media = temp_path,
-          path = as_id(r_dir$id),
+          path = as_id(raster_drive$id),
           name = fname
         )
       })
@@ -135,9 +129,12 @@ load_chirps_gefs_cropped <- function(run_date = Sys.Date(),
     )
     drive_upload(
       media = temp_csv_file,
-      path = as_id(zonal_stats_dir$id),
+      path = as_id(zonal_drive$id),
       temp_csv_name
     )
   }
-  return(roi_means)
+  ret <- list()
+  ret$zonal_means <- roi_means # main output for analysis
+  ret$rast_stack <- r_stack # could be useful for viz
+  return(ret)
 }
