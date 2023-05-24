@@ -80,14 +80,6 @@ receps_drive <- drive_get(id = "10PkgaVJZhJIjoOd_31P55UWcRcZzS0Zo")
 drive_download(receps_drive, path = f <- tempfile(fileext = ".csv"))
 df_recipients <- read_csv(f)
 
-cat("file exists ck 1: ", file.exists("src/email/email.rmd"))
-
-cat("file exists ck 2", file.path(
-  "src",
-  "email",
-  "email.Rmd"
-) %>%
-  file.exists())
 render_email(
   input = file.path(
     "src",
