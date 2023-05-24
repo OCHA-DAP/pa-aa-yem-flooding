@@ -70,11 +70,11 @@ chirps_gefs_dir <- file.path(
 ecmwf_mars_dir <-  file.path(
     Sys.getenv("AA_DATA_DIR"),
     "private",
-    "processed",
+    "raw",
     "yem",
-    "ecmwf",
-    "strange_coords"
+    "ecmwf"
 )
+
 ecmwf_era5_dir <-  file.path(Sys.getenv("AA_DATA_DIR"),
                              "public",
                              "raw",

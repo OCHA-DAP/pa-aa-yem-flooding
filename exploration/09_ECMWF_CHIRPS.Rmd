@@ -398,8 +398,6 @@ ecmwf_mars_dir <- file.path(
   "ecmwf",
   "strange_coords"
 )
-
-
 r_rand <- terra::rast(list.files(ecmwf_mars_dir, full.names = T)[2])
 r_rand_sub <- r_rand["tp_step=24$"]
 hist(r_rand_sub)
@@ -407,9 +405,30 @@ neg_value_counts <- data.frame(r_vals = terra::values(r_rand_sub) %>%
   as.numeric()) %>%
   filter(r_vals < 0) %>%
   count(r_vals) # some weird R numeric float stuff?
-
 # some weird R float precision stuff?
+
 neg_value_counts$r_vals[1] - neg_value_counts$r_vals[2]
+
+ecmwf_mars_dir <- file.path(
+  Sys.getenv("AA_DATA_DIR"),
+  "private",
+  "raw",
+  "yem",
+  "ecmwf"
+)
+r_rand <- terra::rast(list.files(ecmwf_mars_dir, full.names = T)[2])
+
+r_rand_sub <- r_rand[[2]]
+hist(r_rand_sub)
+neg_value_counts <- data.frame(r_vals = terra::values(r_rand_sub) %>%
+  as.numeric()) %>%
+  filter(r_vals < 0) %>%
+  count(r_vals) # some weird R numeric float stuff?
+
+
+
+
+
 ```
 
 ### Order of Operations Experiment
