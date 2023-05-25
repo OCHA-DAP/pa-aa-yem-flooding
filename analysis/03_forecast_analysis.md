@@ -231,7 +231,7 @@ for gov in GOVS:
         for limit_months in [True, False]:
             df = df_comb_dict[gov].copy()
             if limit_months:
-                df[~df.index.month.isin(TARGET_MONTHS)] = np.NaN
+                df[~df.index.month.isin(target_months)] = np.NaN
             df = df[df["era5"] > minval]
             for quantity in ["mae", "bias"]:
                 df_results = pd.concat(
