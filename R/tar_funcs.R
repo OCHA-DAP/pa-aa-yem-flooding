@@ -9,42 +9,6 @@
 #' as beneficial to reaching the goals of this project, however this is secondary to creating useful outputs.
 ####################################
 
-#' @title chirps_daily_to_sites
-#'
-#' @param raster_dir \code{character} path AA_DATA_DIR to folder containing daily chirps
-#' @param pt spatial data frame in epsg:4326 containing site locations
-#'
-#' @return site locations with daily chirps values
-
-chirps_daily_to_sites <- function(raster_dir, pt) {
-  full_fps <- list.files(raster_dir, full.names = T)
-  rast_names <- list.files(raster_dir)
-
-  rast_dates <- str_extract(
-    string = rast_names,
-    pattern = "(?<=yem_chirps_daily_).*?(?=_r0)"
-  ) %>%
-    str_replace_all("_", "-")
-
-  cat("loading chirps local data sets")
-  chirps_daily_full <- terra:::rast(raster::stack(full_fps))
-  terra::set.names(x = chirps_daily_full, rast_dates)
-
-  cat("replacing -9999 with NA")
-  chirps_daily_full[chirps_daily_full == -9999] <- NA
-  chirps_pt <- terra::extract(x = chirps_daily_full, y = pt)
-
-  cbind(site_id = pt$site_id, chirps_pt) %>%
-    select(-ID) %>%
-    pivot_longer(
-      -site_id,
-      names_to = "date",
-      values_to = "precip_daily"
-    )
-}
-
-
-
 
 #' load_cccm_wb
 #'
@@ -129,7 +93,7 @@ clean_cccm_impact_data <- function(wb, floodsites) {
       num_hhs_lost_documentation = "if_yes_how_many_h_hs_did_they_lose_their_personal_legal_documentations_due_to_the_flooding",
     ) %>%
     mutate(
-        
+
       # hh size 7 from: https://fscluster.org/sites/default/files/documents/operational_guidance_note_-_minimum_expenditure_basket_september_2022.pdf
       pop_affected = num_shelters_affected * 7,
       pct_pop_affected = pop_affected / site_population,
@@ -227,11 +191,17 @@ calc_rolling_precip_sites <- function(df) {
       precip_roll3 = rollsum(x = precip_daily, fill = NA, k = 3, align = "right"),
       precip_roll5 = rollsum(x = precip_daily, fill = NA, k = 5, align = "right"),
       precip_roll10 = rollsum(x = precip_daily, fill = NA, k = 10, align = "right"),
+      precip_roll15 = rollsum(x = precip_daily, fill = NA, k = 15, align = "right"),
+      precip_roll20 = rollsum(x = precip_daily, fill = NA, k = 20, align = "right"),
+      precip_roll25 = rollsum(x = precip_daily, fill = NA, k = 25, align = "right"),
       precip_roll30 = rollsum(x = precip_daily, fill = NA, k = 30, align = "right"),
       precip_roll3_c = rollsum(x = precip_daily, fill = NA, k = 3, align = "center"),
       precip_roll5_c = rollsum(x = precip_daily, fill = NA, k = 5, align = "center"),
       precip_roll10_c = rollsum(x = precip_daily, fill = NA, k = 11, align = "center"),
-      precip_roll30_c = rollsum(x = precip_daily, fill = NA, k = 31, align = "center"),
+      precip_roll15_c = rollsum(x = precip_daily, fill = NA, k = 15, align = "center"),
+      precip_roll20_c = rollsum(x = precip_daily, fill = NA, k = 21, align = "center"),
+      precip_roll25_c = rollsum(x = precip_daily, fill = NA, k = 25, align = "center"),
+      precip_roll30_c = rollsum(x = precip_daily, fill = NA, k = 31, align = "center")
     ) %>%
     ungroup()
 }
@@ -846,4 +816,62 @@ floodscore_pop_stats_by_admin <- function(floodscores = cccm_floodscore_df,
   ret$adm3 <- adm_cods$yem_admbnda_adm3_govyem_cso_20191002 %>%
     left_join(admin_stats_df$subdistrict, by = c("adm3_pcode" = "sub_district_pcode"))
   return(ret)
+}
+
+
+plot_performance_all_sites <- function(df,
+                                       x,
+                                       event,
+                                       thresh = 25,
+                                       day_window = 60) {
+  p_sites_level_performance <- df$site_id %>%
+    unique() %>%
+    map(\(site_id_temp){
+      print(site_id_temp)
+      plot_site_events_classified(
+        df = df %>%
+          filter(site_id == site_id_temp) %>%
+          arrange(date),
+        plot_title = site_id_temp,
+        x = x,
+        event = event,
+        thresh = thresh, day_window = 60
+      )
+    }) %>%
+    set_names(df$site_id %>% unique())
+  return(p_sites_level_performance)
+}
+
+
+high_risk_convex_hulls <- function(master_site_list, floodscore_db) {
+  all_site_coords <- master_site_list %>%
+    select(
+      longitude = available_coordinates_longitude,
+      latitude = available_coordinates_latitude, site_id
+    ) %>%
+    filter(!is.na(longitude), !is.na(latitude))
+
+  all_high_risk_site_coords <- floodscore_db %>%
+    filter(site_flood_hazard_score == "High Hazard") %>%
+    left_join(all_site_coords) %>%
+    filter(!is.na(longitude), !is.na(latitude))
+
+  high_risk_convex_hulls <- c("Hajjah", "Marib") %>%
+    map(
+      \(gov){
+        pts_sf <- all_high_risk_site_coords %>%
+          filter(
+            governorate_name == gov,
+            # i did a spatial check w/ adm1 COD -- this is the only one outisde
+            site_id != "YE1712_0643"
+          ) %>%
+          st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
+        st_convex_hull(st_union(pts_sf)) %>%
+          st_as_sf() %>%
+          mutate(governorate_name = gov) %>%
+          rename(geometry = x)
+      }
+    ) %>%
+    bind_rows()
+  return(high_risk_convex_hulls)
 }

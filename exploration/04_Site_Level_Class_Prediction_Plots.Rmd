@@ -1,0 +1,66 @@
+---
+title: "Class Predictions"
+output: html_document
+date: "2023-03-09"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r echo=F, include=F}
+library(tidyverse)
+library(targets)
+library(gghdx)
+library(lubridate)
+library(sysfonts)
+
+font_add_google("Source Sans Pro")
+showtext::showtext_auto()
+
+target_ready <- c(T, F)[2]
+if (target_ready) {
+  tar_load(p_all_sites_events_pred_classifications)
+}
+if (!target_ready) {
+  tar_source()
+  tar_load(rainfall_impact_tbl)
+  p_all_sites_events_pred_classifications <- plot_performance_all_sites(
+    df = rainfall_impact_tbl,
+    x = "precip_roll10",
+    event = "fevent",
+    thresh = 25,
+    day_window = 60
+  )
+}
+
+# unique(rainfall_impact_tbl$site_id)[5]
+#
+# plot_site_events_classified(df = rainfall_impact_tbl %>%
+#                                 filter(site_id=="YE1116_0037"),
+#                             x="precip_roll10",
+#                             event = "fevent",
+#                             thresh=25,
+#                             day_window=60,plot_title = "boom")
+```
+
+## Description
+
+Site level plots showing rainfall and reported flood events at each site. The dates extend 60 days in each direction (where possible) around the reported flood events.
+
+In this example we set thresholds of `25 mm` on a `10 day` precipitation accumulation window. These are both arbitrary parameters, but were chosen for illustrative purposes to make sure the dates & events were being properly classified/labelled
+
+- The event is labelled as a `TP` if rainfall crosses the threshold (25 mm) anytime between `7` days before and `3` days after the event was reported. 
+- If the rainfall does not cross the threshold within the above time period it is a `FN`
+- No consecutive dates greater than the threshold after a TP are labelled/classified
+- For the rest of the dates greater than the threshold the first date of when the threshold is crossed is labelled as a `FP`. After the labelled FP, consecutive days above the threshold are note labelled.
+
+**Note:** The window for plottin was set to 60 days around the reported flood events. Therefore, in many cases there are likely `FP`s that off the outside of the plot window.
+ 
+
+```{r site-plots , echo=FALSE,out.width="100%"}
+walk(p_all_sites_events_pred_classifications, ~ print(.x))
+```
+
