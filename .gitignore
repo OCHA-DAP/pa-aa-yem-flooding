@@ -130,6 +130,12 @@ dmypy.json
 *.rds
 .httr-oauth
 
+# notebooks
+*.ipynb
+
+*.rds
+.httr-oauth
+
 # internal dashboard files
 app/*
 

@@ -22,10 +22,10 @@ def run_pipeline(clobber: bool = False):
     # Chirps
     # utils.download_and_process_chirps(clobber=clobber)
     # Chirps-Gefs
-    utils.download_chirps_gefs(clobber=clobber)
-    # utils.download_chirps_gefs(days_ahead=5, clobber=clobber)
-    # utils.download_chirps_gefs(days_ahead=10, clobber=clobber)
-    # utils.download_chirps_gefs(days_ahead=15, clobber=clobber)
+    # utils.download_chirps_gefs(clobber=clobber)
+    # ECMWF
+    # utils.process_era5(clobber=clobber)
+    utils.process_chirps_gefs(clobber=clobber)
     return
 
 
