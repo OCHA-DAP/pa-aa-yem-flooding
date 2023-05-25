@@ -3,29 +3,15 @@ title: "email"
 output: blastula::blastula_email
 ---
 
-<style type ="text/css">
-h1 {
-  font-family: Arvo, "Helvetica Neue", Helvetica, Arial, sans-serif;
-  font-weight: normal
-}
+<style type = "text/css">
 
-h2 {
-  font-family: Arvo, "Helvetica Neue", Helvetica, Arial, sans-serif;
-  font-weight: normal
-}
-
-h3 {
+h1, h2, h3 {
   font-family: Arvo, "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-weight: normal
 }
 
 p {
   font-family: "Source Sans Pro", "Helvetica Neue", Helvetica, Arial, sans-serif
-}
-
-.banner {
-  width: 100%;
-  max-width: 1000px
 }
 
 </style>
@@ -64,8 +50,8 @@ drive_download(banner_drib, path = banner_path <- tempfile(fileext = ".png"))
 add_image(
   file = banner_path,
   alt = "Centre for Humanitarian Data banner",
-  align = "center",
-  width = "100%"
+  align = "left",
+  width = "25%"
 )
 
 ```
@@ -254,14 +240,10 @@ pwalk(
 )
 ```
 
-## Methodology and contact
+## Contact
 
-Global monitoring is updated every day at 12PM UTC. The source code and documentation
-for the analysis is available on [GitHub](https://github.com/OCHA-DAP/pa-aa-yem-flooding/).
-
-
-Reach out to the Centre for Humanitarian Data's predictive analytics team at
-leonardo.milano@un.org if you have any questions or want to discuss the product.
+Contact the OCHA Centre for Humanitarian Data via Leonardo Milano, Team Lead
+for Data Science at leonardo.milano@un.org with any questions or feedback.
 
 ----
 
