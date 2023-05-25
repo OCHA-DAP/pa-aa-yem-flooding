@@ -1,6 +1,14 @@
 
+#' zonal_stats_chirps_gefs
+#'
+#' @param raster_dir \code{character} path to directory holding raster
+#' @param zonal_boundary sf class zonal boundary object for zonal stats.
+#'
+#' @return data.frame containing zonal mean of raster values for each polygon in zonal_boundary
+
+
 zonal_stats_chirps_gefs <-  function(raster_dir,zonal_boundary){
-    full_fps<- list.files(file.path(raster_dir,full.names = T,pattern = "\\.tif$"))
+    full_fps<- list.files(raster_dir,full.names = T,pattern = "\\.tif$")
     fname<- basename(full_fps)
     fdates <- as_date(str_extract(string = fname,pattern =  "\\d{4}-\\d{2}-\\d{2}"))
     lt <-  str_extract(fname,pattern="(?<=\\D)(\\d{2})(?=\\D*$)")
@@ -13,7 +21,6 @@ zonal_stats_chirps_gefs <-  function(raster_dir,zonal_boundary){
     )
     
     gefs_zone <- file_catalogue %>% 
-        filter(year %in% c(2010,2011)) %>% 
         split(.$year) %>% 
         imap_dfr(\(yr_meta,nm){
             cat("ingesting ",nm," rasters\n")
@@ -41,6 +48,8 @@ zonal_stats_chirps_gefs <-  function(raster_dir,zonal_boundary){
     return(gefs_zone)
     
 }
+
+
 
 
 

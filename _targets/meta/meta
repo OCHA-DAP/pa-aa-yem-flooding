@@ -1,5 +1,5 @@
 name|type|data|command|depend|seed|path|time|size|bytes|format|repository|iteration|parent|children|seconds|warnings|error
-.Random.seed|object|ebd009573024fc70|||||||||||||||
+.Random.seed|object|6d21d3d201e9ab6d|||||||||||||||
 adm_sf|stem|d814208e77634ebe|c0460a3bc14ebd57|5b6883bff12d4128|421735004||t19419.4297679868s|6e36be5798e8a713|6111599|rds|local|vector|||0.124||
 alos_landform_lookup|object|b415a69efa003277|||||||||||||||
 calc_rolling_precip_sites|function|6dc98d60d6e9b310|||||||||||||||
@@ -33,11 +33,11 @@ ecmwf_era5_dir|object|689cfaac3fb66d0b|||||||||||||||
 ecmwf_era5_rolling_zonal_local|function|9bd508c23dd798e1|||||||||||||||
 ecmwf_hres_rolling_zonal|function|8069c7d3aeb3f3ce|||||||||||||||
 ecmwf_hres_zonal_rolling2|stem|24720bbf7678e6c3|d3988858556aa85e|6804acbbd132f8f4|-2139548594||t19472.4257560546s|cc6e18b91b6f013a|2197774|rds|local|vector|||880.707||
-ecmwf_mars_clean|stem|4ddfe0de12c67cdc|39c4f655bf59c2d8|54de69dad2b146d6|-1568843160||t19474.4122113236s|c5f05cf637c5cb15|1452934|rds|local|vector|||1.026||
-ecmwf_mars_dir|object|0dca7516c30fdcda|||||||||||||||
-ecmwf_mars_high_risk_hulls|stem|0f8a3cce971aa7dd|25c272866783a28b|99440abe6abbf41b|942999462||t19472.40206955s|b58c232437633dc9|1342806|rds|local|vector|||56.354||
-ecmwf_mars_historical_zonal_stats|function|478b6ae30e84c0f1|||||||||||||||
-ecmwf_mars_leads_split_rolled|stem|a77eeb5d204e7c35|b27e3238212a1cb6|a040d55d7bf0ee82|-902169325||t19474.4122201629s|14efc962bed2a2aa|2213911|rds|local|vector|||0.518||
+ecmwf_mars_clean|stem|e3f979e3d6a4a240|39c4f655bf59c2d8|ef9a4c354ee123b6|-1568843160||t19501.4784438477s|a987618c9b81f4fe|1368774|rds|local|vector|||0.939||
+ecmwf_mars_dir|object|b9afa55df940c509|||||||||||||||
+ecmwf_mars_high_risk_hulls|stem|b353b86a08ecba51|25c272866783a28b|fd7f21d7853933f0|942999462||t19501.4784307067s|fd7e3fedde93256e|1269646|rds|local|vector|||498.017||
+ecmwf_mars_historical_zonal_stats|function|44e8d9b01ca14998|||||||||||||||
+ecmwf_mars_leads_split_rolled|stem|55c50c3ca608c409|b27e3238212a1cb6|49d10d971420b924|-902169325||t19501.478501256s|65996cfd0eac040a|2085020|rds|local|vector|||0.585||
 ee_closest_distance_to_val|function|8c526036dcfb368c|||||||||||||||
 ee_closest_distance_to_val.ee.image.Image|function|3b8e1363945e19b2|||||||||||||||
 ee_closest_distance_to_val.ee.imagecollection.ImageCollection|function|8e7bde8917b7fe03|||||||||||||||
@@ -58,6 +58,8 @@ floodscore_pop_stats_by_admin|function|e0788f5790d5e695|||||||||||||||
 fp|object|4a7ab7b08bc8ec72|||||||||||||||
 full_fps|object|b22fee75686dc7ee|||||||||||||||
 gefs_chirps_pts|stem|a3c435060ecf2d37|cfc6fc6e9e406ca9|903cba94252d740e|-2136007265||t19432.6313383938s|5fe48bd15ef55991|28122835|rds|local|vector|||1569.345||
+gefs_zonal|stem|1ae430658d9f2b00|6f86711ae1fec10f|9c9cc2724a827a0f|826726609||t19502.4607756727s|78c5f1913b6ee833|1003534|rds|local|vector|||151.029||
+gefs_zonal_rolled|stem|89d655a0bb9feef2|87d0456656ba967b|157ae9bf29d1484e|267066578||t19502.4667927322s|eccd7e0e270b59d9|2447124|rds|local|vector|||5.454||
 get_exclusion_dates|function|45a3b260a438632c|||||||||||||||
 get_geomorph_landform_indicators|function|49ab978139f5caf6|||||||||||||||
 get_local_era5_daily_precip|function|a3a4d0a08f34a0d5|||||||||||||||
@@ -69,12 +71,13 @@ high_priority_sites|stem|f89765913b4ebe03|9b197453f0b431da|d5de6373782115cc|-820
 high_risk_convex_hulls|function|0b3ee529fefd2172|||||||||||||||
 high_risk_flood_stats_by_cod|stem|d860c6251bb0aae3|2169e3fffbc5320b|6b84e189b78a8f2b|1141281475||t19431.7242034574s|20358d92a31e2a38|5684240|rds|local|vector|||0.145||
 high_risk_hulls|stem|63f1d28551f19345|5f8940a704bfd938|8468f14f979d565b|-251989231||t19437.4207779796s|6faa1491e5d149ae|1128|rds|local|vector|||0.091||
-hres_rolled_per_date_gen|stem|8b1a8bf797dcd624|5a644a633565050b|e2b68f7d48b8c2ab|-1185540771||t19478.3555104726s|a4d9f55f7c355481|1918528|rds|local|vector|||3.509||
+hres_rolled_per_date_gen|stem|6a66563b412025f4|5a644a633565050b|c97a039f03eec110|-1185540771||t19501.4784917868s|108fdf88b676e35e|1797358|rds|local|vector|||3.616||
 impact_by_thresh|function|70ff663725d9018f|||||||||||||||
 kmeans_cluster_events|function|c362c87bd6e11b03|||||||||||||||
 load_cccm_wb|function|b6e4997cc76ab131|||||||||||||||
 load_chirps_stack|function|0d31bedb251fb033|||||||||||||||
 load_era_daily|function|68ac4fc281d63bd0|||||||||||||||
+load_libs|function|4736315e0520e270|||||||||||||||
 load_local_chirps_stack|function|ee0164b33b558e5a|||||||||||||||
 map_pt_clusters|function|1c13936caf21e309|||||||||||||||
 marib_hajjah_cccm_flood_clustered5|stem|0c9bdce0805f2baa|73788730d9c0d5ed|6d8e5c8b6814a5d0|-666214043||t19444.2444939274s|5370937367901b9d|3008|rds|local|vector|||0.048||
@@ -128,4 +131,5 @@ test_threshold_performance_area|function|a9663824f5944642|||||||||||||||
 thresh_class_freq_b7f3|stem|b45a03d3a69c2612|ed84a39038c87996|f1de83237b8676ab|1607664225||t19446.5745731443s|de57be143dbe27e1|1079042|rds|local|vector|||12498.222||
 thresh_class_freq_b7f7|stem|b45a03d3a69c2612|fb7141ee2ed2f6ff|f1de83237b8676ab|1577680602||t19446.7186957064s|de57be143dbe27e1|1079042|rds|local|vector|||12451.068||
 viz_cluster_classification|function|34ffb5430499d0da|||||||||||||||
+zonal_stats_chirps_gefs|function|27cbc43d11de3cd2|||||||||||||||
 zonal_stats_high_risk_hull|stem|6f332681740b07b5|063f507f8244801a|e2f8bdc63b69960d|947145415||t19437.5648035839s|6c860fd714a66112|1834683|rds|local|vector|||438.951|No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.|

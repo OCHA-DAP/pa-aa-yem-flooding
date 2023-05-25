@@ -1,0 +1,191 @@
+---
+title: "CHIRPS-GEFS & ECMWF HRES"
+output: 
+    bookdown::html_document2:
+        toc: true
+        toc_float: true
+        toc_depth: 4
+date: "2023-05-25"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  eval = TRUE,
+  results="asis"
+)
+```
+
+
+
+```{r libs}
+library(tidyverse)
+library(lubridate)
+library(targets)
+library(extRemes) # for RPs
+library(gghdx)
+gghdx()
+tar_source()
+```
+
+```{r load_data}
+tar_load(gefs_zonal_rolled) # CHIRPS-GEFS Forecast
+tar_load(zonal_stats_high_risk_hull) # CHIRPS Historical/Observed
+
+tar_load(era5_rolling_zonal_local) # ERA5 Historical/Observed
+tar_load(hres_rolled_per_date_gen) # ECMWF HRES forecast
+
+```
+
+## CHIRPS & CHIRPS-GEFS
+
+- CHIRPS-GEFS data here goes from 2000-2022 and is missing most of year 2020. 
+    + remove year 2020
+- CHIRPS data goes from 1981.
+    + filter 2000-2022, remove year 2020
+
+```{r}
+gefs_rps<- gefs_zonal_rolled %>% 
+    filter(name =="roll3") %>% 
+    filter(!leadtime %in%c(1:2),
+           year(date_forecast_predict)!=2023,
+           year(date_forecast_predict)!=2020,
+           ) %>% 
+    mutate(
+        gov_lt = paste0(governorate_name,"_",leadtime)
+    ) %>% 
+    split(.$gov_lt) %>% 
+    imap_dfr(\(df_temp,nm){
+        # cat(nm,"/n")
+        return_period_level_tibble(df =df_temp,
+                                   date = "date_forecast_predict",
+                                   value = "value",
+                                   rp_year = c(2,3,4,5) ) %>% 
+            mutate(gov_lt = nm) %>% 
+            separate(col = gov_lt,into = c("governorate_name","leadtime"))
+    }
+    )
+        
+# get chirps RP for each area
+chirps_2000_2022_rp <- zonal_stats_high_risk_hull$roll3 %>% 
+    filter(year(date)%in% c(2000:2022)) %>% 
+    filter(year(date)!=2021) %>% 
+    split(.$governorate_name) %>% 
+    imap_dfr(\(df_temp,nm){
+        # cat(nm,"/n")
+        return_period_level_tibble(df =df_temp,
+                                   date = "date",
+                                   value = "mean",
+                                   rp_year = c(2,3,4,5) ) %>% 
+            mutate(governorate_name = nm) 
+    }
+    )
+
+# filter to just 2 year return period
+chirps_2000_2022_rp2<- chirps_2000_2022_rp %>% 
+    filter(RP==2)
+
+
+
+gefs_rps %>% 
+    filter(
+        RP==2
+    ) %>% 
+    mutate(
+        leadtime =as.integer(leadtime),
+    ) %>% 
+    ggplot(
+        aes(x=reorder(leadtime,leadtime), y=estimate,color=governorate_name)
+    )+
+    geom_point()+
+    geom_hline(data= chirps_2000_2022_rp2,aes(yintercept=estimate),linetype="dashed")+
+    scale_y_continuous(limits = c(0,40), )+
+    facet_wrap(~governorate_name,ncol = 1) +
+    labs(x="Lead Time",
+         y="2 Year Return Period",
+         title= "CHIRPS-GEFS 2 Year Return Period Level (2000-2022)",
+         subtitle = "Horizontal Line is 2 Year Return Period for From CHIRPS (2000-2022)"
+         )+
+    # theme_hdx()+
+    theme(
+        panel.border = element_rect(color="grey",fill = NA),
+        legend.position = "none"
+    )
+```
+
+## ECMWF HRES & ERA5
+
+- Filter both data sets to 2007-2022
+
+```{r}
+
+
+hres_rps <- hres_rolled_per_date_gen %>% 
+    filter(year(date_forecast_predict) %in%c(2007:2022)) %>% 
+    filter(name =="roll3") %>% 
+    filter(!leadtime %in% c(1:2)) %>% 
+     mutate(
+        gov_lt = paste0(governorate_name,"_",leadtime)
+    ) %>% 
+    split(.$gov_lt) %>% 
+    imap_dfr(\(df_temp,nm){
+        # cat(nm,"/n")
+        return_period_level_tibble(df =df_temp,
+                                   date = "date_forecast_predict",
+                                   value = "value",
+                                   rp_year = c(2,3,4,5) ) %>% 
+            mutate(gov_lt = nm) %>% 
+            separate(col = gov_lt,into = c("governorate_name","leadtime"))
+    }
+    )
+
+
+era_rps <- era5_rolling_zonal_local %>% 
+    mutate(
+        roll3= roll3*1000
+    ) %>% 
+    filter(year(date)%in% c(2007:2022)) %>% 
+    split(.$governorate_name) %>% 
+    imap_dfr(\(df_temp,nm){
+        # cat(nm,"/n")
+        return_period_level_tibble(df =df_temp,
+                                   date = "date",
+                                   value = "roll3",
+                                   rp_year = c(2,3,4,5) ) %>% 
+            mutate(governorate_name = nm) 
+    }
+    )
+
+
+# filter to just RP 2 for plotting
+era_rp2 <- era_rps %>% 
+    filter(RP==2)
+
+hres_rp2 <- hres_rps %>% 
+    filter(RP==2)
+
+
+hres_rp2 %>% 
+    mutate(
+        leadtime =as.integer(leadtime),
+    ) %>% 
+    ggplot(
+        aes(x=reorder(leadtime,leadtime), y=estimate,color=governorate_name)
+    )+
+    geom_point()+
+    geom_hline(data= era_rp2,aes(yintercept=estimate),linetype="dashed")+
+    scale_y_continuous(limits = c(0,100), )+
+    facet_wrap(~governorate_name,ncol = 1) +
+    labs(x="Lead Time",
+         y="2 Year Return Period",
+         title= "ECMWF HRES 2 Year Return Period Level by Leadtime (2007-2022)",
+         subtitle = "Horizontal Line is 2 Year Return Period for From ECMWF ERA5 (2007-2022)"
+         )+
+    # theme_hdx()+
+    theme(
+        panel.border = element_rect(color="grey",fill = NA),
+        legend.position = "none"
+    )
+```

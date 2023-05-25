@@ -70,11 +70,11 @@ chirps_gefs_dir <- file.path(
 ecmwf_mars_dir <-  file.path(
     Sys.getenv("AA_DATA_DIR"),
     "private",
-    "processed",
+    "raw",
     "yem",
-    "ecmwf",
-    "strange_coords"
+    "ecmwf"
 )
+
 ecmwf_era5_dir <-  file.path(Sys.getenv("AA_DATA_DIR"),
                              "public",
                              "raw",
@@ -922,6 +922,30 @@ list(
         command = zonal_stats_chirps_gefs(raster_dir = file.path(chirps_gefs_dir,"daily"),
                                           zonal_boundary = high_risk_hulls)
         
+    ),
+    tar_target(
+        name = gefs_zonal_rolled,
+        command =gefs_zonal %>% 
+            rename(
+                band = "date"
+            ) %>% 
+            mutate(
+                leadtime = as.numeric(str_extract(band, "(?<=\\D)(\\d{2})(?=\\D*$)"))+1,
+                date_forecast_made = as_date(str_extract(band,"\\d{4}-\\d{2}-\\d{2}")),
+                date_forecast_predict=date_forecast_made+leadtime
+            ) %>% 
+            group_by(governorate_name,date_forecast_made) %>% 
+            arrange(date_forecast_predict) %>%
+            mutate(
+                roll3=  rollsum(mean, fill= NA, k=3, align ="right"),
+                roll5=  rollsum(mean, fill= NA, k=5, align ="right"),
+                roll10= rollsum(mean, fill= NA, k=10, align ="right")
+            ) %>% 
+            ungroup() %>% 
+            pivot_longer(cols = c("roll3","roll5","roll10",mean)) %>% 
+            mutate(
+                name = str_replace(name, "mean","precip_daily"),
+            )
     )
 
     )

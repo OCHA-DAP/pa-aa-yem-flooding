@@ -13,25 +13,61 @@
 
 ecmwf_mars_historical_zonal_stats <-  function(raster_dir=ecmwf_mars_dir,
                                                zonal_boundary=high_risk_hulls){
-    full_fps <- list.files(raster_dir, full.names = T,pattern = "\\.nc$",recursive = F)
+    full_fps <- list.files(raster_dir, full.names = T,pattern = "\\.nc$|\\.grib2$",recursive = F)
+
     cat("reading rater files as sds\n")
     r_sds <- terra::sds(full_fps)
     cat("converter sds to rast\n")
     r<- terra::rast(r_sds)
-    cat("running zonal extractions\n")
-    zonal_stat <- exact_extract(
-        x = r,
-        y = zonal_boundary,
-        append_cols = "governorate_name",
-        fun = c("mean", "median"),
-        force_df = T,
-        full_colnames = T
-    ) %>%
-        pivot_longer(-matches("governorate_name")) %>%
-        separate(name, into = c("stat", "date"), sep = "\\.") %>%
-        pivot_wider(names_from = "stat", values_from = "value")
-    return(zonal_stat)
     
+    # we changed location of local raster and the format changed
+    # with change of format, they read in differently
+    # there is probably a smarter way to rename, but I just want it 
+    # to match the exact format used previously to not interfere with all 
+    # downstream targets
+    
+    if(all(str_detect(full_fps,"\\.grib2$"))){
+        r_naming_table <- tibble(
+            df=as_date(stringr::str_remove_all(names(r),"^[^0-9]+|_SFC.*$")),
+            dp= as_date(time(r)),
+            lt_hr = as.integer(dp-df)*24,
+            name_new = paste0("yem_fc_tp_",df,"_tp_step=",lt_hr)
+            )
+        
+        terra::set.names(r,r_naming_table$name_new)
+        
+        # technically i think we should be using Yemen NGN96 / UTM zone 38N - EPSG:2089 for
+        # maximum accuracy.... but can play with that later.
+        r_proj<- terra::project(x= r,y="epsg:4326")
+        
+        zonal_stat <- exact_extract(
+            x = r_proj,
+            y = zonal_boundary,
+            append_cols = "governorate_name",
+            fun = c("mean", "median"),
+            force_df = T,
+            full_colnames = T
+        ) %>%
+            pivot_longer(-matches("governorate_name")) %>%
+            separate(name, into = c("stat", "date"), sep = "\\.") %>%
+            pivot_wider(names_from = "stat", values_from = "value")
+        
+    }
+    if(all(str_detect(full_fps,"\\.nc$"))){
+        cat("running zonal extractions\n")
+        zonal_stat <- exact_extract(
+            x = r,
+            y = zonal_boundary,
+            append_cols = "governorate_name",
+            fun = c("mean", "median"),
+            force_df = T,
+            full_colnames = T
+        ) %>%
+            pivot_longer(-matches("governorate_name")) %>%
+            separate(name, into = c("stat", "date"), sep = "\\.") %>%
+            pivot_wider(names_from = "stat", values_from = "value") 
+    }
+    return(zonal_stat)
 }
 
 #' split_hres_by_leadtimes
