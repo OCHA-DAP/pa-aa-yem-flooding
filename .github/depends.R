@@ -12,6 +12,7 @@ install.packages(c("dplyr",
                    "googledrive",
                    "purrr",
                    "lubridate",
+                   "stringr", # annoying dep just for str_trim to add a single "." to email.
                    "here", # set paths in rmds without thinking.
                    "blastula", # rmd emails
                    "glue",  # mainly for pasting text in email.
