@@ -102,39 +102,40 @@ trig_status_df <- thresholds %>%
 # discard(.p = \(df_temp) nrow(df_temp)==0)
 
 
-both_txt <- "based on the 7-day forecast from CHIRPS-GEFS."
+# both_txt <- "based on the 7-day forecast from CHIRPS-GEFS."
 
 if (nrow(trig_status_df) == 0) {
-  pre_txt <- "**has not been activated**"
+  pre_txt <- "**has not been activated.**  The forecast does not predict trigger thresholds to be crossed in the next 7 days"
   where_txt <- ""
   spec_txt <- ""
 }
 if (nrow(trig_status_df) > 0) {
   pre_txt <- "**has been activated in**"
-  where_txt <- glue_collapse(x = trig_status_df$governorate_name, sep = " & ")
+  where_txt <- glue(glue_collapse(x = trig_status_df$governorate_name, sep = " & "),".")
   when_txt <- glue_collapse(x = trig_status_df$date_predict, sep = " & ")
+
   amt_txt <- glue_collapse(x = trig_status_df$cumu_3day_mm, sep = " & ")
   gov_amt_txt <- glue_collapse(x = trig_status_df$gov_amt, sep = " & ")
-  spec_txt <- glue("The forecast predicts trigger thresholds to be crossed on {when_txt} for {gov_amt_txt}{ifelse(nrow(trig_status_df)>1,', respectively.', '.')}")
+  
+  same_date_cond <- length(unique(trig_status_df$date_predict))==1
+  both_gov_cond <- length(unique(trig_status_df$governorate_name))==2
+  
+  spec_txt <- glue("The forecast predicts trigger thresholds to be crossed on {ifelse(same_date_cond,unique(as.character(trig_status_df$date_predict)),when_txt)} in {gov_amt_txt} {ifelse(!same_date_cond,', respectively', '')}")
 }
 
-desc_txt <- glue_collapse(c(pre_txt, where_txt, both_txt, spec_txt), sep = " ")
+desc_txt <- str_trim(glue_collapse(c(pre_txt, where_txt, spec_txt), sep = " "))
 ```
 
 # Yemen Rainfall Forecast Monitoring
 
 ## Anticipatory Action Flooding Trigger Status - `r format(Sys.Date(),"%d %B %Y")`
 
-The AA Flooding Trigger for Yemen `r desc_txt`
+The AA Flooding Trigger for Yemen `r desc_txt`.
 
-The AA Flooding Trigger is based on 3-day cumulative rainfall thresholds for our Areas of Interest (AOI) withing Marib and Hajjah governorates in Yemen. The selected thresholds are based on a 2-year return period event and differ for each of the two locations. In Hajjah and Marib the current thresholds are set to **19.8 mm** and **30.6 mm**, respectively.
+The AA Flooding Trigger is based on 3-day cumulative rainfall thresholds for our Areas of Interest (AOI) within Marib and Hajjah governorates in Yemen. The selected thresholds are based on a 2-year return period event and differ for each of the two locations. In Hajjah and Marib the current thresholds are set to **19.8 mm** and **30.6 mm**, respectively.
 
 ```{r makeplot}
 forecast_date <- min(chirps_gefs_processed$date_predict)
-date_7day <- chirps_gefs_processed %>%
-  filter(leadtime == 7) %>%
-  pull(date_predict) %>%
-  unique()
 
 trigger_lines <- data.frame(
   governorate_name = c("Hajjah", "Marib"),
@@ -164,7 +165,7 @@ p <- chirps_gefs_processed %>%
     aes(
       x = label_place_x, y = threshold + 1.5,
       label = glue("{governorate_name} threshold: {threshold}")
-    ), color = "red", size = 6
+    ), color = "red", size = 4
   ) +
   facet_wrap(~governorate_name, ncol = 1, scales = "free_y") +
   labs(
@@ -174,10 +175,11 @@ p <- chirps_gefs_processed %>%
   ) +
   theme_hdx() +
   theme(
-    title = element_text(size = 24),
-    axis.title = element_text(size = 18),
+    title = element_text(size = 14),
+    axis.title = element_text(size = 12),
     axis.text.x = element_text(angle = 90),
     axis.title.x = element_blank(),
+    legend.text = element_text(size=12),
     # panel.spacing = unit(5, "lines"),
     panel.border = element_rect(color = "grey", fill = NA),
     legend.title = element_blank()
@@ -188,11 +190,13 @@ p <- chirps_gefs_processed %>%
 add_ggplot_custom(
   plot_object = p,
   alt = "Alert plot",
-  height = 6.5,
-  width = 6,
-  html_width = 1000
+  height = 5,
+  width = 4.5,
+  html_width = 750
 )
 ```
+
+**Forecast data source:** [CHIRPS-GEFS](https://chc.ucsb.edu/data/chirps-gefs) Precipitation Forecasts https://doi.org/10.15780/G2PH2M (2021). Data was accessed on `r Sys.Date()`. 
 
 ----
 

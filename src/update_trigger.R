@@ -78,7 +78,8 @@ email_creds <- creds_envvar(
 
 receps_drive <- drive_get(id = "10PkgaVJZhJIjoOd_31P55UWcRcZzS0Zo")
 drive_download(receps_drive, path = f <- tempfile(fileext = ".csv"))
-df_recipients <- read_csv(f)
+df_recipients <- read_csv(f) %>% 
+    filter(to)
 
 render_email(
   input = file.path(
@@ -89,7 +90,7 @@ render_email(
   envir = parent.frame()
 ) %>%
   smtp_send(
-    to = df_recipients$to,
+    to = df_recipients$email_address,
     # bcc = filter(df_recipients, !to)$email,
     from = "data.science@humdata.org",
     subject = paste0("Email Test: Yemen AA Rainfall Forecast Monitoring (", Sys.Date(), ")"),
