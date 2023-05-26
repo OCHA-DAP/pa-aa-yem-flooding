@@ -49,7 +49,7 @@ aoi <- read_rds(f)
 
 gefs_process_time <- system.time(
   gefs_processed <- load_chirps_gefs_cropped(
-    run_date = Sys.Date(),
+    run_date = Sys.Date()-5,
     leadtime = c(1:10),
     mask = aoi,
     write_outputs = T,
