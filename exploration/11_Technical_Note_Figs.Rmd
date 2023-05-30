@@ -1,0 +1,58 @@
+---
+title: "technical-note"
+output: html_document
+date: "2023-05-26"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+Is this document to create some of the figures for the technical note if i don't already have somewhere
+
+```{r cars}
+library(sf)
+library(tidyverse)
+library(targets)
+library(leaflet)
+```
+
+
+
+Let's make a map of convex hulls as part of area-based appraoch explanation
+```{r}
+tar_load(high_risk_hulls)
+tar_load(adm_sf)
+
+adm1_small_rm <- adm_sf$yem_admbnda_adm1_govyem_cso_20191002 %>% 
+    st_cast(to = "POLYGON") %>% 
+    mutate(area= st_area(.)) %>% 
+    filter(
+        as.numeric(area)>100000000 # just remove most small islands
+    ) 
+
+pt <- st_centroid(high_risk_hulls)
+
+leaflet() %>% 
+    addProviderTiles(provider = leaflet::providers$Esri.WorldShadedRelief) %>% 
+    addPolylines(data=adm1_small_rm,color = "black") %>% 
+    addPolygons(data= high_risk_hulls,color="red",fill="red") %>% 
+    addLabelOnlyMarkers(data=pt ,label =  ~as.character(governorate_name), 
+                        labelOptions = labelOptions(noHide = T, 
+                                                    direction = 'top', 
+                                                    textOnly = T)) %>% 
+    leaflet::addScaleBar(position = "bottomleft")
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

@@ -115,6 +115,55 @@ gefs_rps %>%
     )
 ```
 
+adjust threshold to correct for forecast bias?
+
+The simplest is just to take the mean of the leadtimes this:
+```{r}
+gefs_rps %>% 
+    filter(leadtime %in% c(3:7),
+           RP==2) %>% 
+    group_by(governorate_name) %>% 
+    summarise(
+        estimate=mean(estimate)
+    )
+```
+
+```{r}
+gefs_leadtime_mean <- gefs_zonal_rolled %>% 
+    filter(name =="roll3") %>% 
+    filter(!leadtime %in%c(1:2),
+           year(date_forecast_predict)!=2023,
+           year(date_forecast_predict)!=2020,
+           ) %>% 
+    filter(leadtime%in%c(3:7)) %>% 
+    arrange(governorate_name) %>% 
+    group_by(governorate_name,date_forecast_predict) %>% 
+    summarise(
+        value=mean(value),.groups = "drop"
+    )
+
+zonal_stats_high_risk_hull$roll3 %>% 
+    mutate(
+        date=as_date(date)
+    ) %>% 
+    filter(year(date)%in% c(2000:2022)) %>% 
+    filter(year(date)!=2021) %>% 
+    left_join(
+        gefs_leadtime_mean, by=c("date"="date_forecast_predict","governorate_name"="governorate_name")
+    ) %>% 
+    filter(mean!=0,value!=0) %>% 
+    ggplot(aes(x=mean, y= value))+
+    geom_point(alpha=0.2)+
+    labs(
+        x= "CHIRPS",
+        y= "CHIRPS-GEFS"
+    )
+
+
+```
+
+
+
 ## ECMWF HRES & ERA5
 
 - Filter both data sets to 2007-2022
