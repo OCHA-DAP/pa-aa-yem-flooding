@@ -39,7 +39,8 @@ gghdx()
 
 source(here::here("src/email/email_utils.R"))
 
-thresholds <- list(Hajjah = 19.8, Marib = 30.6)
+# adjusted thresholds based on chirp-gefs RP 2 mean(lt3:7) `10_CHIRPS_GEFS.Rmd`
+thresholds <- list(Hajjah = 23.8, Marib = 21.8)
 ```
 
 ```{r, class.output = "banner"}
