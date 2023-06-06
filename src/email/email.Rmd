@@ -198,7 +198,7 @@ add_ggplot_custom(
 )
 ```
 
-**Forecast data source:** [CHIRPS-GEFS](https://chc.ucsb.edu/data/chirps-gefs) Precipitation Forecasts https://doi.org/10.15780/G2PH2M (2021). Data was accessed on `r date_to_run`. 
+**Forecast data source:** [CHIRPS-GEFS](https://chc.ucsb.edu/data/chirps-gefs) Precipitation Forecasts https://doi.org/10.15780/G2PH2M (2021). Data was accessed on `r Sys.Date()`. 
 
 ----
 
