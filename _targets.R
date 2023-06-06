@@ -410,8 +410,6 @@ list(
     ## Extract Forecast ----
     # Load CHIRPS-GEFS forecast data (so far 10 days only)-- this takes a solid 1+ hours
     # Once loaded extract values to sites as well as 1000 random points (for later testing)
-    
-    # somehow these got invalidated -- need to skip for now and let run when less busy
     tar_target(
         name = gefs_chirps_pts,
         command = extract_chirps_gefs_to_pts(raster_dir =chirps_gefs_dir,
@@ -841,7 +839,7 @@ list(
         ),
     # Forecast Analysis -------------------------------------------------------
     
-    # ECMWF HRES MARS ####
+    ## ECMWF HRES MARS ####
     tar_target(
         name = ecmwf_mars_high_risk_hulls,
         command = ecmwf_mars_historical_zonal_stats(raster_dir = ecmwf_mars_dir,
@@ -916,6 +914,38 @@ list(
                 name = str_replace(name, "mean","precip_daily"),
             ) %>% 
             rename(date_forecast_predict = "date_forecasted")
+    ),
+    
+    ## CHIRPS-GEFS DAILY ----
+    tar_target(
+        name = gefs_zonal,
+        command = zonal_stats_chirps_gefs(raster_dir = file.path(chirps_gefs_dir,"daily"),
+                                          zonal_boundary = high_risk_hulls)
+        
+    ),
+    tar_target(
+        name = gefs_zonal_rolled,
+        command =gefs_zonal %>% 
+            rename(
+                band = "date"
+            ) %>% 
+            mutate(
+                leadtime = as.numeric(str_extract(band, "(?<=\\D)(\\d{2})(?=\\D*$)"))+1,
+                date_forecast_made = as_date(str_extract(band,"\\d{4}-\\d{2}-\\d{2}")),
+                date_forecast_predict=date_forecast_made+leadtime
+            ) %>% 
+            group_by(governorate_name,date_forecast_made) %>% 
+            arrange(date_forecast_predict) %>%
+            mutate(
+                roll3=  rollsum(mean, fill= NA, k=3, align ="right"),
+                roll5=  rollsum(mean, fill= NA, k=5, align ="right"),
+                roll10= rollsum(mean, fill= NA, k=10, align ="right")
+            ) %>% 
+            ungroup() %>% 
+            pivot_longer(cols = c("roll3","roll5","roll10",mean)) %>% 
+            mutate(
+                name = str_replace(name, "mean","precip_daily"),
+            )
     )
 
     )

@@ -1,5 +1,5 @@
 name|type|data|command|depend|seed|path|time|size|bytes|format|repository|iteration|parent|children|seconds|warnings|error
-.Random.seed|object|f7286fd97b78a9f7|||||||||||||||
+.Random.seed|object|6d21d3d201e9ab6d|||||||||||||||
 adm_sf|stem|d814208e77634ebe|c0460a3bc14ebd57|5b6883bff12d4128|421735004||t19419.4297679868s|6e36be5798e8a713|6111599|rds|local|vector|||0.124||
 alos_landform_lookup|object|b415a69efa003277|||||||||||||||
 calc_rolling_precip_sites|function|6dc98d60d6e9b310|||||||||||||||
@@ -58,6 +58,8 @@ floodscore_pop_stats_by_admin|function|e0788f5790d5e695|||||||||||||||
 fp|object|4a7ab7b08bc8ec72|||||||||||||||
 full_fps|object|b22fee75686dc7ee|||||||||||||||
 gefs_chirps_pts|stem|a3c435060ecf2d37|cfc6fc6e9e406ca9|903cba94252d740e|-2136007265||t19432.6313383938s|5fe48bd15ef55991|28122835|rds|local|vector|||1569.345||
+gefs_zonal|stem|1ae430658d9f2b00|6f86711ae1fec10f|9c9cc2724a827a0f|826726609||t19502.4607756727s|78c5f1913b6ee833|1003534|rds|local|vector|||151.029||
+gefs_zonal_rolled|stem|89d655a0bb9feef2|87d0456656ba967b|157ae9bf29d1484e|267066578||t19502.4667927322s|eccd7e0e270b59d9|2447124|rds|local|vector|||5.454||
 get_exclusion_dates|function|45a3b260a438632c|||||||||||||||
 get_geomorph_landform_indicators|function|49ab978139f5caf6|||||||||||||||
 get_local_era5_daily_precip|function|a3a4d0a08f34a0d5|||||||||||||||
@@ -129,4 +131,5 @@ test_threshold_performance_area|function|a9663824f5944642|||||||||||||||
 thresh_class_freq_b7f3|stem|b45a03d3a69c2612|ed84a39038c87996|f1de83237b8676ab|1607664225||t19446.5745731443s|de57be143dbe27e1|1079042|rds|local|vector|||12498.222||
 thresh_class_freq_b7f7|stem|b45a03d3a69c2612|fb7141ee2ed2f6ff|f1de83237b8676ab|1577680602||t19446.7186957064s|de57be143dbe27e1|1079042|rds|local|vector|||12451.068||
 viz_cluster_classification|function|34ffb5430499d0da|||||||||||||||
+zonal_stats_chirps_gefs|function|27cbc43d11de3cd2|||||||||||||||
 zonal_stats_high_risk_hull|stem|6f332681740b07b5|063f507f8244801a|e2f8bdc63b69960d|947145415||t19437.5648035839s|6c860fd714a66112|1834683|rds|local|vector|||438.951|No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.|
