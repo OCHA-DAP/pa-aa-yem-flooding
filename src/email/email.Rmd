@@ -141,7 +141,7 @@ forecast_date <- min(chirps_gefs_processed$date_predict)
 
 trigger_lines <- data.frame(
   governorate_name = c("Hajjah", "Marib"),
-  threshold = c(19.8, 30.6),
+  threshold = c(thresholds$Hajjah, thresholds$Marib),
   label_place_x = forecast_date + 1
 )
 
