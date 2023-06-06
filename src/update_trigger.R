@@ -47,7 +47,7 @@ aoi <- read_rds(f)
 # will use output object in memory for next processing steps
 # but raster tifs and zonal stats are also written to gdrive.
 
-date_to_run <- Sys.Date()-1
+date_to_run <- Sys.Date()-2
 gefs_process_time <- system.time(
   gefs_processed <- load_chirps_gefs_cropped(
     run_date = date_to_run,
