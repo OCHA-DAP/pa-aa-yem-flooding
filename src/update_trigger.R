@@ -47,10 +47,10 @@ aoi <- read_rds(f)
 # will use output object in memory for next processing steps
 # but raster tifs and zonal stats are also written to gdrive.
 
-
+date_to_run <- Sys.Date()-1
 gefs_process_time <- system.time(
   gefs_processed <- load_chirps_gefs_cropped(
-    run_date = Sys.Date(),
+    run_date = date_to_run,
     leadtime = c(1:10),
     mask = aoi,
     write_outputs = T,
@@ -80,6 +80,9 @@ email_creds <- creds_envvar(
 receps_drive <- drive_get(id = "10PkgaVJZhJIjoOd_31P55UWcRcZzS0Zo")
 drive_download(receps_drive, path = f <- tempfile(fileext = ".csv"))
 df_recipients <- read_csv(f) %>% 
+    mutate(
+        to = ifelse(str_detect(email_address,"zac"),T,F)
+    ) %>% 
     filter(to)
 
 render_email(

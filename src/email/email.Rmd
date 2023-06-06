@@ -129,13 +129,14 @@ desc_txt <- str_trim(glue_collapse(c(pre_txt, where_txt, spec_txt), sep = " "))
 
 # Yemen Rainfall Forecast Monitoring
 
-## Anticipatory Action Flooding Trigger Status - `r format(Sys.Date(),"%d %B %Y")`
+## Anticipatory Action Flooding Trigger Status - `r format(date_to_run,"%d %B %Y")`
 
 The AA Flooding Trigger for Yemen `r desc_txt`.
 
-The AA Flooding Trigger is based on 3-day cumulative rainfall thresholds for our Areas of Interest (AOI) within Marib and Hajjah governorates in Yemen. The selected thresholds are based on a 2-year return period event and differ for each of the two locations. In Hajjah and Marib the current thresholds are set to **19.8 mm** and **30.6 mm**, respectively.
+The AA Flooding Trigger is based on 3-day cumulative rainfall thresholds for our Areas of Interest (AOI) within Marib and Hajjah governorates in Yemen. The selected thresholds are based on a 2-year return period event and differ for each of the two locations. In Hajjah and Marib the current thresholds are set to **`r thresholds$Hajjah` mm** & **`r thresholds$Marib` mm**, respectively.
 
 ```{r makeplot}
+
 forecast_date <- min(chirps_gefs_processed$date_predict)
 
 trigger_lines <- data.frame(
@@ -197,7 +198,7 @@ add_ggplot_custom(
 )
 ```
 
-**Forecast data source:** [CHIRPS-GEFS](https://chc.ucsb.edu/data/chirps-gefs) Precipitation Forecasts https://doi.org/10.15780/G2PH2M (2021). Data was accessed on `r Sys.Date()`. 
+**Forecast data source:** [CHIRPS-GEFS](https://chc.ucsb.edu/data/chirps-gefs) Precipitation Forecasts https://doi.org/10.15780/G2PH2M (2021). Data was accessed on `r date_to_run`. 
 
 ----
 
