@@ -1,5 +1,5 @@
 name|type|data|command|depend|seed|path|time|size|bytes|format|repository|iteration|parent|children|seconds|warnings|error
-.Random.seed|object|9a61d78f94c93432|||||||||||||||
+.Random.seed|object|6699ac3fef896d39|||||||||||||||
 adm_sf|stem|d814208e77634ebe|c0460a3bc14ebd57|5b6883bff12d4128|421735004||t19419.4297679868s|6e36be5798e8a713|6111599|rds|local|vector|||0.124||
 alos_landform_lookup|object|b415a69efa003277|||||||||||||||
 calc_rolling_precip_sites|function|6dc98d60d6e9b310|||||||||||||||
@@ -60,6 +60,8 @@ fp|object|4a7ab7b08bc8ec72|||||||||||||||
 full_fps|object|b22fee75686dc7ee|||||||||||||||
 gefs_chirps_pts|stem|a3c435060ecf2d37|cfc6fc6e9e406ca9|903cba94252d740e|-2136007265||t19432.6313383938s|5fe48bd15ef55991|28122835|rds|local|vector|||1569.345||
 gefs_zonal|stem|1ae430658d9f2b00|6f86711ae1fec10f|9c9cc2724a827a0f|826726609||t19502.4607756727s|78c5f1913b6ee833|1003534|rds|local|vector|||151.029||
+gefs_zonal_districts|stem|6f6ef42d85aa9b4b|02ff596541c7a27e|95d86426b23e5d83|-1619854734||t19515.3919277187s|d22b4d55b54333a5|931950|rds|local|vector|||143.398||
+gefs_zonal_districts_rolled|stem|d1e2187e52309a50|5150e1f50e05eacc|4fb48431e7367aa5|-465103781||t19515.3920056071s|20472c31f6490a13|2214258|rds|local|vector|||5.942||
 gefs_zonal_rolled|stem|89d655a0bb9feef2|87d0456656ba967b|157ae9bf29d1484e|267066578||t19502.4667927322s|eccd7e0e270b59d9|2447124|rds|local|vector|||5.454||
 gen_district_hulls|function|9d21ed94f3bd2d7e|||||||||||||||
 get_exclusion_dates|function|45a3b260a438632c|||||||||||||||
