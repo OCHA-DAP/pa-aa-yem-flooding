@@ -15,7 +15,7 @@ knitr::opts_chunk$set(
   warning = FALSE,
   message = FALSE,
   eval = TRUE,
-  results="asis"
+  results = "asis"
 )
 ```
 
@@ -31,12 +31,25 @@ library(gghdx)
 gghdx()
 tar_source()
 
-tar_load(cccm_flood_marib_hajjah_impact)
-tar_load(adm_sf)
-tar_load(high_risk_hulls)
-tar_load(cccm_wb)
-tar_load(cccm_floodscore_df)
+# tar_load(cccm_flood_marib_hajjah_impact) # impa
+tar_load(adm_sf) # admin units (list of sf features)
+tar_load(high_risk_hulls) # high risk hulls calculated in targets from high risk sites in 2 govs
+tar_load(cccm_wb) # cccm master list of sites
+tar_load(cccm_floodscore_df) # list of sites with flood scores
 ```
+
+## Take-away Summary:
+
+Adjusting trigger thresholds and AOI for forecast monitoring to just high risk sites in 3 districts (within Hajjah & Ma'rib governorate) appears justified. Here is the rationale:
+
+- Trigger development done for all high risk sites in the 2 Governorates (Hajjah, Ma'rib) so that we would have sufficient historical impact data to evaluate trigger thresholds
+- We found a trigger level that was acceptable (2 year 3day cumulative RP event )
+- We adjusted the AOI to a smaller geographic subset (3 districts) based on where partners will respond and assume the same relation b/w impact and rainfall
+- We calculate new 2 year RP level for the new AOI and take the lowest values of the 2 analyses to be conservative.         + New rounded thresholds: **Hajjah: 24 mm and Ma'rib: 20 mm**
+
+## Intro
+
+This script explores adjusting the AOI and how that would impact threhsolds. We do some exploration which was used to build various targets. Those targets are then imported and explored.
 
 ## Background
 
@@ -51,26 +64,37 @@ Initially did analysis based on high risk sites in Hajjah and Ma'rib. By using a
 Nonetheless, **purpose** of this document is just to compare 2 year RP that we would get if we included only high-risk sites in Hajjah & Ma'rib. We may want to consider changing thresholds based on this.
 
 ```{r}
+#########################################################################
+# **Note**
+# the below code has been re-factored and added to the targets pipeline in
+# func: `extract_sites_w_coords_by_floodscore()`
+# target: `high_risk_site_pts`
+#########################################################################
 
-adm2 <- adm_sf$yem_admbnda_adm2_govyem_cso_20191002 %>% 
-    select(matches("^adm\\d_[ep]"))
+
+# clean up adm2 - remove unnecessary cols
+adm2 <- adm_sf$yem_admbnda_adm2_govyem_cso_20191002 %>%
+  select(matches("^adm\\d_[ep]"))
 
 
-master_db_coords <- cccm_wb$`ML- Flooding Available data` %>% 
-    select(
-      longitude = available_coordinates_longitude,
-      latitude = available_coordinates_latitude, site_id
-    ) %>%
-    filter(!is.na(longitude), !is.na(latitude))
+# only master list sites with coords
+master_db_coords <- cccm_wb$`ML- Flooding Available data` %>%
+  select(
+    longitude = available_coordinates_longitude,
+    latitude = available_coordinates_latitude, site_id
+  ) %>%
+  filter(!is.na(longitude), !is.na(latitude))
 
-high_risk_db_sp <- cccm_floodscore_df %>% 
-    filter(site_flood_hazard_score == "High Hazard") %>%
-    left_join(master_db_coords) %>%
-    filter(!is.na(longitude), !is.na(latitude)) %>% 
-    st_as_sf(coords=c("longitude","latitude"),crs=4326)
+# only high risk sites w/ coords
+high_risk_db_sp <- cccm_floodscore_df %>%
+  filter(site_flood_hazard_score == "High Hazard") %>%
+  left_join(master_db_coords) %>%
+  filter(!is.na(longitude), !is.na(latitude)) %>%
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
 
-high_risk_db_sp <- high_risk_db_sp %>% 
-    st_join(adm2)
+# join to clean admin boundaries
+high_risk_db_sp <- high_risk_db_sp %>%
+  st_join(adm2)
 ```
  
 
@@ -80,39 +104,46 @@ high_risk_db_sp <- high_risk_db_sp %>%
 # - `high_risk_hulls` - made from all high risk sites with `governorate_name` of `Hajjah` or `Marib` except site_id `YE1712_0643` which was clearly outside
 # - `gov_hulls` made from all high risk sites falling in the 2 governorates after spatial joining with the admin
 # - `district_hull` made from all high risk sies falling the the 3 districts (Abs, Marib, Marib City) based on spatial join with admin
- 
- gov_hulls <- c("Hajjah", "Ma'rib") %>%
-    map(
-      \(gov){
-        pts_sf <- high_risk_db_sp %>%
-          filter(
-            adm1_en == gov,
-          ) %>%
-          st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
-        st_convex_hull(st_union(pts_sf)) %>%
-          st_as_sf() %>%
-          mutate(governorate_name = gov) %>%
-          rename(geometry = x)
-      }
-    ) %>%
-    bind_rows()
 
- district_hulls <- c("Abs", "Ma'rib") %>%
-    map(
-      \(district){
-        pts_sf <- high_risk_db_sp %>%
-          filter(
-             str_detect(adm2_en,district) # this will catch Ma'rib and Ma'rib City
-            
-          ) %>%
-          st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
-        st_convex_hull(st_union(pts_sf)) %>%
-          st_as_sf() %>%
-          mutate(dist = district) %>%
-          rename(geometry = x)
-      }
-    ) %>%
-    bind_rows()
+#############################################################################
+# **NOTE** this is dev code and has been refactored and added into the targets pipeline in
+# target: `high_risk_district_hulls`
+# func: `gen_district_hulls()`
+# you will see tar_load(high_risk_district_hulls)  - in chunk below
+#############################################################################
+
+
+gov_hulls <- c("Hajjah", "Ma'rib") %>%
+  map(
+    \(gov){
+      pts_sf <- high_risk_db_sp %>%
+        filter(
+          adm1_en == gov,
+        ) %>%
+        st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
+      st_convex_hull(st_union(pts_sf)) %>%
+        st_as_sf() %>%
+        mutate(governorate_name = gov) %>%
+        rename(geometry = x)
+    }
+  ) %>%
+  bind_rows()
+
+district_hulls <- c("Abs", "Ma'rib") %>%
+  map(
+    \(district){
+      pts_sf <- high_risk_db_sp %>%
+        filter(
+          str_detect(adm2_en, district) # this will catch Ma'rib and Ma'rib City
+        ) %>%
+        st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
+      st_convex_hull(st_union(pts_sf)) %>%
+        st_as_sf() %>%
+        mutate(dist = district) %>%
+        rename(geometry = x)
+    }
+  ) %>%
+  bind_rows()
 ```
 
 
@@ -120,12 +151,20 @@ high_risk_db_sp <- high_risk_db_sp %>%
 ## Current AOI vs AOI defined from 3 Districts
 -Let's compare the difference:  <span style="color: orange;">orange - from 3 districts</span>,<span style="color: green;">previous aoi </span>
 ```{r}
-leaflet() %>% 
-    addTiles() %>% 
-    addPolygons(data=adm_sf$yem_admbnda_adm1_govyem_cso_20191002,fill=NA,fillColor = NA) %>%
-    addPolygons(data=adm_sf$yem_admbnda_adm2_govyem_cso_20191002,color="grey",fill=NA,fillColor = NA) %>% 
-    addPolygons(data= district_hulls,color="orange", fillColor =NA,fillOpacity = 0) %>%
-    addPolygons(data= high_risk_hulls,color="green", fillColor = NA,fillOpacity = 0) 
+leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = adm_sf$yem_admbnda_adm1_govyem_cso_20191002, fill = NA, fillColor = NA) %>%
+  addPolygons(data = adm_sf$yem_admbnda_adm2_govyem_cso_20191002, color = "grey", fill = NA, fillColor = NA) %>%
+  addPolygons(data = district_hulls, color = "orange", fillColor = NA, fillOpacity = 0) %>%
+  addPolygons(data = high_risk_hulls, color = "green", fillColor = NA, fillOpacity = 0)
+```
+
+
+```{r eval=F}
+#####################################
+# this chunk was a bit of an after thought it is just to check the approximate number of chirps pixels
+# for both AOI's. We won't run it in the knitted version - eval=F
+#######################################
 
 library(rgee)
 ee_Initialize()
@@ -134,46 +173,29 @@ chirps <- ee$ImageCollection(chirps_link)
 july_rain <- as_tidyee(chirps$filterDate("2021-07-01", "2021-07-22"))
 
 july_sum_ee_img <- chirps$filterDate("2021-07-01", "2021-07-22")$sum()
-july_sum<- july_rain %>% 
-    # group_by(year, month) %>% 
-    summarise(
-        stat="sum"
-    )
+july_sum <- july_rain %>%
+  # group_by(year, month) %>%
+  summarise(
+    stat = "sum"
+  )
 
 dist_hull_ee <- sf_as_ee(high_risk_district_hulls)
 gov_hull_ee <- sf_as_ee(high_risk_hulls)
 
-countDict <- ee$Image$reduceRegions( image= july_sum_ee_img,
-                        reducer=ee$Reducer$count(),
-                        collection= dist_hull_ee,
-                        scale=5500
-                        )
-countDict <- ee$Image$reduceRegions( image= july_sum_ee_img,
-                        reducer=ee$Reducer$count(),
-                        collection= gov_hull_ee,
-                        scale=5500
-                        )
-countDict$getInfo()
-
-countDictionary = july_sum_ee_img$reduceRegions(
-  reducer=ee$Reducer$count(),
-  collection= dist_hull_ee,
-  scale= 5500,
-  maxPixels= 1e9
+countDict_dist <- ee$Image$reduceRegions(
+  image = july_sum_ee_img,
+  reducer = ee$Reducer$count(),
+  collection = dist_hull_ee,
+  scale = 5500
 )
-ee_help(ee$Image$reduceRegions)
-countDictionary$getInfo()
-pix_count <- ee_extract_tidy(july_sum,
-                             y = district_hulls,
-                             stat = "count",
-                             scale = 5500,via = "getInfo")
-    
-m1 <- Map$addLayer(july21_mean_rain,visParams = list(min=0,max=10),name = "july21_rain")
-library(tidyrgee)
-ee_extract_tidy(x = july21_sum_rain)
-m1+
-    leaflet() %>% 
-    addPolygons(data= district_hulls,color="orange", fillColor =NA,fillOpacity = 0) 
+countDict_gov <- ee$Image$reduceRegions(
+  image = july_sum_ee_img,
+  reducer = ee$Reducer$count(),
+  collection = gov_hull_ee,
+  scale = 5500
+)
+countDict_dist$getInfo()
+countDict_gov$getInfo()
 ```
 
 ## Note: Current AOI vs AOI defined from Shapefile Boundaries
@@ -184,210 +206,275 @@ m1+
 
 ```{r}
 tar_load(high_risk_district_hulls)
-leaflet() %>% 
-    addTiles() %>% 
-    addPolygons(data=adm_sf$yem_admbnda_adm1_govyem_cso_20191002,fill=NA,fillColor = NA) %>%
-    addPolygons(data=adm_sf$yem_admbnda_adm2_govyem_cso_20191002,color="grey",fill=NA,fillColor = NA) %>% 
-    addPolygons(data= gov_hulls,color="orange", fillColor =NA,fillOpacity = 0) %>%
-    addPolygons(data= high_risk_hulls,color="green") 
+leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = adm_sf$yem_admbnda_adm1_govyem_cso_20191002, fill = NA, fillColor = NA) %>%
+  addPolygons(data = adm_sf$yem_admbnda_adm2_govyem_cso_20191002, color = "grey", fill = NA, fillColor = NA) %>%
+  addPolygons(data = gov_hulls, color = "orange", fillColor = NA, fillOpacity = 0) %>%
+  addPolygons(data = high_risk_hulls, color = "green")
 ```
 
 ## CHIRPS Comparison
 
-
 ```{r}
+#######################
+# **note** `zonal_stats_high_risk_district_hull` created in targets
+# and is zonal stats for CHIRPS with new AOI
+#######################
+
 tar_load(zonal_stats_high_risk_district_hull)
-new_aoi_chirps_rps_full_record <- zonal_stats_high_risk_district_hull$roll3 %>% 
-    split(.$governorate_name) %>% 
-    imap_dfr(\(df_temp,nm){
-        # cat(nm,"/n")
-        return_period_level_tibble(df =df_temp,
-                                   date = "date",
-                                   value = "mean",
-                                   rp_year = c(2,3,4,5) ) %>% 
-            mutate(governorate_name = nm) 
-    }
-    )
+
+# calculate RP levels for new AOI
+new_aoi_chirps_rps_full_record <- zonal_stats_high_risk_district_hull$roll3 %>%
+  split(.$governorate_name) %>%
+  imap_dfr(\(df_temp, nm){
+    # cat(nm,"/n")
+    return_period_level_tibble(
+      df = df_temp,
+      date = "date",
+      value = "mean",
+      rp_year = c(2, 3, 4, 5)
+    ) %>%
+      mutate(governorate_name = nm)
+  })
+
 tar_load(zonal_stats_high_risk_hull)
-old_aoi_chirps_rps_full_record <- zonal_stats_high_risk_hull$roll3 %>% 
-    split(.$governorate_name) %>% 
-    imap_dfr(\(df_temp,nm){
-        # cat(nm,"/n")
-        return_period_level_tibble(df =df_temp,
-                                   date = "date",
-                                   value = "mean",
-                                   rp_year = c(2,3,4,5) ) %>% 
-            mutate(governorate_name = nm) 
-    }
-    )
+
+# RP levels for old AOI
+old_aoi_chirps_rps_full_record <- zonal_stats_high_risk_hull$roll3 %>%
+  split(.$governorate_name) %>%
+  imap_dfr(\(df_temp, nm){
+    # cat(nm,"/n")
+    return_period_level_tibble(
+      df = df_temp,
+      date = "date",
+      value = "mean",
+      rp_year = c(2, 3, 4, 5)
+    ) %>%
+      mutate(governorate_name = nm)
+  })
 ```
 
 
 ```{r, results="asis"}
-
-old_aoi_chirps_rps_full_record %>% 
-    filter(RP==2) %>% 
-    gt() %>%
-    fmt_number(columns =everything(),
-               decimals = 1) %>% 
-    fmt_number(columns =RP,
-               decimals = 0) %>% 
-    tab_header(title = "2 year RP level CHIRPS (1988-2022) by governorate",
-               subtitle ="All high risk sites in Hajjah and Ma'rib governorates" ) %>% 
-    opt_align_table_header(align = c("left", "center", "right"))
+# table of old AOI RP level 2
+old_aoi_chirps_rps_full_record %>%
+  filter(RP == 2) %>%
+  gt() %>%
+  fmt_number(
+    columns = everything(),
+    decimals = 1
+  ) %>%
+  fmt_number(
+    columns = RP,
+    decimals = 0
+  ) %>%
+  tab_header(
+    title = "2 year RP level CHIRPS (1988-2022) by governorate",
+    subtitle = "All high risk sites in Hajjah and Ma'rib governorates"
+  ) %>%
+  opt_align_table_header(align = c("left", "center", "right"))
 ```
 
 ```{r, results="asis"}
-new_aoi_chirps_rps_full_record %>% 
-    filter(RP==2) %>% 
-    gt() %>%
-    fmt_number(columns =everything(),
-               decimals = 1) %>% 
-    fmt_number(columns =RP,
-               decimals = 0) %>% 
-     tab_header(title = "2 year RP level CHIRPS (1988-2022) by governorate",
-               subtitle ="All high risk sites in Abs (Hajjah) and Ma'rib/Ma'rib City (Ma'rib)" ) %>% 
-    opt_align_table_header(align = c("left", "center", "right"))
+# table of new AOI RP level 2
+new_aoi_chirps_rps_full_record %>%
+  filter(RP == 2) %>%
+  gt() %>%
+  fmt_number(
+    columns = everything(),
+    decimals = 1
+  ) %>%
+  fmt_number(
+    columns = RP,
+    decimals = 0
+  ) %>%
+  tab_header(
+    title = "2 year RP level CHIRPS (1988-2022) by governorate",
+    subtitle = "All high risk sites in Abs (Hajjah) and Ma'rib/Ma'rib City (Ma'rib)"
+  ) %>%
+  opt_align_table_header(align = c("left", "center", "right"))
 ```
 
 
 ```{r}
+# targets created using chirps-gefs and new aoi (zonal stast)
 tar_load(gefs_zonal_districts_rolled)
 tar_load(gefs_zonal_rolled)
 
-new_gefs_rps<- gefs_zonal_districts_rolled %>% 
-    filter(name =="roll3") %>% 
-    filter(!leadtime %in%c(1:2),
-           year(date_forecast_predict)!=2023,
-           year(date_forecast_predict)!=2020,
-           ) %>% 
-    mutate(
-        gov_lt = paste0(governorate_name,"_",leadtime)
-    ) %>% 
-    split(.$gov_lt) %>% 
-    imap_dfr(\(df_temp,nm){
-        # cat(nm,"/n")
-        return_period_level_tibble(df =df_temp,
-                                   date = "date_forecast_predict",
-                                   value = "value",
-                                   rp_year = c(2,3,4,5) ) %>% 
-            mutate(gov_lt = nm) %>% 
-            separate(col = gov_lt,into = c("governorate_name","leadtime"))
-    }
-    )
-old_gefs_rps<- gefs_zonal_rolled %>% 
-    filter(name =="roll3") %>% 
-    filter(!leadtime %in%c(1:2),
-           year(date_forecast_predict)!=2023,
-           year(date_forecast_predict)!=2020,
-           ) %>% 
-    mutate(
-        gov_lt = paste0(governorate_name,"_",leadtime)
-    ) %>% 
-    split(.$gov_lt) %>% 
-    imap_dfr(\(df_temp,nm){
-        # cat(nm,"/n")
-        return_period_level_tibble(df =df_temp,
-                                   date = "date_forecast_predict",
-                                   value = "value",
-                                   rp_year = c(2,3,4,5) ) %>% 
-            mutate(gov_lt = nm) %>% 
-            separate(col = gov_lt,into = c("governorate_name","leadtime"))
-    }
-    )
+
+new_gefs_rps <- gefs_zonal_districts_rolled %>%
+  filter(name == "roll3") %>%
+  filter(
+    !leadtime %in% c(1:2), # rm lt 1-2 since they don't exist in 3-day rolling sum
+    year(date_forecast_predict) != 2023, # rm 2023 since not complete
+    year(date_forecast_predict) != 2020, # rm 2023 since incomplete data
+  ) %>%
+  mutate(
+    gov_lt = paste0(governorate_name, "_", leadtime)
+  ) %>%
+  # calculate RP levels for each gov separately
+  split(.$gov_lt) %>%
+  imap_dfr(\(df_temp, nm){
+    # cat(nm,"/n")
+    return_period_level_tibble(
+      df = df_temp,
+      date = "date_forecast_predict",
+      value = "value",
+      rp_year = c(2, 3, 4, 5)
+    ) %>%
+      mutate(gov_lt = nm) %>%
+      separate(col = gov_lt, into = c("governorate_name", "leadtime"))
+  })
+
+# same as above - but for old AOI
+old_gefs_rps <- gefs_zonal_rolled %>%
+  filter(name == "roll3") %>%
+  filter(
+    !leadtime %in% c(1:2),
+    year(date_forecast_predict) != 2023,
+    year(date_forecast_predict) != 2020,
+  ) %>%
+  mutate(
+    gov_lt = paste0(governorate_name, "_", leadtime)
+  ) %>%
+  split(.$gov_lt) %>%
+  imap_dfr(\(df_temp, nm){
+    # cat(nm,"/n")
+    return_period_level_tibble(
+      df = df_temp,
+      date = "date_forecast_predict",
+      value = "value",
+      rp_year = c(2, 3, 4, 5)
+    ) %>%
+      mutate(gov_lt = nm) %>%
+      separate(col = gov_lt, into = c("governorate_name", "leadtime"))
+  })
 ```
 
 
 ```{r}
-# get chirps RP for each area
-new_chirps_2000_2022_rp <- zonal_stats_high_risk_district_hull$roll3 %>% 
-    filter(year(date)%in% c(2000:2022)) %>% 
-    filter(year(date)!=2021) %>% 
-    split(.$governorate_name) %>% 
-    imap_dfr(\(df_temp,nm){
-        # cat(nm,"/n")
-        return_period_level_tibble(df =df_temp,
-                                   date = "date",
-                                   value = "mean",
-                                   rp_year = c(2,3,4,5) ) %>% 
-            mutate(governorate_name = nm) 
-    }
-    )
+# we already calculate CHIRPS historical RPs for 1988-2022
+# but let's filter it first in the same manner as CHIRPS-GEFS so we can
+# better compare the 2
 
-old_chirps_2000_2022_rp <- zonal_stats_high_risk_hull$roll3 %>% 
-    filter(year(date)%in% c(2000:2022)) %>% 
-    filter(year(date)!=2021) %>% 
-    split(.$governorate_name) %>% 
-    imap_dfr(\(df_temp,nm){
-        # cat(nm,"/n")
-        return_period_level_tibble(df =df_temp,
-                                   date = "date",
-                                   value = "mean",
-                                   rp_year = c(2,3,4,5) ) %>% 
-            mutate(governorate_name = nm) 
-    }
-    )
+# get chirps RP for each area (using new AOI)
+new_chirps_2000_2022_rp <- zonal_stats_high_risk_district_hull$roll3 %>%
+  filter(year(date) %in% c(2000:2022)) %>%
+  filter(year(date) != 2021) %>%
+  split(.$governorate_name) %>%
+  imap_dfr(\(df_temp, nm){
+    # cat(nm,"/n")
+    return_period_level_tibble(
+      df = df_temp,
+      date = "date",
+      value = "mean",
+      rp_year = c(2, 3, 4, 5)
+    ) %>%
+      mutate(governorate_name = nm)
+  })
+
+# same as above using old AOI
+old_chirps_2000_2022_rp <- zonal_stats_high_risk_hull$roll3 %>%
+  filter(year(date) %in% c(2000:2022)) %>%
+  filter(year(date) != 2021) %>%
+  split(.$governorate_name) %>%
+  imap_dfr(\(df_temp, nm){
+    # cat(nm,"/n")
+    return_period_level_tibble(
+      df = df_temp,
+      date = "date",
+      value = "mean",
+      rp_year = c(2, 3, 4, 5)
+    ) %>%
+      mutate(governorate_name = nm)
+  })
 ```
 
 
 ```{r, results="asis"}
+# table of new AOI  - title gives more info
 # filter to just 2 year return period
-new_chirps_2000_2022_rp %>% 
-    filter(RP==2) %>% 
-     gt() %>%
-    fmt_number(columns =everything(),
-               decimals = 1) %>% 
-    fmt_number(columns =RP,
-               decimals = 0) %>% 
-     tab_header(title = "2 year RP level CHIRPS (2000-2022) by governorate",
-               subtitle ="All high risk sites in Abs (Hajjah) and Ma'rib/Ma'rib City (Ma'rib)" ) %>% 
-    opt_align_table_header(align = c("left", "center", "right")) 
+new_chirps_2000_2022_rp %>%
+  filter(RP == 2) %>%
+  gt() %>%
+  fmt_number(
+    columns = everything(),
+    decimals = 1
+  ) %>%
+  fmt_number(
+    columns = RP,
+    decimals = 0
+  ) %>%
+  tab_header(
+    title = "2 year RP level CHIRPS (2000-2022) by governorate",
+    subtitle = "All high risk sites in Abs (Hajjah) and Ma'rib/Ma'rib City (Ma'rib)"
+  ) %>%
+  opt_align_table_header(align = c("left", "center", "right"))
 ```
 
 
 ```{r,results="asis"}
-old_chirps_2000_2022_rp %>% 
-    filter(RP==2) %>% 
-     gt() %>%
-    fmt_number(columns =everything(),
-               decimals = 1) %>% 
-    fmt_number(columns =RP,
-               decimals = 0) %>% 
-     tab_header(title = "2 year RP level CHIRPS (2000-2022) by governorate",
-               subtitle ="All high risk sites in Hajjah & Ma'rib governorates" ) %>% 
-    opt_align_table_header(align = c("left", "center", "right"))
+# table of old AOI  - title gives more info
+old_chirps_2000_2022_rp %>%
+  filter(RP == 2) %>%
+  gt() %>%
+  fmt_number(
+    columns = everything(),
+    decimals = 1
+  ) %>%
+  fmt_number(
+    columns = RP,
+    decimals = 0
+  ) %>%
+  tab_header(
+    title = "2 year RP level CHIRPS (2000-2022) by governorate",
+    subtitle = "All high risk sites in Hajjah & Ma'rib governorates"
+  ) %>%
+  opt_align_table_header(align = c("left", "center", "right"))
 ```
 
+Based on the table below we can arrive at new thresholds. Take the rounded lower value between the old and new AOI:
+- Hajjah: 24
+- Ma'rib: 20
+
 ```{r, results="asis"}
-old_gefs_mean_rp <- old_gefs_rps %>% 
-    filter(
-        RP==2,
-        leadtime %in% c(3:7)
-    ) %>% 
-    group_by(governorate_name) %>% 
-    summarise(
-        `previous 2 year RP` = mean(estimate)
-    )
-new_gefs_mean_rp <- new_gefs_rps %>% 
-    filter(
-        RP==2,
-        leadtime %in% c(3:7)
-    ) %>% 
-    group_by(governorate_name) %>% 
-    summarise(
-        `new 2 year RP` = mean(estimate)
-    )
+# calc mean RP 2 for LT 3-7. This is the activation window
 
+# for old AOI
+old_gefs_mean_rp <- old_gefs_rps %>%
+  filter(
+    RP == 2,
+    leadtime %in% c(3:7)
+  ) %>%
+  group_by(governorate_name) %>%
+  summarise(
+    `previous 2 year RP` = mean(estimate)
+  )
 
-left_join(old_gefs_mean_rp,new_gefs_mean_rp) %>% 
-    gt() %>%
-    fmt_number(columns =everything(),
-               decimals = 1) %>% 
-     tab_header(title = "2 year RP level CHIRPS-GEFS (2000-2022) by governorate",
-               subtitle ="Old method (all gov) vs new method (3 districts)" ) %>% 
-    opt_align_table_header(align = c("left", "center", "right"))
+# same but for new AOI
+new_gefs_mean_rp <- new_gefs_rps %>%
+  filter(
+    RP == 2,
+    leadtime %in% c(3:7)
+  ) %>%
+  group_by(governorate_name) %>%
+  summarise(
+    `new 2 year RP` = mean(estimate)
+  )
 
-
+# tab_header title explains it all
+left_join(old_gefs_mean_rp, new_gefs_mean_rp) %>%
+  gt() %>%
+  fmt_number(
+    columns = everything(),
+    decimals = 1
+  ) %>%
+  tab_header(
+    title = "2 year RP level CHIRPS-GEFS (2000-2022) by governorate",
+    subtitle = "Old method (all gov) vs new method (3 districts)"
+  ) %>%
+  opt_align_table_header(align = c("left", "center", "right"))
 ```
 
 ## Note - Targets Added
