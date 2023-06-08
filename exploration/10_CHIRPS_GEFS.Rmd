@@ -114,6 +114,32 @@ gefs_rps %>%
         legend.position = "none"
     )
 ```
+Previously were using CHIRPS 1981-2022 for RP calcs.
+
+Below we calculate chirps-gefs RP 2 for all available data (2000-2022) and compare that to chirps RP=2 2000-2022
+```{r}
+gefs_mean_rp <- gefs_rps %>% 
+    filter(
+        RP==2,
+        leadtime %in% c(3:7)
+    ) %>% 
+    group_by(governorate_name) %>% 
+    summarise(
+        estimate_gefs = mean(estimate)
+    )
+
+chirps_2000_2022_rp %>% 
+    filter(RP==2) %>% 
+    rename(
+        estimate_chirps=estimate
+    ) %>% 
+    left_join(gefs_mean_rp) %>% 
+    mutate(
+        diff_estimate = estimate_gefs-estimate_chirps
+    ) %>% 
+    select(governorate_name,RP,estimate_chirps,estimate_gefs,diff_estimate)
+
+```
 
 ## ECMWF HRES & ERA5
 
