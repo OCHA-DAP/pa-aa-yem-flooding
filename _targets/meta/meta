@@ -1,5 +1,5 @@
 name|type|data|command|depend|seed|path|time|size|bytes|format|repository|iteration|parent|children|seconds|warnings|error
-.Random.seed|object|6d21d3d201e9ab6d|||||||||||||||
+.Random.seed|object|bbc7d88e19222537|||||||||||||||
 adm_sf|stem|d814208e77634ebe|c0460a3bc14ebd57|5b6883bff12d4128|421735004||t19419.4297679868s|6e36be5798e8a713|6111599|rds|local|vector|||0.124||
 alos_landform_lookup|object|b415a69efa003277|||||||||||||||
 calc_rolling_precip_sites|function|6dc98d60d6e9b310|||||||||||||||
@@ -79,17 +79,17 @@ load_chirps_stack|function|0d31bedb251fb033|||||||||||||||
 load_era_daily|function|68ac4fc281d63bd0|||||||||||||||
 load_libs|function|4736315e0520e270|||||||||||||||
 load_local_chirps_stack|function|ee0164b33b558e5a|||||||||||||||
-map_pt_clusters|function|1c13936caf21e309|||||||||||||||
-marib_hajjah_cccm_flood_clustered5|stem|0c9bdce0805f2baa|73788730d9c0d5ed|6d8e5c8b6814a5d0|-666214043||t19444.2444939274s|5370937367901b9d|3008|rds|local|vector|||0.048||
+map_pt_clusters|function|029d6a2c09e45ae0|||||||||||||||
+marib_hajjah_cccm_flood_clustered5|stem|0c9bdce0805f2baa|73788730d9c0d5ed|008e861c68403711|-666214043||t19517.3515129742s|5370937367901b9d|3008|rds|local|vector|||0.064||
 max_rainfall_around_event|function|912cfbea4ecf3e32|||||||||||||||
 merge_rainfall_cccm_impact|function|aea81a2af065dea6|||||||||||||||
 new_CRAN_pkgs|object|ef46db3751d8e999|||||||||||||||
 p_all_sites_events_pred_classifications|stem|34d1cbc9af50d854|387e3ba4a0bc88a3|010379b69ded3529|107147207||t19453.4628139878s|c7b7f091c02aa86c|17031257|rds|local|vector|||10.165||
 p_chirps_vs_gefs|stem|8be2e42c2a680f16|cbca66bc6e14f6e9|8a2bf9701fad908c|1979427439||t19437.392393734s|e29e9c77c4607094|138956875|rds|local|vector|||1.242||
-p_rainfall_rp_impact_num_events_agg|stem|7aad85d5bb6323e6|0fe0c712faf1c07b|251867e6455224b4|206098888||t19453.9811752577s|802188dade1c927d|147274|rds|local|vector|||5.185||
-p_rainfall_rp_impact_num_shelters|stem|ff436d4b5c723ef2|20b7d41cbe686242|251867e6455224b4|-761662229||t19453.9812372841s|5d8fb2445fb55ec6|167523|rds|local|vector|||5.338|1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.|
-p_rainfall_rp_impact_num_shelters_agg|stem|b46f34f7ff43efe6|ad4caf77488339a6|251867e6455224b4|22041185||t19453.9812993881s|30482928fba9d0bf|149149|rds|local|vector|||5.347||
-p_rainfall_rp_impact_num_shelters_agg_wind_rm|stem|c69e05369733a5d7|4f893d35576e7266|bd8e5f73672eb7e8|-1506752145||t19453.9811149946s|6c62ddff97e0e1e3|148503|rds|local|vector|||5.746|1m22mThere was 1 warning in summarise.1m22m36mℹ39m In argument acrosscvalue, max.x, na.rm  T.Caused by warning1m22m33m39m Using an external vector in selections was deprecated in tidyselect 1.1.0.36mℹ39m Please use all_of or any_of instead.   Was  data  selectvalue   Now  data  selectall_ofvalueSee httpstidyselect.rlib.orgreferencefaqexternalvector.html.|
+p_rainfall_rp_impact_num_events_agg|stem|76221e2d01f522f5|0fe0c712faf1c07b|47f07e44b9a1ac59|206098888||t19517.3741979369s|731f5fc229966cac|147810|rds|local|vector|||5.356|There was 1 warning in summarise.ℹ In argument acrosscvalue, max.x, na.rm  T.Caused by warning Using an external vector in selections was deprecated in tidyselect 1.1.0.ℹ Please use all_of or any_of instead.   Was  data  selectvalue   Now  data  selectall_ofvalueSee httpstidyselect.rlib.orgreferencefaqexternalvector.html.|
+p_rainfall_rp_impact_num_shelters|stem|91131e07062a0fb5|20b7d41cbe686242|47f07e44b9a1ac59|-761662229||t19517.3743235159s|f151864e9cfd2f88|168137|rds|local|vector|||5.274|Removed 2 rows containing missing values geom_interactive_point.. Removed 2 rows containing missing values geom_interactive_point.. Removed 2 rows containing missing values geom_interactive_point.. Removed 2 rows containing missing values geom_interactive_point.. Removed 2 rows containing missing values geom_interactive_point.. Removed 2 rows containing missing values geom_interactive_point.. Removed 2 rows containing missing values geom_interactive_point.. Removed 2 rows containing missing values geom_interactive_point.|
+p_rainfall_rp_impact_num_shelters_agg|stem|92b25c36a32c90b1|ad4caf77488339a6|47f07e44b9a1ac59|22041185||t19517.3742622128s|1c77c27b66b91588|149010|rds|local|vector|||5.535||
+p_rainfall_rp_impact_num_shelters_agg_wind_rm|stem|71baaa0906efd3f8|4f893d35576e7266|4e5b1eefcd82a5b5|-1506752145||t19517.374387341s|c49b3778365a4fda|148285|rds|local|vector|||5.496||
 p_timeseries_rainfall|stem|49673e83782d72af|7af4bd6188ea6799|f3caee9b48a607c2|-1202216321||t19437.3936297921s|937cf6bd1db4b568|198691898|rds|local|vector|||45.892||
 performance_frequencies_by_threshold|function|0b75450e2d26683d|||||||||||||||
 plot_chirps_gefs_comparison|function|7024a6e9a2a722df|||||||||||||||
@@ -98,7 +98,7 @@ plot_impact_by_threshold|function|73832024f37351a3|||||||||||||||
 plot_performance_all_sites|function|414e4bdc051ebac7|||||||||||||||
 plot_performance_metrics|function|400722ee5953c745|||||||||||||||
 plot_rainfall_impact_timeseries|function|f539e2f5c3f59c4b|||||||||||||||
-plot_rainfall_rps_impact|function|90368f9246256f5a|||||||||||||||
+plot_rainfall_rps_impact|function|4e43fb7daf6985a2|||||||||||||||
 plot_site_events|function|69dbd9ff5c66102e|||||||||||||||
 plot_site_events_classified|function|27230f861bf58a05|||||||||||||||
 rainfall_impact_tbl|stem|ec00eba36c3f1b1a|44e1f091973e77bb|800c04892472fc47|-2108465742||t19437.3642524367s|601a0e2be6153ecc|1985841|rds|local|vector|||0.494||
@@ -112,7 +112,7 @@ return_period_levels|stem|47f6faac690438b2|1c7a2adab0dcf23a|58052558c4e18c24|-10
 roll_wrapped|function|28b1d056f490ccb0|||||||||||||||
 rollingsum_chirps_to_sites|function|bfd6c3d058177fdf|||||||||||||||
 site_level_performance|function|d673fb1536a5224a|||||||||||||||
-spatial_pt_clusters|function|6df8eb5d784bb505|||||||||||||||
+spatial_pt_clusters|function|ab3cd0ef7e847322|||||||||||||||
 split_hres_by_leadtimes|function|44bc9b43d22b32e3|||||||||||||||
 srtm_landform_lookup|object|b415a69efa003277|||||||||||||||
 stat_to_reducer|function|36647cda95b11d72|||||||||||||||
@@ -121,7 +121,7 @@ subset_era5_hourly_to_daily|function|a3a4d0a08f34a0d5|||||||||||||||
 summarise_rainfall_impact_to_gov|function|47524da3470f3328|||||||||||||||
 switch_boolean|function|711877424cbfa3e4|||||||||||||||
 tbl_performance_area_clustered5_b7f7|stem|606ba209292d14d7|af81f0a3fe876674|0ea1c6ac5c8f33b3|-1112629018||t19446.7194797789s|df446457e9875fd5|4394|rds|local|vector|||53.894||
-tbl_performance_area_clustered5_b7f7_wind_rm|stem|ff1abd4819834f4e|8e6ad88842655e12|af3402a576b2bf7b|1643122249||t19450.1885006637s|a3cc22060fb1a10f|4373|rds|local|vector|||50.451||
+tbl_performance_area_clustered5_b7f7_wind_rm|stem|ff1abd4819834f4e|fef3d4eb3edc5b95|000238c012dd1a46|1643122249||t19517.3750196588s|a3cc22060fb1a10f|4373|rds|local|vector|||54.622||
 tbl_performance_area_marib_hajjah|stem|46ed0878aff97a30|650cb650d3895281|6abe882f095baac9|635551685||t19446.7232162703s|65e151d8ed55e831|48889|rds|local|vector|||0.497||
 tbl_performance_gov_area_level|stem|e5a8f2e23fe7018b|6efed91c6e8e6c87|c9806a4d965ab708|-1652714346||t19446.7231814529s|0f532ef5852f63e7|34335|rds|local|vector|||319.792||
 tbl_performance_overall|stem|4a29f5171b810b6d|7198b9fbd6ceaf73|c2a19dc197dd591b|-875938684||t19446.7231940373s|7da544d15fc2db6b|73983|rds|local|vector|||1.062||

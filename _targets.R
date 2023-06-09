@@ -735,9 +735,10 @@ list(
                     impact = marib_hajjah_cccm_flood_clustered5 %>% 
                         filter(
                             # this whole cluster appears to be wind damage rather than rainfall
-                            cluster !="Hajjah_2",
+                            !(governorate_name=="Hajjah" & date %in% as_date(c("2022-06-16","2022-06-17"))),
+                            # cluster !="Hajjah_2",
                             # confirmed that this particular event was wind rather than rainfall
-                            !(site_id =="YE2613_1961"  & date =="2022-04-30")
+                            !(site_id =="YE2613_1961"  & date ==as_date("2022-04-30"))
                         ),
                     rainfall = zonal_stats_high_risk_hull,
                     precip_regime = nm_tbl,

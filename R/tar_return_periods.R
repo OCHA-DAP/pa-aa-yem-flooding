@@ -86,6 +86,7 @@ plot_rainfall_rps_impact <- function(impact_data = cccm_flood_impact_data_w_coor
       .groups = "drop"
     ) %>%
     filter(governorate_name %in% c("Marib", "Hajjah"))
+  
 
   pt_cluster_list <- spatial_pt_clusters(
     df = impact_data_filtered,
@@ -104,13 +105,17 @@ plot_rainfall_rps_impact <- function(impact_data = cccm_flood_impact_data_w_coor
         st_drop_geometry()
       
       if(remove_wind){
+          
           pt_df <- pt_df %>% 
               filter(
+                  
                   # this whole cluster appears to be wind damage rather than rainfall
-                  cluster !="Hajjah_2",
+                  !(governorate_name=="Hajjah" & date %in% as_date(c("2022-06-16","2022-06-17"))),
+                  # cluster !="Hajjah_2",
                   # confirmed that this particular event was wind rather than rainfall
-                  !(site_id =="YE2613_1961"  & date =="2022-04-30")
+                  !(site_id =="YE2613_1961"  & date ==as_date("2022-04-30"))
               )
+          
       }
       
       pt_df$pt_labels <- paste0(

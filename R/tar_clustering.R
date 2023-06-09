@@ -132,6 +132,9 @@ spatial_pt_clusters <- function(df = df,
                                 event = "fevent",
                                 scale = F,
                                 k = k) {
+    # sample(x = 1:1e6,size = 1)
+    # adding seed because without clusters can be named differently which is confusing
+    set.seed(745262)
   split(df, df$governorate_name) %>%
     imap(\(df, nm){
       km <- kmeans_cluster_events(
