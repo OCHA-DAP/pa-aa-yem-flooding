@@ -95,6 +95,15 @@ high_risk_db_sp <- cccm_floodscore_df %>%
 # join to clean admin boundaries
 high_risk_db_sp <- high_risk_db_sp %>%
   st_join(adm2)
+
+
+# figs for technical note n=94 & n=56
+# high_risk_db_sp %>% 
+#     filter(governorate_name %in% c("Marib","Hajjah"))
+#     filter(adm2_en %in% c("Ma'rib","Ma'rib City","Abs")) %>% 
+#     # nrow()
+#     count(adm2_en)
+    
 ```
  
 
@@ -152,11 +161,13 @@ district_hulls <- c("Abs", "Ma'rib") %>%
 -Let's compare the difference:  <span style="color: orange;">orange - from 3 districts</span>,<span style="color: green;">previous aoi </span>
 ```{r}
 leaflet() %>%
-  addTiles() %>%
-  addPolygons(data = adm_sf$yem_admbnda_adm1_govyem_cso_20191002, fill = NA, fillColor = NA) %>%
-  addPolygons(data = adm_sf$yem_admbnda_adm2_govyem_cso_20191002, color = "grey", fill = NA, fillColor = NA) %>%
-  addPolygons(data = district_hulls, color = "orange", fillColor = NA, fillOpacity = 0) %>%
-  addPolygons(data = high_risk_hulls, color = "green", fillColor = NA, fillOpacity = 0)
+    # addTiles() %>% 
+    addProviderTiles(provider = providers$Esri.WorldShadedRelief) %>% 
+    addPolygons(data = adm_sf$yem_admbnda_adm1_govyem_cso_20191002, fill = NA, fillColor = NA, color="black") %>%
+    # addPolygons(data = adm_sf$yem_admbnda_adm2_govyem_cso_20191002, color = "grey", fill = NA, fillColor = NA) %>%
+    addPolygons(data = high_risk_hulls, color = "green", fillColor = NA, fillOpacity = 0) %>% 
+    addPolygons(data = district_hulls, color = "orange", fillColor = "orange", fillOpacity = 1) 
+
 ```
 
 
