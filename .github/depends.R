@@ -5,6 +5,7 @@ install.packages(c("dplyr",
                    "ggplot2",
                    "readr",
                    "sf",
+                   "rvest", # webscraping
                    "terra", # raster manipulation
                    "exactextractr", # zonal stats
                    "tidyr", # pivot_wider

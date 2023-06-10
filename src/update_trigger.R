@@ -10,6 +10,7 @@ library(purrr)
 library(googledrive)
 library(blastula)
 source("R/load_chirps_gefs.R")
+source("R/chirps_gefs_scraper.R")
 
 # authorize drive access
 drive_auth(
@@ -81,9 +82,9 @@ if(!is.null(gefs_processed)){
     receps_drive <- drive_get(id = "10PkgaVJZhJIjoOd_31P55UWcRcZzS0Zo")
     drive_download(receps_drive, path = f <- tempfile(fileext = ".csv"))
     df_recipients <- read_csv(f) %>% 
-        # mutate(
-        #     to = ifelse(str_detect(email_address,"zac"),T,F)
-        # ) %>% 
+        mutate(
+            to = ifelse(str_detect(email_address,"zac"),T,F)
+        ) %>%
         filter(to)
     
     render_email(
