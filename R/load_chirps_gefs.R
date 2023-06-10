@@ -175,7 +175,7 @@ conditionally_load_latest_chirps_gefs <- function(
     }
     if(!cond_already_downloaded){
         r_cropped_list <- meta_tbl$url %>%
-            map2(meta_tbl$drive_fname, \(url, lyr_name){
+            map2(meta_tbl$fname_bare, \(url, lyr_name){
                 cat("downloading ", lyr_name, " to memory\n")
                 r <- rast(url)
                 cat("cropping ", lyr_name, " to mask\n")
@@ -183,7 +183,7 @@ conditionally_load_latest_chirps_gefs <- function(
                 terra::set.names(r_cropped, lyr_name)
                 return(r_cropped)
             })
-        temp_r_paths <- file.path(tempdir(), gdrive_file_name)
+        temp_r_paths <- file.path(tempdir(), meta_tbl$drive_fname)
         if (write_outputs) {
             r_cropped_list %>%
                 map2(temp_r_paths, \(r, fname){
@@ -191,7 +191,7 @@ conditionally_load_latest_chirps_gefs <- function(
                     writeRaster(x = r, filename = fname, overwrite = T)
                 })
             temp_r_paths %>%
-                map2(gdrive_file_name, \(temp_path, fname){
+                map2(meta_tbl$drive_fname, \(temp_path, fname){
                     cat("Uploading ", fname, " to GDRIVE")
                     drive_upload(
                         media = temp_path,
@@ -223,7 +223,7 @@ conditionally_load_latest_chirps_gefs <- function(
             )
         
         temp_csv_name <- paste0(
-            format(run_date, "%y%m%d"),
+            format(as_date(unique(meta_tbl$forecast_made)),"%y%m%d"),
             "_chirps_gefs_zonal.csv"
         )
         temp_csv_file <- file.path(tempdir(), temp_csv_name)

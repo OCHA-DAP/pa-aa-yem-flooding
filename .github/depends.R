@@ -6,6 +6,7 @@ install.packages(c("dplyr",
                    "readr",
                    "sf",
                    "rvest", # webscraping
+                   "janitor", # data cleaning - used in scraper
                    "terra", # raster manipulation
                    "exactextractr", # zonal stats
                    "tidyr", # pivot_wider

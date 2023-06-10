@@ -34,7 +34,9 @@ latest_gefs_metadata<- function(
     return(
         dl_tbl %>% 
             mutate(
-                drive_fname=fnames
+                fname_bare= paste0(formatted_date[1],".",1:length(formatted_date)),
+                drive_fname=fnames,
+                forecast_made= formatted_date[1]
             )
     )
 }
@@ -74,29 +76,3 @@ latest_gefs_url <- function(url){
         filter(last_modified==max(last_modified)) %>% 
         pull(url)
 }
-
-
-
-
-
-
-
-
-
-
-
-year_latest_url <- html_table(read_html(year_latest_url))[[1]] %>% 
-    clean_names() %>% 
-    filter(last_modified!="") %>% 
-    mutate(
-        last_modified = ymd_hm(last_modified),
-        url= glue("{base_url}{name}")
-    ) %>% 
-    filter(last_modified == max(last_modified)) %>% 
-    pull(url)
-
-
-html_table(ck)
-
-forecast_dir_url <- format(run_date, "%Y/%m/%d")
-url_dir <- paste0(base_url, forecast_dir_url)

@@ -57,8 +57,6 @@ add_image(
 )
 ```
 
-
-
 ```{r}
 chirps_gefs_processed <- chirps_gefs_zonal %>%
   mutate(

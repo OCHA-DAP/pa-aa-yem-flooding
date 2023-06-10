@@ -52,14 +52,15 @@ date_to_run <- Sys.Date()-1 #temp chg to get data from yesterday
 
 gefs_processed_time <- system.time(gefs_processed <- conditionally_load_latest_chirps_gefs(
         leadtime = 1:10,
-        mask = roi,
+        mask = aoi,
         write_outputs = T,
         gdrive_dribble=drive_dribble,
         raster_drive=r_drib,
         zonal_drive=zonal_stats_drib
 )
 )
-
+meta_tbl <- latest_gefs_metadata()
+dt_made<- unique(meta_tbl$forecast_made)
 
 if(!is.null(gefs_processed)){
     chirps_gefs_zonal <- gefs_processed$zonal_means
@@ -82,9 +83,9 @@ if(!is.null(gefs_processed)){
     receps_drive <- drive_get(id = "10PkgaVJZhJIjoOd_31P55UWcRcZzS0Zo")
     drive_download(receps_drive, path = f <- tempfile(fileext = ".csv"))
     df_recipients <- read_csv(f) %>% 
-        mutate(
-            to = ifelse(str_detect(email_address,"zac"),T,F)
-        ) %>%
+        # mutate(
+        #     to = ifelse(str_detect(email_address,"zac"),T,F)
+        # ) %>%
         filter(to)
     
     render_email(
@@ -99,7 +100,7 @@ if(!is.null(gefs_processed)){
             to = df_recipients$email_address,
             # bcc = filter(df_recipients, !to)$email,
             from = "data.science@humdata.org",
-            subject = paste0("Email Test: Yemen AA Rainfall Forecast Monitoring (", date_to_run, ")"),
+            subject = paste0("Email Test: Yemen AA Rainfall Forecast Monitoring (", dt_made, ")"),
             credentials = email_creds
         )
 }
