@@ -10,6 +10,7 @@ library(purrr)
 library(googledrive)
 library(blastula)
 source("R/load_chirps_gefs.R")
+source("R/chirps_gefs_scraper.R")
 
 # authorize drive access
 drive_auth(
