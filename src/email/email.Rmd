@@ -127,7 +127,7 @@ desc_txt <- str_trim(glue_collapse(c(pre_txt, where_txt, spec_txt), sep = " "))
 
 # Yemen Rainfall Forecast Monitoring
 
-## Anticipatory Action Flooding Trigger Status - `r format(date_to_run,"%d %B %Y")`
+## Anticipatory Action Flooding Trigger Status - `r dt_made_chr`
 
 The AA Flooding Trigger for Yemen `r desc_txt`.
 

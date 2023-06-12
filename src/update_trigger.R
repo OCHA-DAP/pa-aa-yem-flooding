@@ -61,6 +61,9 @@ gefs_processed_time <- system.time(gefs_processed <- conditionally_load_latest_c
 )
 meta_tbl <- latest_gefs_metadata()
 dt_made<- unique(meta_tbl$forecast_made)
+dt_made_chr <- gsub(" 0", " ", format(as_date(dt_made), " - %d %B %Y"))
+
+
 
 if(!is.null(gefs_processed)){
     chirps_gefs_zonal <- gefs_processed$zonal_means
@@ -100,7 +103,7 @@ if(!is.null(gefs_processed)){
             to = df_recipients$email_address,
             # bcc = filter(df_recipients, !to)$email,
             from = "data.science@humdata.org",
-            subject = paste0("Email Test: Yemen AA Rainfall Forecast Monitoring (", dt_made, ")"),
+            subject = paste0("Email Test: Yemen AA Rainfall Forecast Monitoring", dt_made_chr),
             credentials = email_creds
         )
 }
