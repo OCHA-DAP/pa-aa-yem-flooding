@@ -180,7 +180,7 @@ class ChirpsGefs(_DataSourceExtension):
     )
     _RUN_DATE_FORMAT = "%Y/%m/%d"
     _FORECAST_DATE_FORMAT = "%Y.%m%d"
-    _PROCESSED_FILENAME = "chirps-gefs_daily_high_risk_hulls.csv"
+    _PROCESSED_FILENAME = "chirps-gefs_daily_high_risk_hulls_lt0.csv"
 
     def __init__(
         self,
@@ -270,10 +270,10 @@ class ChirpsGefs(_DataSourceExtension):
         df_results_full = pd.DataFrame()
         for run_date in self._date_range:
             # Loop through all lead times
-            for leadtime in range(10):
+            for leadtime in range(11):
                 df_output = self._process_single_file(
                     run_date=run_date,
-                    leadtime=leadtime + 1,
+                    leadtime=leadtime,
                     high_risk_hulls=high_risk_hulls,
                     bounds_buffer=bounds_buffer,
                     resolution=resolution,
@@ -338,7 +338,7 @@ class ChirpsGefs(_DataSourceExtension):
                     pd.DataFrame(
                         {
                             "time": run_date,
-                            "leadtime": leadtime,
+                            "leadtime": leadtime + 1,
                             "value": da_hull.values,
                             "gov": row.gvrnrt_,
                         }
