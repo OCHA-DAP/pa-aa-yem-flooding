@@ -6,8 +6,8 @@ name: yem-trigger-monitoring
 on:
   workflow_dispatch:
   schedule:
-    - cron: '10 08 * * *' # chirps-gefs should be updated 8AM UTC, let's give an extra 10 min
-        
+    - cron: '10 8-23/3 * * *' # start at 8:10 AM run every 3 hours until midnight
+    - cron: '0 0,3,6 * * *'   # then run at midnight, 3 am, 6 am
 jobs:
   monitor:
     runs-on: ubuntu-latest

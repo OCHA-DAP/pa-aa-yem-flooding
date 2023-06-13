@@ -10,6 +10,7 @@ library(purrr)
 library(googledrive)
 library(blastula)
 source("R/load_chirps_gefs.R")
+source("R/chirps_gefs_scraper.R")
 
 # authorize drive access
 drive_auth(
@@ -48,55 +49,63 @@ aoi <- read_rds(f)
 # but raster tifs and zonal stats are also written to gdrive.
 
 date_to_run <- Sys.Date()-1 #temp chg to get data from yesterday
-gefs_process_time <- system.time(
-  gefs_processed <- load_chirps_gefs_cropped(
-    run_date = date_to_run,
-    leadtime = c(1:10),
-    mask = aoi,
-    write_outputs = T,
-    raster_drive = r_drib,
-    zonal_drive = zonal_stats_drib
-  )
+
+gefs_processed_time <- system.time(gefs_processed <- conditionally_load_latest_chirps_gefs(
+        leadtime = 1:10,
+        mask = aoi,
+        write_outputs = T,
+        gdrive_dribble=drive_dribble,
+        raster_drive=r_drib,
+        zonal_drive=zonal_stats_drib
 )
-
-
-chirps_gefs_zonal <- gefs_processed$zonal_means
-chirps_gefs_rstack <- gefs_processed$raster_stack
-
-# email:
-
-# Load in e-mail credentials
-email_creds <- creds_envvar(
-  user = Sys.getenv("CHD_DS_EMAIL_USERNAME"),
-  pass_envvar = "CHD_DS_EMAIL_PASSWORD",
-  host = Sys.getenv("CHD_DS_HOST"),
-  port = Sys.getenv("CHD_DS_PORT"),
-  use_ssl = TRUE
 )
+meta_tbl <- latest_gefs_metadata()
+dt_made<- unique(meta_tbl$forecast_made)
+dt_made_chr <- gsub(" 0", " ", format(as_date(dt_made), " - %d %B %Y"))
 
 
-# load in recipients
 
-receps_drive <- drive_get(id = "10PkgaVJZhJIjoOd_31P55UWcRcZzS0Zo")
-drive_download(receps_drive, path = f <- tempfile(fileext = ".csv"))
-df_recipients <- read_csv(f) %>% 
-    # mutate(
-    #     to = ifelse(str_detect(email_address,"zac"),T,F)
-    # ) %>% 
-    filter(to)
+if(!is.null(gefs_processed)){
+    chirps_gefs_zonal <- gefs_processed$zonal_means
+    chirps_gefs_rstack <- gefs_processed$raster_stack
+    
+    # email:
+    
+    # Load in e-mail credentials
+    email_creds <- creds_envvar(
+        user = Sys.getenv("CHD_DS_EMAIL_USERNAME"),
+        pass_envvar = "CHD_DS_EMAIL_PASSWORD",
+        host = Sys.getenv("CHD_DS_HOST"),
+        port = Sys.getenv("CHD_DS_PORT"),
+        use_ssl = TRUE
+    )
+    
+    
+    # load in recipients
+    
+    receps_drive <- drive_get(id = "10PkgaVJZhJIjoOd_31P55UWcRcZzS0Zo")
+    drive_download(receps_drive, path = f <- tempfile(fileext = ".csv"))
+    df_recipients <- read_csv(f) %>% 
+        # mutate(
+        #     to = ifelse(str_detect(email_address,"zac"),T,F)
+        # ) %>%
+        filter(to)
+    
+    render_email(
+        input = file.path(
+            "src",
+            "email",
+            "email.Rmd"
+        ),
+        envir = parent.frame()
+    ) %>%
+        smtp_send(
+            to = df_recipients$email_address,
+            # bcc = filter(df_recipients, !to)$email,
+            from = "data.science@humdata.org",
+            subject = paste0("Email Test: Yemen AA Rainfall Forecast Monitoring", dt_made_chr),
+            credentials = email_creds
+        )
+}
 
-render_email(
-  input = file.path(
-    "src",
-    "email",
-    "email.Rmd"
-  ),
-  envir = parent.frame()
-) %>%
-  smtp_send(
-    to = df_recipients$email_address,
-    # bcc = filter(df_recipients, !to)$email,
-    from = "data.science@humdata.org",
-    subject = paste0("Email Test: Yemen AA Rainfall Forecast Monitoring (", date_to_run, ")"),
-    credentials = email_creds
-  )
+
