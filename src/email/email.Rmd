@@ -39,7 +39,8 @@ gghdx()
 
 source(here::here("src/email/email_utils.R"))
 
-thresholds <- list(Hajjah = 19.8, Marib = 30.6)
+# adjusted thresholds based on chirp-gefs RP 2 mean(lt3:7) `10_CHIRPS_GEFS.Rmd`
+thresholds <- list(Hajjah = 23.8, Marib = 21.8)
 ```
 
 ```{r, class.output = "banner"}
@@ -128,18 +129,19 @@ desc_txt <- str_trim(glue_collapse(c(pre_txt, where_txt, spec_txt), sep = " "))
 
 # Yemen Rainfall Forecast Monitoring
 
-## Anticipatory Action Flooding Trigger Status - `r format(Sys.Date(),"%d %B %Y")`
+## Anticipatory Action Flooding Trigger Status - `r format(date_to_run,"%d %B %Y")`
 
 The AA Flooding Trigger for Yemen `r desc_txt`.
 
-The AA Flooding Trigger is based on 3-day cumulative rainfall thresholds for our Areas of Interest (AOI) within Marib and Hajjah governorates in Yemen. The selected thresholds are based on a 2-year return period event and differ for each of the two locations. In Hajjah and Marib the current thresholds are set to **19.8 mm** and **30.6 mm**, respectively.
+The AA Flooding Trigger is based on 3-day cumulative rainfall thresholds for our Areas of Interest (AOI) within Marib and Hajjah governorates in Yemen. The selected thresholds are based on a 2-year return period event and differ for each of the two locations. In Hajjah and Marib the current thresholds are set to **`r thresholds$Hajjah` mm** & **`r thresholds$Marib` mm**, respectively.
 
 ```{r makeplot}
+
 forecast_date <- min(chirps_gefs_processed$date_predict)
 
 trigger_lines <- data.frame(
   governorate_name = c("Hajjah", "Marib"),
-  threshold = c(19.8, 30.6),
+  threshold = c(thresholds$Hajjah, thresholds$Marib),
   label_place_x = forecast_date + 1
 )
 
