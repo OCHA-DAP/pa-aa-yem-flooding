@@ -1,5 +1,5 @@
 name|type|data|command|depend|seed|path|time|size|bytes|format|repository|iteration|parent|children|seconds|warnings|error
-.Random.seed|object|6d21d3d201e9ab6d|||||||||||||||
+.Random.seed|object|6699ac3fef896d39|||||||||||||||
 adm_sf|stem|d814208e77634ebe|c0460a3bc14ebd57|5b6883bff12d4128|421735004||t19419.4297679868s|6e36be5798e8a713|6111599|rds|local|vector|||0.124||
 alos_landform_lookup|object|b415a69efa003277|||||||||||||||
 calc_rolling_precip_sites|function|6dc98d60d6e9b310|||||||||||||||
@@ -51,6 +51,7 @@ era5_w_rolling|stem|7df15b4f6255bd5c|c26b014c3c18254c|3e03fc2c1b188f93|-10784272
 extract_chirps_gefs_to_pts|function|e2c85544fa820048|||||||||||||||
 extract_geomorph_landform_indicators|function|9d126d52d72f9a50|||||||||||||||
 extract_local_era5_daily|function|bc85ff0bd68214b2|||||||||||||||
+extract_sites_w_coords_by_floodscore|function|45ac27ee23285fb1|||||||||||||||
 extract_zonal_stats_chirps|function|0f26d8727ed30d84|||||||||||||||
 find_priority_sites|function|49851487dce4a587|||||||||||||||
 floodscore_pct_by|function|340a4e306055af36|||||||||||||||
@@ -59,7 +60,10 @@ fp|object|4a7ab7b08bc8ec72|||||||||||||||
 full_fps|object|b22fee75686dc7ee|||||||||||||||
 gefs_chirps_pts|stem|a3c435060ecf2d37|cfc6fc6e9e406ca9|903cba94252d740e|-2136007265||t19432.6313383938s|5fe48bd15ef55991|28122835|rds|local|vector|||1569.345||
 gefs_zonal|stem|1ae430658d9f2b00|6f86711ae1fec10f|9c9cc2724a827a0f|826726609||t19502.4607756727s|78c5f1913b6ee833|1003534|rds|local|vector|||151.029||
+gefs_zonal_districts|stem|6f6ef42d85aa9b4b|02ff596541c7a27e|95d86426b23e5d83|-1619854734||t19515.3919277187s|d22b4d55b54333a5|931950|rds|local|vector|||143.398||
+gefs_zonal_districts_rolled|stem|d1e2187e52309a50|5150e1f50e05eacc|4fb48431e7367aa5|-465103781||t19515.3920056071s|20472c31f6490a13|2214258|rds|local|vector|||5.942||
 gefs_zonal_rolled|stem|89d655a0bb9feef2|87d0456656ba967b|157ae9bf29d1484e|267066578||t19502.4667927322s|eccd7e0e270b59d9|2447124|rds|local|vector|||5.454||
+gen_district_hulls|function|9d21ed94f3bd2d7e|||||||||||||||
 get_exclusion_dates|function|45a3b260a438632c|||||||||||||||
 get_geomorph_landform_indicators|function|49ab978139f5caf6|||||||||||||||
 get_local_era5_daily_precip|function|a3a4d0a08f34a0d5|||||||||||||||
@@ -69,12 +73,15 @@ grp_data_by|function|824fd4a15a465b3a|||||||||||||||
 have_gghdx|object|909013909b1f03d4|||||||||||||||
 high_priority_sites|stem|f89765913b4ebe03|9b197453f0b431da|d5de6373782115cc|-820784353||t19415.3399868541s|784af77b44a4c901|2662|rds|local|vector|||0.04||
 high_risk_convex_hulls|function|0b3ee529fefd2172|||||||||||||||
+high_risk_district_hulls|stem|1b4169308c740e0f|b304946c6eb46dea|aeb0960a7810fb07|-1295713362||t19515.3593556389s|d381f13b7f0864fd|1077|rds|local|vector|||0.219||
 high_risk_flood_stats_by_cod|stem|d860c6251bb0aae3|2169e3fffbc5320b|6b84e189b78a8f2b|1141281475||t19431.7242034574s|20358d92a31e2a38|5684240|rds|local|vector|||0.145||
 high_risk_hulls|stem|63f1d28551f19345|5f8940a704bfd938|8468f14f979d565b|-251989231||t19437.4207779796s|6faa1491e5d149ae|1128|rds|local|vector|||0.091||
+high_risk_site_pts|stem|2231ffdc3701afff|468808ac44aa4eae|6f3ee03ae3692f43|404714022||t19515.3471289442s|9c94e40bf590a2bd|26175|rds|local|vector|||0.049||
 hres_rolled_per_date_gen|stem|6a66563b412025f4|5a644a633565050b|c97a039f03eec110|-1185540771||t19501.4784917868s|108fdf88b676e35e|1797358|rds|local|vector|||3.616||
 impact_by_thresh|function|70ff663725d9018f|||||||||||||||
 kmeans_cluster_events|function|c362c87bd6e11b03|||||||||||||||
 load_cccm_wb|function|b6e4997cc76ab131|||||||||||||||
+load_chirps_gefs_cropped|function|bf1fcfbf027e791c|||||||||||||||
 load_chirps_stack|function|0d31bedb251fb033|||||||||||||||
 load_era_daily|function|68ac4fc281d63bd0|||||||||||||||
 load_libs|function|4736315e0520e270|||||||||||||||
@@ -86,10 +93,10 @@ merge_rainfall_cccm_impact|function|aea81a2af065dea6|||||||||||||||
 new_CRAN_pkgs|object|ef46db3751d8e999|||||||||||||||
 p_all_sites_events_pred_classifications|stem|34d1cbc9af50d854|387e3ba4a0bc88a3|010379b69ded3529|107147207||t19453.4628139878s|c7b7f091c02aa86c|17031257|rds|local|vector|||10.165||
 p_chirps_vs_gefs|stem|8be2e42c2a680f16|cbca66bc6e14f6e9|8a2bf9701fad908c|1979427439||t19437.392393734s|e29e9c77c4607094|138956875|rds|local|vector|||1.242||
-p_rainfall_rp_impact_num_events_agg|stem|7aad85d5bb6323e6|0fe0c712faf1c07b|251867e6455224b4|206098888||t19453.9811752577s|802188dade1c927d|147274|rds|local|vector|||5.185||
-p_rainfall_rp_impact_num_shelters|stem|ff436d4b5c723ef2|20b7d41cbe686242|251867e6455224b4|-761662229||t19453.9812372841s|5d8fb2445fb55ec6|167523|rds|local|vector|||5.338|1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.|
-p_rainfall_rp_impact_num_shelters_agg|stem|b46f34f7ff43efe6|ad4caf77488339a6|251867e6455224b4|22041185||t19453.9812993881s|30482928fba9d0bf|149149|rds|local|vector|||5.347||
-p_rainfall_rp_impact_num_shelters_agg_wind_rm|stem|c69e05369733a5d7|4f893d35576e7266|bd8e5f73672eb7e8|-1506752145||t19453.9811149946s|6c62ddff97e0e1e3|148503|rds|local|vector|||5.746|1m22mThere was 1 warning in summarise.1m22m36mℹ39m In argument acrosscvalue, max.x, na.rm  T.Caused by warning1m22m33m39m Using an external vector in selections was deprecated in tidyselect 1.1.0.36mℹ39m Please use all_of or any_of instead.   Was  data  selectvalue   Now  data  selectall_ofvalueSee httpstidyselect.rlib.orgreferencefaqexternalvector.html.|
+p_rainfall_rp_impact_num_events_agg|stem|854eade928d7bbd6|0fe0c712faf1c07b|251867e6455224b4|206098888||t19515.3471972328s|03de9e10a54c56d0|147811|rds|local|vector|||5.748|1m22mThere was 1 warning in summarise.1m22m36mℹ39m In argument acrosscvalue, max.x, na.rm  T.Caused by warning1m22m33m39m Using an external vector in selections was deprecated in tidyselect 1.1.0.36mℹ39m Please use all_of or any_of instead.   Was  data  selectvalue   Now  data  selectall_ofvalueSee httpstidyselect.rlib.orgreferencefaqexternalvector.html.|
+p_rainfall_rp_impact_num_shelters|stem|71f43fb272dee3b9|20b7d41cbe686242|251867e6455224b4|-761662229||t19515.3473914796s|dbd56b3deb7b3f71|168124|rds|local|vector|||5.678|1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.. 1m22mRemoved 2 rows containing missing values geom_interactive_point.|
+p_rainfall_rp_impact_num_shelters_agg|stem|732ce9f1fe9a6ab5|ad4caf77488339a6|251867e6455224b4|22041185||t19515.347325511s|f9a9af0bf22132d0|149009|rds|local|vector|||4.982||
+p_rainfall_rp_impact_num_shelters_agg_wind_rm|stem|477e386934b0ae43|4f893d35576e7266|bd8e5f73672eb7e8|-1506752145||t19515.3472676039s|c932a6516fad837c|148315|rds|local|vector|||6.057||
 p_timeseries_rainfall|stem|49673e83782d72af|7af4bd6188ea6799|f3caee9b48a607c2|-1202216321||t19437.3936297921s|937cf6bd1db4b568|198691898|rds|local|vector|||45.892||
 performance_frequencies_by_threshold|function|0b75450e2d26683d|||||||||||||||
 plot_chirps_gefs_comparison|function|7024a6e9a2a722df|||||||||||||||
@@ -132,4 +139,5 @@ thresh_class_freq_b7f3|stem|b45a03d3a69c2612|ed84a39038c87996|f1de83237b8676ab|1
 thresh_class_freq_b7f7|stem|b45a03d3a69c2612|fb7141ee2ed2f6ff|f1de83237b8676ab|1577680602||t19446.7186957064s|de57be143dbe27e1|1079042|rds|local|vector|||12451.068||
 viz_cluster_classification|function|34ffb5430499d0da|||||||||||||||
 zonal_stats_chirps_gefs|function|27cbc43d11de3cd2|||||||||||||||
+zonal_stats_high_risk_district_hull|stem|ad35c57484402e52|087945392b5e9862|600b5303e99c9958|499655166||t19515.369883256s|7096391704b20422|1565353|rds|local|vector|||416.169|No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.|
 zonal_stats_high_risk_hull|stem|6f332681740b07b5|063f507f8244801a|e2f8bdc63b69960d|947145415||t19437.5648035839s|6c860fd714a66112|1834683|rds|local|vector|||438.951|No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.. No CRS specified for raster assuming it has the same CRS as the polygons.|

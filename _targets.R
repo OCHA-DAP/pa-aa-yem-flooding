@@ -258,7 +258,30 @@ list(
         name= cccm_site_chirp_stats,
         command = calc_rolling_precip_sites(df = cccm_site_chirps)
     ),
-    
+    # extract high risk sites w/ coords - code might be cleaner if this was done earlier and used for basis
+    # of `high_risk_hulls` but I don't want to re-run all targets so will keep this independent
+    tar_target(
+        name= high_risk_site_pts,
+        command = extract_sites_w_coords_by_floodscore(
+            master_site_list = cccm_wb,
+            floodscore_db = cccm_floodscore_df,
+            floodscore="High Hazard"
+            )
+    ),
+    # extract convex hulls for high risk sites only in districts of interest
+    tar_target(
+        name= high_risk_district_hulls,
+        command= gen_district_hulls(df_sf = high_risk_site_pts,
+                                    adm = adm_sf$yem_admbnda_adm2_govyem_cso_20191002,
+                                    district_list= list(Hajjah="Abs",Marib=c("Ma'rib","Ma'rib City"))
+                                    )
+    ),
+    tar_target(
+        name= zonal_stats_high_risk_district_hull,
+        command= extract_zonal_stats_chirps(raster_dir=chirps_dir,
+                                            zonal_boundary=high_risk_district_hulls,
+                                            roll_windows=c(3,5,10,15,20,25,30))
+    ),
     # we want to get historical Return Periods for sites -- so we are going to use the convex hulls for
     # for the zonal stats
     tar_target(
@@ -923,9 +946,42 @@ list(
                                           zonal_boundary = high_risk_hulls)
         
     ),
+    
+    # perform same zonal operation just on districts
+    tar_target(
+        name = gefs_zonal_districts,
+        command = zonal_stats_chirps_gefs(raster_dir = file.path(chirps_gefs_dir,"daily"),
+                                          zonal_boundary = high_risk_district_hulls)
+        
+    ),
     tar_target(
         name = gefs_zonal_rolled,
         command =gefs_zonal %>% 
+            rename(
+                band = "date"
+            ) %>% 
+            mutate(
+                leadtime = as.numeric(str_extract(band, "(?<=\\D)(\\d{2})(?=\\D*$)"))+1,
+                date_forecast_made = as_date(str_extract(band,"\\d{4}-\\d{2}-\\d{2}")),
+                date_forecast_predict=date_forecast_made+leadtime
+            ) %>% 
+            group_by(governorate_name,date_forecast_made) %>% 
+            arrange(date_forecast_predict) %>%
+            mutate(
+                roll3=  rollsum(mean, fill= NA, k=3, align ="right"),
+                roll5=  rollsum(mean, fill= NA, k=5, align ="right"),
+                roll10= rollsum(mean, fill= NA, k=10, align ="right")
+            ) %>% 
+            ungroup() %>% 
+            pivot_longer(cols = c("roll3","roll5","roll10",mean)) %>% 
+            mutate(
+                name = str_replace(name, "mean","precip_daily"),
+            )
+    ),
+    # same rolling operation just on districts of interest
+    tar_target(
+        name = gefs_zonal_districts_rolled,
+        command =gefs_zonal_districts %>% 
             rename(
                 band = "date"
             ) %>% 

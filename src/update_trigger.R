@@ -32,7 +32,7 @@ zonal_stats_drib <- drive_dribble %>%
 
 # where AOI file is (doesn't change)
 aoi_drib <- drive_dribble %>%
-  filter(name == "high_risk_hulls.rds")
+  filter(name == "high_risk_district_hulls.rds")
 
 # load AOI rds as sf class
 aoi_drive <- drive_get(id = aoi_drib$id)
@@ -47,7 +47,7 @@ aoi <- read_rds(f)
 # will use output object in memory for next processing steps
 # but raster tifs and zonal stats are also written to gdrive.
 
-date_to_run <- Sys.Date()
+date_to_run <- Sys.Date()-1 #temp chg to get data from yesterday
 gefs_process_time <- system.time(
   gefs_processed <- load_chirps_gefs_cropped(
     run_date = date_to_run,
