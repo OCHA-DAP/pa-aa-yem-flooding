@@ -141,3 +141,6 @@ app/*
 
 # creds
 *.json
+
+*.tif
+*.aux.xml

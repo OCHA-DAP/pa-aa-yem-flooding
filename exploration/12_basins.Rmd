@@ -1,0 +1,144 @@
+---
+title: "Hydrobasins AOI"
+output: 
+    bookdown::html_document2:
+        toc: true
+        toc_float: true
+        toc_depth: 4
+date: "2023-06-25"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  eval = TRUE,
+  results = "asis"
+)
+```
+
+## Intro
+
+After narrowing down the AOI to the convex hull of just the High Risk Sites in 3 districts we want to explore what it would look like to expand the AOI to:
+
+1. avoid edge effects - sites at the corners/edges of the polyons
+2. Incorporate some rainfall in the area surrounding the sitess
+
+**Take away:**
+
+- Basins look promising, but the sizes of **levels 7,8, 9** are not a perfect fit to not overly complicate the project at this phase.
+- Therefore a simple buffer seems like a good option
+
+
+
+```{r libsDat}
+library(rgee)
+library(targets)
+library(sf)
+library(leaflet)
+library(tidyverse)
+ee_Initialize()
+tar_load(adm_sf) # admin units (list of sf features)
+tar_load(high_risk_district_hulls)
+tar_load(high_risk_site_pts)
+
+
+
+
+
+aoi_site_points_dist <- high_risk_site_pts %>% 
+    st_join(
+        adm_sf$yem_admbnda_adm2_govyem_cso_20191002
+    ) %>% 
+    filter(adm2_en %in% c(
+            "Abs",
+            "Ma'rib",
+            "Ma'rib City"
+        )
+    )
+                        
+                    
+ee_bbox <- st_bbox(adm_sf$yem_admbnda_adm0_govyem_cso_20191002) %>% 
+    st_as_sfc() %>% 
+    sf_as_ee()
+ee_bbox <- st_bbox(high_risk_district_hulls) %>% 
+    st_as_sfc() %>% 
+    sf_as_ee()
+
+bas7<- ee$FeatureCollection("WWF/HydroATLAS/v1/Basins/level07")$
+    filterBounds(ee_bbox)
+bas8<- ee$FeatureCollection("WWF/HydroATLAS/v1/Basins/level08")$
+    filterBounds(ee_bbox)
+bas9<- ee$FeatureCollection("WWF/HydroATLAS/v1/Basins/level09")$
+    filterBounds(ee_bbox)
+riv <- ee$FeatureCollection("WWF/HydroSHEDS/v1/FreeFlowingRivers")$
+    filterBounds(ee_bbox)
+```
+
+## Basin Level 7
+
+Somewhat decent for Hajjah, but a bit hesitant about aggregating the coastal flat and downstream of the sites. Level 7 looks to big for Ma'rib. Also should consider removing that far east point.
+
+```{r}
+Map$centerObject(eeObject = ee_bbox,zoom = 8)
+
+m7 <- Map$addLayer(bas7,
+                  visParams = list(color="purple"),
+                  name = "Basin Level 7")+
+    Map$addLayer(riv, visParams = list(color="blue"),name ="Rivers")
+
+m7 %>% 
+    addPolygons(data=high_risk_district_hulls ,color = "red",fill = "red") %>% 
+    addPolygons(data=adm_sf$yem_admbnda_adm1_govyem_cso_20191002,color = "orange",fillOpacity = 0) %>% 
+    addPolygons(data=aoi_buff5k,color = "green",fillOpacity = 0) %>% 
+    addPolygons(data=aoi_buff10k,color = "darkgreen",fillOpacity = 0) %>% 
+    addMarkers(data= aoi_site_points_dist,label=~site_id)
+
+
+```
+
+## Basin Level 8
+
+A bit better for Ma'rib, still pretty large.
+
+```{r}
+Map$centerObject(eeObject = ee_bbox,zoom = 8)
+m8 <- Map$addLayer(bas8,
+                  visParams = list(color="purple"),
+                  name = "Basin level 8")+
+    Map$addLayer(riv, visParams = list(color="blue"),name ="Rivers")
+
+m8 %>% 
+    addPolygons(data=high_risk_district_hulls ,color = "red",fill = "red") %>% 
+    addPolygons(data=adm_sf$yem_admbnda_adm1_govyem_cso_20191002,color = "orange",fillOpacity = 0) %>% 
+    addMarkers(data= aoi_site_points_dist)
+```
+
+## Basin Level 9
+
+- **Ma'rib:** Could potentially remove the far east point, and aggregate the 2 basin 9 levels that the rest intersect with.
+- **Hajjah:** basins look a bit small and still extend to coast.
+
+```{r}
+Map$centerObject(eeObject = ee_bbox,zoom = 8)
+m9 <- Map$addLayer(bas9,visParams = list(color="purple"),name = "Basin Level 9")+
+    Map$addLayer(riv, visParams = list(color="blue"),name ="Rivers")
+
+m9 %>% 
+    addPolygons(data=high_risk_district_hulls ,color = "red",fill = "red") %>% 
+    addPolygons(data=adm_sf$yem_admbnda_adm1_govyem_cso_20191002,
+                color = "orange",
+                fillOpacity = 0) %>% 
+    addMarkers(data= aoi_site_points_dist)
+```
+
+## Buffer Option
+
+```{r}
+tar_load(high_risk_district_hulls_buff)
+m7 %>% 
+    addPolygons(data=high_risk_district_hulls ,color = "red",fill = "red") %>% 
+    addPolygons(data=adm_sf$yem_admbnda_adm1_govyem_cso_20191002,color = "orange",fillOpacity = 0) %>% 
+    addPolygons(data=high_risk_district_hulls_buff,color = "green",fillOpacity = 0) 
+```

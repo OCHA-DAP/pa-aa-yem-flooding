@@ -277,6 +277,20 @@ list(
                                     )
     ),
     tar_target(
+        name= high_risk_district_hulls_buff,
+        command= gen_district_hulls(df_sf = high_risk_site_pts %>% 
+                                        # this site is way out west - and has the wrong admin
+                                        # in the flood report db
+                                        filter(!site_id=="YE1806_1728"),
+                                    adm = adm_sf$yem_admbnda_adm2_govyem_cso_20191002,
+                                    district_list= list(Hajjah="Abs",Marib=c("Ma'rib","Ma'rib City"))
+                                    ) %>% 
+            # put a 5k buffer on it
+            st_transform(crs=2809) %>% # yem UTM zone
+            st_buffer(dist = 5000) %>% 
+            st_transform(crs=4326) # back to wgs84
+    ),
+    tar_target(
         name= zonal_stats_high_risk_district_hull,
         command= extract_zonal_stats_chirps(raster_dir=chirps_dir,
                                             zonal_boundary=high_risk_district_hulls,
