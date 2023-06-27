@@ -33,7 +33,7 @@ zonal_stats_drib <- drive_dribble %>%
 
 # where AOI file is (doesn't change)
 aoi_drib <- drive_dribble %>%
-  filter(name == "high_risk_district_hulls.rds")
+  filter(name == "high_risk_district_hulls_buff.rds")
 
 # load AOI rds as sf class
 aoi_drive <- drive_get(id = aoi_drib$id)

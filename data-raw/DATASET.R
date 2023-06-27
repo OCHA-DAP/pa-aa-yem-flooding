@@ -12,9 +12,7 @@ st_write(high_risk_flood_stats_by_cod$adm2,dsn = "../../qgis_projects/aa_yem_flo
 
 
 
-
-
-
+# 2. output for bias/correlation analysis in python
 gefs_csv_fp <- file.path(Sys.getenv("AA_DATA_DIR"),
                          "public",
                          "processed",
@@ -26,3 +24,16 @@ gefs_zonal_rolled %>%
     rename(precip_regime =name) %>% 
     filter(precip_regime=="roll3") %>% 
     write_csv(gefs_csv_fp)
+
+#3. Buffered AOI for realtime monitoring
+tar_load(high_risk_district_hulls_buff)
+aoi_fp <- file.path(
+    Sys.getenv("AA_DATA_DIR"),
+    "public",
+    "processed",
+    "yem",
+    "live_monitoring",
+    "inputs",
+    "high_risk_district_hulls_buff.rds"
+) 
+write_rds(x =high_risk_district_hulls_buff,file = aoi_fp )
