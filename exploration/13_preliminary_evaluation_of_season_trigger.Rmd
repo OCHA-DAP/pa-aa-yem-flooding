@@ -1,0 +1,457 @@
+---
+title: "Preliminary evaluation of season & Trigger"
+output: 
+    bookdown::html_document2:
+        toc: true
+        toc_float: true
+        toc_depth: 4
+date: "2023-06-25"
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  eval = TRUE,
+  results = "asis"
+)
+```
+
+
+# Intro
+
+```{r cars}
+library(targets)
+library(tidyverse)
+library(scales)
+library(janitor)
+library(gghdx)
+gghdx()
+tar_load(cccm_flood_impact_data) 
+tar_load(high_risk_site_pts)
+tar_load(zonal_stats_high_risk_district_hull)
+
+dir_yem_priv <-  file.path(
+    Sys.getenv("AA_DATA_DIR"),
+    "private",
+    "raw",
+    "yem"
+ 
+)
+
+df_cccm23 <- readxl::read_excel(
+    file.path(
+        dir_yem_priv,
+        "CCCM_YEMEN_–_INCEDENTS_REPORTING_TOOL_2023_Floodng.xlsx" 
+    )) %>% 
+    clean_names()
+
+```
+
+# Rainfall Data
+
+
+```{r}
+df_precip_3d_flaggedd <- zonal_stats_high_risk_district_hull$roll3 %>% 
+    split(.$governorate_name) %>% 
+    map2_dfr(
+        c(24,20), \(df_gov, thresh){
+            df_gov %>% 
+                mutate(
+                date= as_date(date),
+                flag= mean >=thresh
+            ) %>% 
+                group_by(governorate_name,mo=month(date,label=T)) %>% 
+                summarise(
+                    num_flag = sum(flag)
+                )
+        }
+    ) 
+
+df_precip_3d_flaggedd %>% 
+    ggplot(
+        aes(
+            x=mo,
+            y= num_flag,
+            fill= governorate_name
+                )
+    ) +
+    geom_bar(stat="identity",position="dodge")+
+    scale_y_continuous_hdx(breaks = seq(0,100,10))+
+    labs(
+        title= "Number of threshold crossing per month",
+        subtitle = "Yemen: CHIRPS (3 day sum) - 1981-2022 (thresholds = 24, 20 for Hajjah & Marib, repespectively)",
+        y= "Frequency"
+    )+
+    theme(
+        axis.title.x = element_blank(),
+           legend.title = element_blank()
+    )
+    
+```
+
+```{r}
+tar_load(gefs_zonal_districts_rolled)
+
+df_gefs_flagged <- gefs_zonal_districts_rolled %>% 
+    filter(name=="roll3",leadtime %in% 1:7) %>% 
+    arrange(governorate_name,date_forecast_made) %>% 
+    group_by(governorate_name,date_forecast_made) %>% 
+    summarise(
+        precip = max(value,na.rm=T),
+        .groups="drop"
+    ) %>% 
+    mutate(
+        precip_flag = case_when(
+            governorate_name == "Hajjah" & precip >= 24 ~ T,
+            governorate_name == "Marib" & precip >= 20 ~ T,
+            .default =F
+        )
+    ) 
+
+
+df_gefs_flagged_oct <- df_gefs_flagged %>% 
+    mutate(
+        mo = month(date_forecast_made,label=T)
+    ) %>% 
+    filter(precip_flag, mo=="Oct") %>% 
+    mutate(
+        label = format(date_forecast_made,"%Y")
+    )
+
+df_gefs_label <- df_gefs_flagged_oct %>% 
+    group_by(mo) %>%
+    summarise(
+        label = paste0(unique(label),collapse="\n")
+    )
+
+
+df_gefs_flagged %>% 
+    group_by(governorate_name, mo = month(date_forecast_made,label=T)) %>% 
+    summarise(
+        flagged_count = sum(precip_flag)
+    ) %>% 
+    ggplot(
+    )+
+    geom_bar(
+        aes(x=mo, y= flagged_count , fill=governorate_name),
+        stat="identity",
+        position="dodge"
+             )+
+    geom_segment(
+        data=df_gefs_label,aes(x = mo,
+                               y = 15,
+                               xend = mo, 
+                               yend = 4, 
+                               colour = "curve"),
+        color="grey"
+        )+
+    scale_y_continuous_hdx(breaks = seq(0,50,5))+
+    geom_text(
+        data= df_gefs_label,
+        aes(x=mo, y= 20,label=label))+
+       labs(
+        title= "CHIRPS-GEFS Forecast: Number of threshold crossing per month",
+        subtitle = "Yemen: 2000-2022 (thresholds = 24, 20 for Hajjah & Marib, repespectively)",
+        y= "Frequency",
+        caption = "# of times the maximum value in any 7 day leadtime reached the threshold"
+    )+
+    theme(
+        legend.title = element_blank(),plot.caption = element_text(hjust=0)
+    )
+    
+```
+
+
+# CCCM Impact data
+
+## All CCCM Impact Data - all regions
+````{r}
+
+tar_load(cccm_flood_impact_data_w_coords$num_shelters_affected)
+
+cccm_flood_impact_data_w_coords$date_of_episode %>% range()
+cccm_flood_impact_data %>% 
+    filter(year(date_of_episode)==2021) %>% 
+    pull(date_of_episode) %>% 
+    range()
+
+df_cccm_monthly <- cccm_flood_impact_data  %>% 
+    mutate(
+        mo_incident = month(date_of_episode,label=T),
+        type="prev"
+    ) %>% 
+    group_by(mo_incident) %>% 
+    summarise(
+        sum = sum(num_shelters_affected,na.rm=T),
+        .groups="drop"
+    ) 
+
+df_cccm_yrmo <- cccm_flood_impact_data  %>% 
+    mutate(
+        mo_incident = month(date_of_episode,label=T),
+        yr_incident = year(date_of_episode),
+        type="prev"
+    ) %>% 
+    group_by(yr_incident,mo_incident) %>% 
+    summarise(
+        sum = sum(num_shelters_affected,na.rm=T),
+        .groups="drop"
+    ) 
+```
+
+
+### By Month
+```{r}
+df_cccm_monthly%>% 
+    ggplot(
+        aes(x= mo_incident, y=sum)
+    )+
+    geom_bar(stat="identity")+
+    geom_text(aes(label=sum),nudge_y = 400)+
+    scale_y_continuous(
+        breaks = seq(0,25000,2500),
+        limits=c(0,22000),
+        expand = expansion(0, 0)
+        )+
+    labs(
+        y= "Total Shelters Affected",
+        title = "CCCCM Incident Data",
+        subtitle = "June 2021 - Sep 2022"
+        
+    )+
+    theme(
+        axis.title.x = element_blank(),
+        
+    )
+```
+
+
+
+### By Year    
+```{r}    
+df_cccm_yrmo %>% 
+    ggplot(
+        aes(x= mo_incident, y=sum, fill=as_factor(yr_incident))
+    )+
+    geom_bar(stat="identity", position="dodge")+
+
+    scale_y_continuous(
+        breaks = seq(0,25000,2500),
+        limits=c(0,22000),
+        expand = expansion(0, 0)
+        )+
+    labs(
+        y= "Total Shelters Affected",
+        title = "CCCCM Incident Data",
+        subtitle = "June 2021 - Sep 2022"
+    )+
+    theme(
+        axis.title.x = element_blank(),
+        legend.title  = element_blank()
+    )
+```
+
+
+```{r}
+high_risk_site_pts
+tar_load(high_risk_site_pts)
+
+high_risk_site_pts %>% 
+    st_drop_geometry() %>% 
+    count(governorate_name)
+
+high_risk_site_pts %>% 
+    st_drop_geometry() %>% 
+    filter(governorate_name %in% c("Hajjah","Marib")) %>% 
+    count(district_name)
+
+high_risk_sites_3_districts <- high_risk_site_pts %>% 
+    # this site is way out west - and has the wrong admin
+    # in the flood report db
+    filter(
+        !site_id=="YE1806_1728",
+        governorate_name %in% c("Hajjah","Marib"),
+        district_name %in% c("Abs","Marib","Marib City")
+        ) 
+high_risk_sites_2_gov <- high_risk_site_pts %>% 
+    # this site is way out west - and has the wrong admin
+    # in the flood report db
+    filter(
+        !site_id=="YE1806_1728",
+        governorate_name %in% c("Hajjah","Marib"),
+        ) 
+
+
+df_cccm_high_risk_aoi <- cccm_flood_impact_data %>% 
+    filter(
+        site_id %in% high_risk_sites_3_districts$site_id
+    )
+
+df_cccm_high_risk_gov <- cccm_flood_impact_data %>% 
+    filter(
+        site_id %in% high_risk_sites_2_gov$site_id
+    ) 
+    
+
+
+df_cccm_high_risk_aoi %>% 
+    mutate(
+        yrmo= floor_date(date_of_episode,"month")
+    ) %>% 
+    group_by(yrmo) %>% 
+    summarise(
+        num_shelters_affected= sum(num_shelters_affected)
+    ) %>% 
+    ggplot(aes(x=yrmo,y=num_shelters_affected))+
+    geom_point()
+df_cccm_high_risk_gov %>% 
+    ggplot(aes(x=date_of_episode,y=num_shelters_affected))+
+    geom_point()
+
+
+df_cccm_high_risk_aoi %>% 
+    mutate(
+        mo_incident = month(date_of_episode,label=T),
+        type="prev"
+    ) %>% 
+    group_by(mo_incident) %>% 
+    summarise(
+        sum = sum(num_shelters_affected,na.rm=T),
+        .groups="drop"
+    ) %>% 
+    complete(mo_incident,fill = list(sum=0)) %>% 
+     ggplot(
+        aes(x= mo_incident, y=sum)
+    )+
+    geom_bar(stat="identity")+
+    # geom_text(aes(label=ifelse(sum==0,NA,sum)),nudge_y = 400)+
+    scale_y_continuous(
+        breaks = seq(0,10000,500),
+        limits=c(0,10000),
+        expand = expansion(0, 0)
+        )+
+    labs(
+        y= "Total Shelters Affected",
+        title = "Yemen - CCCCM Incident Data - high risk sites in pilot area",
+        subtitle = "June 2021 - Sep 2022"
+    )+
+    theme(
+        axis.title.x = element_blank(),
+        
+    )
+```
+
+```{r}
+
+df_cccm_high_risk_aoi  %>% 
+    mutate(
+        mo_incident = month(date_of_episode,label=T),
+        yr_incident = year(date_of_episode),
+        type="prev"
+    ) %>% 
+    group_by(yr_incident,mo_incident) %>% 
+    summarise(
+        sum = sum(num_shelters_affected,na.rm=T),
+        .groups="drop"
+    ) %>% 
+    complete(yr_incident,mo_incident) %>% 
+    ggplot(
+        aes(x= mo_incident, y=sum, fill=as_factor(yr_incident))
+    )+
+    geom_bar(stat="identity", position="dodge")+
+
+    scale_y_continuous(
+        breaks = seq(0,10000,500),
+        limits=c(0,10000),
+        expand = expansion(0, 0)
+        )+
+    labs(
+        y= "Total Shelters Affected",
+        title = "CCCCM Incident Data",
+        subtitle = "June 2021 - Sep 2022"
+    )+
+    theme(
+        axis.title.x = element_blank(),
+        legend.title  = element_blank()
+    )
+```
+
+
+
+```{r}
+df_cccm23$date_of_incident %>% range()
+
+df_prev_curr <- cccm_flood_impact_data %>% 
+    mutate(
+        mo_incident = month(date_of_episode,label=T),
+        type="prev"
+    ) %>% 
+    select(date=date_of_episode,
+           mo_incident,
+           num_shelters= num_shelters_affected,
+           site_id,
+           type,
+           governorate_name,
+           district_name
+           
+           ) %>% 
+
+    filter(site_id %in% high_risk_site_pts$site_id) %>% 
+    bind_rows(
+        df_cccm23 %>% 
+            mutate(
+                date= date_of_incident,
+                mo_incident = month(date_of_incident,label=T),
+                num_shelters= number_of_shelters_fully_destroyed +number_of_shelters_partially_destroyed,
+                site_id=cccm_idp_sites_master_list_site_id,
+                type="cur"
+                
+            ) %>% 
+            select(date,mo_incident,num_shelters,site_id,type,governorate_name,district_name) %>% 
+            filter(site_id %in% high_risk_site_pts$site_id) 
+        
+    ) 
+
+df_prev_curr %>% 
+    # count(type)
+    ggplot(aes(x=mo_incident,y= num_shelters, fill=type,color=type))+
+    geom_boxplot()+
+    geom_point(alpha=0.3)+
+    coord_flip()
+
+df_prev_curr %>% 
+    distinct(district_name) %>% 
+    arrange(district_name) %>% 
+    print(n=nrow(.))
+    
+df_prev_curr_filt <- df_prev_curr %>% 
+    filter(district_name %in% c("Marib","Marib City","Abs")) 
+df_prev_curr_filt %>% 
+    group_by(year = as_factor(year(date)),mo_incident) %>% 
+    summarise(
+        num_shelters= sum(num_shelters,na.rm=T)
+    ) %>% 
+    ggplot(aes(x= mo_incident,y=num_shelters,color=year))+
+    geom_point()+
+    coord_flip()
+
+df_prev_curr_filt %>% 
+    group_by(year= as_factor(year(date)),governorate_name, site_id) %>% 
+    summarise(
+        num_shelters=sum(num_shelters),.groups='drop'
+    ) %>% 
+    ggplot(aes(x=site_id, y= num_shelters, color=year))+
+    geom_point()+
+    scale_y_continuous(
+        labels = label_comma()
+        )+
+    coord_flip()+
+    facet_wrap(~governorate_name,scales = "free_y")+
+    labs(title= "Shelters Affected by Year",
+         subtitle = "Yemen: CCCM Incident Reporting DB (2023 - Aug")+
+    theme(
+        axis.title.x = element_blank()
+    )
+
+```
