@@ -107,8 +107,7 @@ if(!is.null(gefs_processed)){
         envir = parent.frame()
     ) %>%
         smtp_send(
-            # to = email_to,
-            to = "zachary.arno@un.org",
+            to = email_to,
             from = "data.science@humdata.org",
             subject = email_subj,
             credentials = email_creds
