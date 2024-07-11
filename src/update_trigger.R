@@ -48,7 +48,8 @@ aoi <- read_rds(f)
 # will use output object in memory for next processing steps
 # but raster tifs and zonal stats are also written to gdrive.
 
-date_to_run <- Sys.Date()-1 #temp chg to get data from yesterday
+date_to_run <- Sys.Date()
+is_post_monitoring <- ifelse(year(date_to_run)>=2024,TRUE,FALSE)
 
 gefs_processed_time <- system.time(gefs_processed <- conditionally_load_latest_chirps_gefs(
         leadtime = 1:10,
@@ -80,16 +81,22 @@ if(!is.null(gefs_processed)){
         use_ssl = TRUE
     )
     
+    email_subj <- if_else(
+        is_post_monitoring,
+        paste0("Post Monitoring: Yemen AA Rainfall Forecast Monitoring", dt_made_chr),
+        paste0("Email Test: Yemen AA Rainfall Forecast Monitoring", dt_made_chr),
+        
+    )
     
-    # load in recipients
-    
+    email_to_col <- ifelse(is_post_monitoring,"to_post","to")
     receps_drive <- drive_get(id = "10PkgaVJZhJIjoOd_31P55UWcRcZzS0Zo")
     drive_download(receps_drive, path = f <- tempfile(fileext = ".csv"))
-    df_recipients <- read_csv(f) %>% 
+    email_to <- read_csv(f) %>% 
         # mutate(
         #     to = ifelse(str_detect(email_address,"zac"),T,F)
         # ) %>%
-        filter(to)
+        filter(!!sym(email_to_col)) |> 
+        pull(email_address)
     
     render_email(
         input = file.path(
@@ -100,10 +107,9 @@ if(!is.null(gefs_processed)){
         envir = parent.frame()
     ) %>%
         smtp_send(
-            to = df_recipients$email_address,
-            # bcc = filter(df_recipients, !to)$email,
+            to = email_to,
             from = "data.science@humdata.org",
-            subject = paste0("Email Test: Yemen AA Rainfall Forecast Monitoring", dt_made_chr),
+            subject = email_subj,
             credentials = email_creds
         )
 }

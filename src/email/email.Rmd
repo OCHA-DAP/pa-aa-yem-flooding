@@ -123,9 +123,11 @@ if (nrow(trig_status_df) > 0) {
 }
 
 desc_txt <- str_trim(glue_collapse(c(pre_txt, where_txt, spec_txt), sep = " "))
+email_title <- "Yemen Rainfall Forecast Monitoring"
+email_title <- if_else(is_post_monitoring,paste0(email_title," (Post-Monitoring)"),email_title)
 ```
 
-# Yemen Rainfall Forecast Monitoring
+# `r email_title`
 
 ## Anticipatory Action Flooding Trigger Status - `r dt_made_chr`
 
@@ -196,7 +198,9 @@ add_ggplot_custom(
 )
 ```
 
-**Forecast data source:** [CHIRPS-GEFS](https://chc.ucsb.edu/data/chirps-gefs) Precipitation Forecasts https://doi.org/10.15780/G2PH2M (2021). Data was accessed on `r Sys.Date()`. 
+**Forecast data source:** [CHIRPS-GEFS](https://chc.ucsb.edu/data/chirps-gefs) Precipitation Forecasts https://doi.org/10.15780/G2PH2M (2021). 
+
+Data was accessed on `r Sys.Date()`. 
 
 ----
 
