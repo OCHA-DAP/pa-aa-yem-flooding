@@ -79,6 +79,7 @@ trig_status_df <- thresholds %>%
   imap_dfr(\(num, gov){
     # by gov filter rows > thresh
     df_gte <- chirps_gefs_processed %>%
+        filter(leadtime %in% 1:7) |> 
       # for txt later
       mutate(
         gov_amt = glue("{governorate_name} ({cumu_3day_mm} mm)")
