@@ -1,0 +1,242 @@
+---
+title: "historical_table"
+format: html
+editor: visual
+---
+
+## Quarto
+
+
+RP threshold calculations taken from script `exploration/11_new_AOI_investigations.qmd`
+```{r}
+library(targets)
+library(tidyverse)
+library(gt)
+library(extRemes)
+
+box::use(./src_historical/blob)
+source("R/tar_return_periods.R")
+
+
+bc <- blob$load_proj_containers()
+
+# targets created using chirps-gefs and new aoi (zonal stast)
+tar_load(gefs_zonal_districts_rolled)
+tar_load(gefs_zonal_rolled)
+tar_load(zonal_stats_high_risk_district_hull)
+tar_load(zonal_stats_high_risk_hull)
+
+
+new_gefs_rps <- gefs_zonal_districts_rolled %>%
+    filter(name == "roll3") %>%
+    filter(
+        !leadtime %in% c(1:2), # rm lt 1-2 since they don't exist in 3-day rolling sum
+        year(date_forecast_predict) != 2023, # rm 2023 since not complete
+        year(date_forecast_predict) != 2020, # rm 2023 since incomplete data
+    ) %>%
+    mutate(
+        gov_lt = paste0(governorate_name, "_", leadtime)
+    ) %>%
+    # calculate RP levels for each gov separately
+    split(.$gov_lt) %>%
+    imap_dfr(\(df_temp, nm){
+        # cat(nm,"/n")
+        return_period_level_tibble(
+            df = df_temp,
+            date = "date_forecast_predict",
+            value = "value",
+            rp_year = c(2, 3, 4, 5)
+        ) %>%
+            mutate(gov_lt = nm) %>%
+            separate(col = gov_lt, into = c("governorate_name", "leadtime"))
+    })
+
+# same as above - but for old AOI
+old_gefs_rps <- gefs_zonal_rolled %>%
+    filter(name == "roll3") %>%
+    filter(
+        !leadtime %in% c(1:2),
+        year(date_forecast_predict) != 2023,
+        year(date_forecast_predict) != 2020,
+    ) %>%
+    mutate(
+        gov_lt = paste0(governorate_name, "_", leadtime)
+    ) %>%
+    split(.$gov_lt) %>%
+    imap_dfr(\(df_temp, nm){
+        # cat(nm,"/n")
+        return_period_level_tibble(
+            df = df_temp,
+            date = "date_forecast_predict",
+            value = "value",
+            rp_year = c(2, 3, 4, 5)
+        ) %>%
+            mutate(gov_lt = nm) %>%
+            separate(col = gov_lt, into = c("governorate_name", "leadtime"))
+    })
+```
+
+
+```{r}
+# we already calculate CHIRPS historical RPs for 1988-2022
+# but let's filter it first in the same manner as CHIRPS-GEFS so we can
+# better compare the 2
+
+# get chirps RP for each area (using new AOI)
+new_chirps_2000_2022_rp <- zonal_stats_high_risk_district_hull$roll3 %>%
+    filter(year(date) %in% c(2000:2022)) %>%
+    filter(year(date) != 2021) %>%
+    split(.$governorate_name) %>%
+    imap_dfr(\(df_temp, nm){
+        # cat(nm,"/n")
+        return_period_level_tibble(
+            df = df_temp,
+            date = "date",
+            value = "mean",
+            rp_year = c(2, 3, 4, 5)
+        ) %>%
+            mutate(governorate_name = nm)
+    })
+
+# same as above using old AOI
+old_chirps_2000_2022_rp <- zonal_stats_high_risk_hull$roll3 %>%
+    filter(year(date) %in% c(2000:2022)) %>%
+    filter(year(date) != 2021) %>%
+    split(.$governorate_name) %>%
+    imap_dfr(\(df_temp, nm){
+        # cat(nm,"/n")
+        return_period_level_tibble(
+            df = df_temp,
+            date = "date",
+            value = "mean",
+            rp_year = c(2, 3, 4, 5)
+        ) %>%
+            mutate(governorate_name = nm)
+    })
+```
+
+More explanation in [Internal Technical Note](https://docs.google.com/document/d/1pf3tlQZ-QSb59fEEPextxUpWxy68spKyIUu4VWL8L4s/edit#heading=h.ieffsjdjd8lt). but briefly as I recall at some point we changed the AOI geography to be smaller. Therefore in final trigger design we calculated two sets of RP values for each governorate and took the more conservative/minimum value.
+
+```{r}
+# for old AOI
+old_gefs_mean_rp <- old_gefs_rps %>%
+    filter(
+        RP == 2,
+        # only used RPS 3-7
+        leadtime %in% c(3:7)
+    ) %>%
+    group_by(governorate_name) %>%
+    summarise(
+        `previous 2 year RP` = mean(estimate)
+    )
+
+# same but for new AOI
+new_gefs_mean_rp <- new_gefs_rps %>%
+    filter(
+        RP == 2,
+        leadtime %in% c(3:7)
+    ) %>%
+    group_by(governorate_name) %>%
+    summarise(
+        `new 2 year RP` = mean(estimate)
+    )
+
+
+# tab_header title explains it all
+left_join(old_gefs_mean_rp, new_gefs_mean_rp) %>%
+    gt() %>%
+    fmt_number(
+        columns = everything(),
+        decimals = 1
+    ) %>%
+    tab_header(
+        title = "2 year RP level CHIRPS-GEFS (2000-2022) by governorate",
+        subtitle = "Old method (all gov) vs new method (3 districts)"
+    ) %>%
+    opt_align_table_header(align = c("left", "center", "right"))
+```
+
+## Historical Analysis
+
+```{r}
+
+df_historicical <- gefs_zonal_districts_rolled |> 
+    filter(leadtime %in% 3:7,name == "roll3")
+
+df_historical_classified <- df_historicical |> 
+    mutate(
+        yr_date = floor_date(date_forecast_made,"year"),
+        yr_month = floor_date(date_forecast_made,"month"),
+        threshold = if_else(governorate_name == "Hajjah", 24,20)
+    ) |> 
+    filter(
+        month(date_forecast_made) %in% c(4:9)
+    ) |> 
+    mutate(
+        flag = value>= threshold
+    ) 
+
+
+df_historical_activations_monthly <- df_historical_classified |> 
+    group_by(governorate_name, yr_month) |> 
+    summarise(
+        flag = any(flag),.groups = "drop"
+    ) |> 
+    pivot_wider(
+        names_from = governorate_name,
+        names_glue = "Yemen ({governorate_name})",
+        values_from = flag
+    )
+
+
+df_historical_activations_yearly <- df_historical_classified |> 
+    group_by(governorate_name,yr_date) |> 
+    summarise(
+        flag = any(flag),.groups= "drop"
+    ) |> 
+    pivot_wider(
+        names_from = governorate_name,
+        names_glue = "Yemen ({governorate_name})",
+        values_from = flag
+    )
+
+
+```
+
+
+Write to blob for Financial exposure analysis
+
+```{r}
+
+
+list(
+    "monthly/yem_aa_historical_monthly.csv" = df_historical_activations_monthly,
+    "yearly/yem_aa_historical_yearly.csv" = df_historical_activations_yearly
+) |> 
+    iwalk(
+        \(dft,fp){
+        write_csv( 
+            dft,
+            file = td <- tempfile(fileext = ".csv")
+            )
+        
+        AzureStor$upload_blob(
+            container = bc$PROJECTS_CONT,
+            src = td,
+            dest = paste0("ds-aa-cerf-global-trigger-allocations/aa_historical/",fp)
+        )
+        }
+    )
+
+AzureStor$download_blob(
+    container = bc$PROJECTS_CONT,
+    src = "ds-aa-cerf-global-trigger-allocations/df_cadc_historical_classified.parquet",
+    dest = tf <-  tempfile(fileext = ".parquet")
+)
+
+df <- arrow$read_parquet(tf)
+
+```
+
+
+
