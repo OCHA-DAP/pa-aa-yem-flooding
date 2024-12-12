@@ -29,11 +29,11 @@ The following data sets were  assessed in the development of the trigger:
 
 - CCCM flood report data (2021-2022) - from Yemen CCCM cluster
 - Rainfall (observed)
-    + CHIRPS
-    + ERA5
+    + [CHIRPS](https://www.chc.ucsb.edu/data/chirps)
+    + [ERA5](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=overview)
 - Rainfall (forecast)
-    + CHIRPS-GEFS
-    + ECMWF
+    + [CHIRPS-GEFS](https://chc.ucsb.edu/data/chirps-gefs)
+    + [ECMWF HRES](https://www.ecmwf.int/en/forecasts/datasets/set-i)
 - Impact data: 
     + CCCM flood report data (2021-2022) - from Yemen CCCM cluster [dashboard here](https://data.unhcr.org/es/dataviz/210)
     + [EMDAT](https://www.emdat.be/)
@@ -48,12 +48,11 @@ The code in this repository is organized as follows:
 ├── analysis      # python analytical work
 ├── docs          # .Rmd files or other relevant documentation
 ├── exploration   # Experimental work not intended to be replicated
-├─- src           # Python code to run any relevant data acquisition/processing pipelines as well as R code for GHA monitoring.
-  |-- update_trigger.R # GHA - R code sourced by github actions to run real time monitoring and email dispatch
-  |-- email       # GHA - email specific github action utility functions
+├── src           # Python code to run any relevant data acquisition/processing pipelines as well as R code for GHA monitoring.
+  ├── update_trigger.R # GHA - R code sourced by github actions to run real time monitoring and email dispatch
+  ├── email       # GHA - email specific github action utility functions
 ├── R             # R code to run any relevant data acquisition/processing pipelines
 ├── _targets      # Diretory containing data and metadata output from running of R `{targets}` pipeline
-|
 ├── .gitignore
 ├── README.md
 ├── _targets.R.   # R script containing targets pipeline
