@@ -27,7 +27,6 @@ This repo contains both `python` and `R` analyses.
 
 The following data sets were  assessed in the development of the trigger:
 
-- CCCM flood report data (2021-2022) - from Yemen CCCM cluster
 - Rainfall (observed)
     + [CHIRPS](https://www.chc.ucsb.edu/data/chirps)
     + [ERA5](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=overview)
